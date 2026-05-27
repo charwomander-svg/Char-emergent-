@@ -8,6 +8,7 @@ import {
   TextInput,
   ActivityIndicator,
   PanResponder,
+  ScrollView,
   Animated as RNAnimated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -409,22 +410,22 @@ export default function GameScreen() {
 
   const { width: screenW, height: screenH } = useWindowDimensions();
 
-  // Compute cell size to fit width and ~48% of height (leave more room for bigger controls)
+  // Compute cell size to fit width and ~42% of height (leave more room for bigger controls + power-up bar)
   // Fallback for SSR/initial render before measurement: use sensible defaults.
   const safeW = screenW || 400;
   const safeH = screenH || 800;
   const maxMazeW = safeW - 16;
-  const maxMazeH = safeH * 0.46;
+  const maxMazeH = safeH * 0.42;
   const cellSize = Math.max(
     10,
     Math.floor(Math.min(maxMazeW / MAZE_COLS, maxMazeH / MAZE_ROWS)),
   );
 
   // Dpad size: aim for bigger, use available space below the maze
-  // Buffer accounts for HUD + pellets + power-up bar + active effects + bottom bar
-  const remainingH = safeH - cellSize * MAZE_ROWS - 240;
+  // Buffer accounts for HUD (~60) + pellets bar (18) + power-up bar (~58) + active effects (~28) + bottom bar (~44) + margins (~22) ≈ 230
+  const remainingH = safeH - cellSize * MAZE_ROWS - 270;
   const dpadSize = Math.max(
-    140,
+    130,
     Math.min(
       (safeW - 32) / 2 - 4,
       remainingH / 2 - 4,
@@ -764,8 +765,14 @@ export default function GameScreen() {
         </View>
       )}
 
-      {/* Power-up bar */}
-      <View style={styles.powerBar} testID="power-bar">
+      {/* Power-up bar (horizontally scrollable so 11 items don't wrap) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.powerBar}
+        contentContainerStyle={styles.powerBarContent}
+        testID="power-bar"
+      >
         {POWER_UP_ORDER.map((id) => {
           const def = POWER_UPS[id];
           const count = inventory[id] ?? 0;
@@ -787,7 +794,7 @@ export default function GameScreen() {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
       {powerUpFlash && (
         <Text style={styles.powerFlash} testID="power-flash">
           {powerUpFlash}
@@ -1064,20 +1071,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   powerBar: {
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 6,
+    width: "100%",
+    maxHeight: 58,
     backgroundColor: "#0a0a18",
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: COLORS.uiBorder,
-    flexWrap: "wrap",
-    gap: 4,
+    flexGrow: 0,
+  },
+  powerBarContent: {
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 6,
   },
   powerSlot: {
-    minWidth: 40,
+    minWidth: 44,
     height: 44,
     backgroundColor: COLORS.uiPanel,
     borderRadius: 8,

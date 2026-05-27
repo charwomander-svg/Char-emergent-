@@ -1,9 +1,9 @@
 # Ghost Maze - Product Requirements Document
 
 ## Overview
-**Ghost Maze** is a reverse Pac-Man mobile game built with Expo/React Native. The player controls all 4 ghosts simultaneously to chase and catch Pellet Guy through randomized mazes. Now features online leaderboards, daily challenges, friend invites, custom seeds, gamepad support, and bundled native audio.
+**Ghost Maze** is a reverse Pac-Man mobile game built with Expo/React Native. The player controls all 4 ghosts simultaneously to chase and catch Pellet Guy through randomized mazes. Now features online leaderboards, daily challenges, friend invites, custom seeds, gamepad support, bundled native audio, **dual-currency economy with Stripe microtransactions**, and **11 strategic power-ups**.
 
-## Implemented Features (v4.0)
+## Implemented Features (v5.0)
 
 ### Phase 1 — MVP (13 tests)
 Maze gen, 4 ghosts, individual control, catches/lives/scoring.
@@ -13,6 +13,12 @@ Smooth animation, sounds + music, traps & barricades, character unlocks, smarter
 
 ### Phase 3 — Network (24 tests)
 Daily challenge, leaderboard, score submission, ghost-house stagger, particle effects, swipe gestures.
+
+### Phase 5 — Economy & Monetization (v5.0)
+- **Dual-currency economy**: Persistent Ghost Coin wallet (AsyncStorage-backed). Coins earned via pellets (+1), super pellets (+5), catches (+25), level clears (+50), perfect runs (+100). Lifetime stats tracked.
+- **11 power-ups**: Speed Boost, Teleport, Freeze, Shield, Fast Respawn, Pellet Scatter, Key (open barricades), Magnet, Reveal, Decoy, Quick Revive. Activated in-game from horizontal-scroll bar; consume one charge on use. Engine applies effects (timers, shields, AI reactions).
+- **Stripe Microtransactions (NO ADS)**: 4 coin packs — $0.99/100, $2.99/400 (POPULAR), $4.99/1000 (BEST VALUE), $9.99/2500 (MEGA DEAL). Hosted Stripe Checkout via `/api/checkout/session`, idempotent server-side fulfillment via `/api/checkout/session/{id}` polling + optional webhook at `/api/checkout/webhook`. Single-player UUID `player_id` stored locally (no accounts).
+- **In-app routing**: `/shop` (coin packs + power-ups), `/checkout/success` (polling + coin grant), `/checkout/cancel`. Player ID generated once and persisted via `getPlayerId()`.
 
 ### Phase 4 — Native + Social
 - **Native bundled audio**: 10 procedurally-generated WAV files (~140KB total) for chomp/pellet/super/catch/combo/ghost_eaten/death/win/lose/ui_click. Plays on iOS, Android, and Web via `expo-audio` with a 3-deep player pool per SFX (rapid retriggers don't cut off). Web Audio API kept for the live chiptune music loop (smaller than a bundled MP3).

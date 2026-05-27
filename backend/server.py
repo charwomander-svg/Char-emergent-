@@ -11,6 +11,8 @@ from typing import List, Optional, Literal
 import uuid
 from datetime import datetime, timezone, date
 
+from payments import get_router as get_payments_router, init_stripe
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -158,6 +160,11 @@ async def leaderboard(
 
 
 app.include_router(api_router)
+
+# Stripe payments router (Coin pack purchases)
+init_stripe()
+payments_router = get_payments_router(db)
+app.include_router(payments_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
