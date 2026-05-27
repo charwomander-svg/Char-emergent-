@@ -14,6 +14,17 @@ Smooth animation, sounds + music, traps & barricades, character unlocks, smarter
 ### Phase 3 — Network (24 tests)
 Daily challenge, leaderboard, score submission, ghost-house stagger, particle effects, swipe gestures.
 
+### Phase 6 — Boss Fights (v6.0)
+- **Boss levels every 5 levels** (5, 10, 15, …): Pellet Guy becomes the "Boss" with **3 HP** displayed as a red bar replacing the pellets bar.
+- **3 phases** keyed off remaining HP:
+  - **Phase 1 — AWAKENED** (HP 3/3): 1.15× sprite, warm orange aura, 0.95× tick interval (slightly faster).
+  - **Phase 2 — FURIOUS** (HP 2/3): 1.3× sprite, hot-pink aura, 0.85× speed, **teleports** to a random faraway pellet every ~9s.
+  - **Phase 3 — FINAL FORM** (HP 1/3): 1.6× sprite, furious red pulsing aura, 0.75× speed, faster teleport cooldown (~6s), AND periodic **lunges** (1.2s windows) where touching ghosts get destroyed regardless of vulnerable state.
+- **Each catch deals 1 HP and triggers an HP-pulse message** showing the new phase title.
+- **On boss defeat**: Level cleared with **+2000 score + 500 🪙 bonus** plus an "⭐ BOSS DEFEATED ⭐" screen.
+- **Rendering**: New `BossAuraSprite` (pulsing animated halo) + `visualScale` prop on PelletGuySprite so the sprite grows by phase.
+- **Code organization**: All boss logic isolated in `/app/frontend/src/game/boss.ts` (~170 lines) — keeps `useGhostMaze.ts` focused on the arcade core. Engine hooks into `applyBossHit`, `maybeBossTeleport`, `maybeBossLunge`, `bossIsLunging`, `bossSpeedScale`.
+
 ### Phase 5 — Economy & Monetization (v5.0)
 - **Dual-currency economy**: Persistent Ghost Coin wallet (AsyncStorage-backed). Coins earned via pellets (+1), super pellets (+5), catches (+25), level clears (+50), perfect runs (+100). Lifetime stats tracked.
 - **11 power-ups**: Speed Boost, Teleport, Freeze, Shield, Fast Respawn, Pellet Scatter, Key (open barricades), Magnet, Reveal, Decoy, Quick Revive. Activated in-game from horizontal-scroll bar; consume one charge on use. Engine applies effects (timers, shields, AI reactions).

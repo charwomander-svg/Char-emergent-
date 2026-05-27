@@ -39,6 +39,16 @@ import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
 import type { PowerUpId } from "./powerups";
 import { COIN_REWARD } from "./economy";
 import type { ActiveEffects } from "./types";
+import {
+  isBossLevel,
+  createBoss,
+  applyBossHit,
+  bossSpeedScale,
+  maybeBossTeleport,
+  maybeBossLunge,
+  bossIsLunging,
+  BOSS_REWARDS,
+} from "./boss";
 
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
@@ -95,6 +105,8 @@ function buildInitialState(
     level,
     daily?.seed,
   );
+  const bossActive = isBossLevel(level);
+  const now = performance.now();
   return {
     status: "ready",
     level,
@@ -108,11 +120,16 @@ function buildInitialState(
     pelletGuy: createInitialPelletGuy(pelletGuySpawn),
     lastComboTime: 0,
     comboCount: 0,
-    message: daily ? `DAILY ${daily.seedDate}` : `LEVEL ${level}`,
+    message: bossActive
+      ? `⚠️ BOSS LEVEL ${level} ⚠️\nBIG PELLET GUY!`
+      : daily
+        ? `DAILY ${daily.seedDate}`
+        : `LEVEL ${level}`,
     selectedGhostId: 0,
     barricades: [],
     ghostDeathsThisLevel: 0,
     effects: { ...EMPTY_EFFECTS },
+    boss: bossActive ? createBoss(now) : null,
   };
 }
 
@@ -271,7 +288,9 @@ export function useGhostMaze(opts?: {
     const ghostSpeedMult = speedBoostActive ? 0.6 : 1.0;
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
-    const pgInterval = SPEED.pelletGuy * scale;
+    // Boss makes Pellet Guy faster (smaller interval) in later phases.
+    const pgBossScale = prev.boss ? bossSpeedScale(prev.boss) : 1.0;
+    const pgInterval = SPEED.pelletGuy * scale * pgBossScale;
 
     let nextState: GameState = prev;
     let mutated = false;
@@ -353,6 +372,8 @@ export function useGhostMaze(opts?: {
     let score = prev.score;
     let barricades = prev.barricades;
     let ghostDeathsThisLevel = prev.ghostDeathsThisLevel;
+    // Boss state evolves over the tick — phases, teleport timers, lunge windows.
+    let boss = prev.boss;
 
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
@@ -367,6 +388,25 @@ export function useGhostMaze(opts?: {
         mutated = true;
       }
     } else if (!freezeActive && now - lastPelletGuyMoveRef.current >= pgInterval) {
+      // -----------------------------------------------------------------
+      // Boss mechanics that fire BEFORE normal movement (so the teleport
+      // is reflected on the same tick).
+      // -----------------------------------------------------------------
+      if (boss) {
+        // Phase >= 2: teleport to a far-away pellet on cooldown.
+        const tp = maybeBossTeleport(boss, maze, now, pg.x, pg.y);
+        if (tp) {
+          pg = { ...pg, x: tp.x, y: tp.y, direction: pg.direction };
+          boss = { ...boss, nextTeleportAt: tp.nextTeleportAt };
+          mutated = true;
+        }
+        // Phase 3: maybe trigger a 1.2-second "lunge".
+        const lunge = maybeBossLunge(boss, now);
+        if (lunge) {
+          boss = { ...boss, ...lunge };
+          mutated = true;
+        }
+      }
       lastPelletGuyMoveRef.current = now;
 
       const pgPrevX = pg.x;
@@ -550,6 +590,34 @@ export function useGhostMaze(opts?: {
         const g = newGhosts[i];
         if (!g.alive) continue;
         if (g.x === pg.x && g.y === pg.y) {
+          // -------------------------------------------------------------
+          // BOSS LUNGE: in phase 3, if Pellet Guy is currently lunging
+          // (a brief window after a dash) he eats ANY ghost on contact —
+          // even an invulnerable, non-vulnerable ghost. Shield still
+          // absorbs one hit though.
+          // -------------------------------------------------------------
+          if (bossIsLunging(boss, now)) {
+            if (effectsNext.shieldGhostId === g.id) {
+              effectsNext = { ...effectsNext, shieldGhostId: null };
+              getSoundEngine().uiClick();
+              mutated = true;
+              continue;
+            }
+            const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
+            ghostDeathsThisLevel++;
+            newGhosts[i] = {
+              ...g,
+              alive: false,
+              respawnAt: now + delay,
+              vulnerable: false,
+              vulnerableUntil: 0,
+            };
+            score += SCORE_SPIKED_GHOST_PENALTY; // same penalty as a spike
+            getSoundEngine().ghostEaten();
+            mutated = true;
+            continue;
+          }
+
           if (g.vulnerable) {
             // Shield blocks one chomp
             if (effectsNext.shieldGhostId === g.id) {
@@ -573,7 +641,11 @@ export function useGhostMaze(opts?: {
             mutated = true;
             getSoundEngine().ghostEaten();
           } else {
-            // Ghost catches pellet guy!
+            // ------------------------------------------------------------
+            // Ghost catches Pellet Guy. On boss levels each catch deals
+            // 1 HP — third catch (HP=0) is treated as a level win with a
+            // big bonus.
+            // ------------------------------------------------------------
             catches++;
             let triggeredCombo = false;
             if (now - lastComboTime < COMBO_WINDOW_MS) {
@@ -600,6 +672,42 @@ export function useGhostMaze(opts?: {
             };
             mutated = true;
 
+            // ---- Boss level: apply HP damage and check defeat ----
+            if (boss) {
+              const { next: nextBoss, defeated } = applyBossHit(boss, now);
+              boss = nextBoss;
+              // Bonus coins per phase hit (in addition to the regular catch reward).
+              onCoinsEarnedRef.current?.(BOSS_REWARDS.perPhaseHitCoins, "catch");
+
+              if (defeated) {
+                // Boss defeated! Treat as level win with extra bonus.
+                score += BOSS_REWARDS.finalDefeatScore;
+                const pctRemaining = Math.round(
+                  (pelletsRemaining / Math.max(1, prev.totalPellets)) * 100,
+                );
+                status = "levelWon";
+                message = `⭐ BOSS DEFEATED! ⭐\n+${BOSS_REWARDS.finalDefeatScore} BOSS BONUS\n+${BOSS_REWARDS.finalDefeatCoins} 🪙`;
+                getSoundEngine().levelWin();
+                onCoinsEarnedRef.current?.(BOSS_REWARDS.finalDefeatCoins, "levelClear");
+
+                // Persist progress for boss clears
+                if (progressRef.current) {
+                  const p = { ...progressRef.current };
+                  p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
+                  p.totalCatches = p.totalCatches + CATCH_TO_WIN;
+                  if (pctRemaining === 100) p.perfectClears = p.perfectClears + 1;
+                  p.highScore = Math.max(p.highScore, score);
+                  progressRef.current = p;
+                  saveProgress(p);
+                }
+              } else {
+                // Phase transition — flash a quick HUD message.
+                message = `HP ${nextBoss.hp}/${nextBoss.maxHp} — ${nextBoss.title}`;
+              }
+              break;
+            }
+
+            // Non-boss level: classic 3-catch win.
             if (catches >= CATCH_TO_WIN) {
               // Level won!
               const pctRemaining = Math.round(
@@ -689,7 +797,7 @@ export function useGhostMaze(opts?: {
       mutated = true;
     }
 
-    if (mutated || status !== prev.status || effectsNext !== effects) {
+    if (mutated || status !== prev.status || effectsNext !== effects || boss !== prev.boss) {
       nextState = {
         ...prev,
         ghosts: newGhosts,
@@ -706,6 +814,7 @@ export function useGhostMaze(opts?: {
         barricades,
         ghostDeathsThisLevel,
         effects: effectsNext,
+        boss,
       };
       setState(nextState);
     }

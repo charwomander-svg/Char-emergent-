@@ -1,5 +1,7 @@
 // Game type definitions
 
+import type { BossState } from "./boss";
+
 export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 // 0 = empty path (no pellet)
 // 1 = wall
@@ -84,4 +86,8 @@ export interface GameState {
   // Each successive death increases the respawn cooldown.
   ghostDeathsThisLevel: number;
   effects: ActiveEffects;
+  // Boss state — non-null only on boss levels (every 5 levels). Drives the
+  // alternate win condition (deplete HP via 3 catches) plus phase-specific
+  // mechanics like teleport and lunge.
+  boss: BossState | null;
 }

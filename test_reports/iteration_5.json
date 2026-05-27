@@ -1,0 +1,58 @@
+{
+  "summary": "Phase 5 Ghost Maze (boss + Stripe): Backend 23/23 pytest PASSED (14 prior + 9 new payments tests in /app/backend/tests/test_payments_api.py). Frontend: main menu / boss-level-5 / non-boss-level-4 / boss-level-10 / shop all render correctly at 375x667. Stripe flow end-to-end verified — pack_small click → real https://checkout.stripe.com/c/pay/cs_test_... URL with Starter Coin Pack / US$0.99 / 100 Ghost Coins. Boss-bar testID='boss-bar' shows '⚠️ AWAKENED · HP 3/3' on levels 5 and 10; pellets-bar is replaced (not just hidden) — only one bar visible at a time. Non-boss level 4 shows 'PELLETS: 121/126' as expected. HUD shows all 6 columns (LEVEL/SCORE/COINS/CATCHES/DOWN/LIVES) without clipping; LIVES shows 3 yellow dots. All 4 D-pads (Blinky/Pinky/Inky/Clyde) show all 4 directional arrows (▲▼◀▶). Power-up bar is single-row scrollable, PAUSE/SOUND/QUIT visible at bottom. Visually, on level 5/10 Pellet Guy sprite is noticeably larger than on level 4. A faint red/pink aura is rendered around the Pellet Guy (BossAuraSprite). Backend endpoints — GET /api/checkout/packs returns exactly the 4 expected packs with correct price_cents/coins/badges (pack_small 99/100/null, pack_medium 299/400/POPULAR, pack_large 499/1000/BEST VALUE, pack_xl 999/2500/MEGA DEAL). POST /api/checkout/session returns session_id (cs_…) + https checkout_url + correct amount/coins. GET /api/checkout/session/{id} returns status='pending', coins_granted=false before payment, and 404 for unknown ids. GET /api/checkout/player/{pid}/balance returns {coins:0} for new players and >=0 for existing. Validation: bad pack_id→400; missing pack_id→422; short player_id (len<4)→422. Existing endpoints (daily-seed, scores/leaderboard, name sanitization) all still pass. No red-screen errors on any route. Only console noise is harmless audio autoplay-blocked errors (no user gesture in headless mode) and pre-existing 'shadow*' / 'props.pointerEvents' RN-Web deprecation WARNs that have been documented in prior iterations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/scores",
+        "issue": "Pre-existing from iterations 3/4: Field(max_length=16) on player_name short-circuits the sanitize_name validator's truncation branch with 422. Not Phase-5 regression; low priority."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "react-native-web (whole app)",
+        "issue": "Console floods with 'props.pointerEvents is deprecated. Use style.pointerEvents' and '\"shadow*\" style props are deprecated. Use \"boxShadow\"' WARNs on every screen. Likely coming from third-party components (expo-router / RN internals) rather than app code, but worth a sweep through /app/frontend (especially MazeRenderer.tsx shadow* styles on line ~721-724 and any explicit pointerEvents= props) to silence what we own. Reference: /var/log/supervisor/expo.err.log + /app/frontend/src/game/MazeRenderer.tsx:721-724"
+      },
+      {
+        "component": "expo-audio autoplay",
+        "issue": "On /game routes the page emits multiple 'play() failed because the user didn't interact with the document first' page errors. These are not red-screens but pollute the console and indicate sounds.ts triggers playback (e.g. ambient/UI ping) before any user gesture. Consider gating the first play() behind first onPress or catching NotAllowedError silently. Reference: /app/frontend/src/game/sounds.ts (createAudioPlayer pool)."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ghost_maze_api.py",
+    "/app/backend/tests/test_payments_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_5.json"
+  ],
+  "action_items": [
+    "(Optional) Silence RN-Web deprecation warnings: replace any 'shadow*' style props (e.g. MazeRenderer.tsx BossAuraSprite at lines 721-724) with 'boxShadow' for web, and any pointerEvents={...} prop with style={{pointerEvents:'none'}}.",
+    "(Optional) Wrap audio player.play() in a try/catch that swallows DOMException 'NotAllowedError' on web, or defer first play to the first onPress/onClick. Currently the autoplay error is fired ~10x on /game route load.",
+    "(Optional, carried over) ScoreSubmission.mode Literal['classic','daily'] still excludes 'custom'; if a user finishes a custom-seed run and clicks SUBMIT SCORE, backend will 422. Either add 'custom' to the Literal (and filter from default leaderboards) or hide the submit-score-box on custom runs.",
+    "(Optional, carried over) Pre-existing player_name Field(max_length=16) vs sanitize_name truncation inconsistency."
+  ],
+  "critical_code_review_comments": [
+    "BossAuraSprite (MazeRenderer.tsx:660-729) lacks a testID; if the main agent ever wants to assert aura visibility automatically, add e.g. testID='boss-aura' on the outer Animated.View. Not blocking — visually verified on level 5 and level 10.",
+    "payments.py:_fulfill_session uses upsert + status-transition filter for idempotency — correct. modified_count>0 OR upserted_id detection of credit transition is robust against concurrent poll+webhook. Good.",
+    "payments.py:create_checkout_session does NOT enforce CreateCheckoutRequest.success_origin against an allow-list; an attacker controlling player_id could request arbitrary success_origin and produce a phishing-looking Stripe page. Low risk because Stripe URL itself is fine — but consider validating origin matches preview host or EXPO_PUBLIC_BACKEND_URL.",
+    "server.py:165-167 init_stripe() is called at import time, before app.include_router — fine, but logs a warning if STRIPE_API_KEY missing rather than failing fast. In production you may want a startup assertion.",
+    "boss.ts is_boss_level / isBossLevel(level): every multiple of 5 is a boss level (5,10,15,…). Confirmed both 5 and 10 trigger the boss bar."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_payments_api.py (NEW — 9 tests for Stripe coin-pack endpoints)"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23 pytest tests passed: 14 ghost-maze + 9 payments)",
+    "frontend": "100% (main menu, /game levels 4/5/10, /shop, Stripe redirect — all verified at 375x667)"
+  },
+  "seed_data_creation": "Pytest run created TEST_-prefixed entries in MongoDB scores collection (same pattern as prior iterations) and one pending purchase doc per test_create_session_returns_stripe_url run in db.purchases. Player 'test-player-uuid-123' balance was 100 (from prior session). New player UUIDs in db.players also created for balance test. Safe to bulk-delete scores WHERE player_name LIKE 'TEST_%' and purchases WHERE player_id LIKE 'test-uuid-%'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 5 features (boss fights every 5 levels + Stripe coin packs) are fully working end-to-end on https://four-ghost-chase.preview.emergentagent.com. Boss detection uses isBossLevel(level) in /app/frontend/src/game/boss.ts → multiples of 5. testIDs to know: boss-bar, boss-text (on boss levels only), pellets-bar/pellets-text (on non-boss only), hud-level/score/coins/catches/deaths, ghost-{id}-up/down/left/right for all 4 ghosts (id ∈ blinky/pinky/inky/clyde). Shop testIDs: pack-pack_small / pack-pack_medium / pack-pack_large / pack-pack_xl, plus coin-balance and back-btn. Stripe backend uses STRIPE_API_KEY=sk_test_emergent → routed via https://integrations.emergentagent.com/stripe (set up in payments.init_stripe()). Test card: 4242 4242 4242 4242, any future expiry, any CVC. To verify boss aura visibility automatically you'd need a testID added to BossAuraSprite (currently absent). Console noise (pointerEvents/shadow* deprecation + audio autoplay-NotAllowedError) is harmless but cosmetic. No regression to the recently-fixed game layout — D-pads/HUD/power-bar/controls all visible at 360x640 and 375x667.",
+  "rca_of_issue": "No new bug found this iteration. Only optional polish items (RN-Web deprecation warnings + audio autoplay errors)."
+}

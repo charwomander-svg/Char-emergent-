@@ -524,24 +524,52 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Pellets bar */}
-      <View style={styles.pelletsBar} testID="pellets-bar">
+      {/* Pellets / Boss HP bar */}
+      {state.boss ? (
         <View
           style={[
-            styles.pelletsFill,
-            {
-              width: `${
-                state.totalPellets > 0
-                  ? Math.round((state.pelletsRemaining / state.totalPellets) * 100)
-                  : 0
-              }%`,
-            },
+            styles.pelletsBar,
+            { backgroundColor: "#1a0511", borderColor: "#FF477E" },
           ]}
-        />
-        <Text style={styles.pelletsText} testID="pellets-text">
-          PELLETS: {state.pelletsRemaining}/{state.totalPellets}
-        </Text>
-      </View>
+          testID="boss-bar"
+        >
+          <View
+            style={[
+              styles.pelletsFill,
+              {
+                width: `${(state.boss.hp / state.boss.maxHp) * 100}%`,
+                backgroundColor:
+                  state.boss.phase === 3
+                    ? "#FF2233"
+                    : state.boss.phase === 2
+                      ? "#FF477E"
+                      : "#FF9D6A",
+              },
+            ]}
+          />
+          <Text style={[styles.pelletsText, { color: "#FFFFFF" }]} testID="boss-text">
+            ⚠️ {state.boss.title} · HP {state.boss.hp}/{state.boss.maxHp}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.pelletsBar} testID="pellets-bar">
+          <View
+            style={[
+              styles.pelletsFill,
+              {
+                width: `${
+                  state.totalPellets > 0
+                    ? Math.round((state.pelletsRemaining / state.totalPellets) * 100)
+                    : 0
+                }%`,
+              },
+            ]}
+          />
+          <Text style={styles.pelletsText} testID="pellets-text">
+            PELLETS: {state.pelletsRemaining}/{state.totalPellets}
+          </Text>
+        </View>
+      )}
 
       {/* Maze */}
       <View style={styles.mazeWrap} {...panResponder.panHandlers}>
@@ -553,6 +581,7 @@ export default function GameScreen() {
           selectedGhostId={state.selectedGhostId}
           ready={state.status === "ready"}
           level={state.level}
+          boss={state.boss}
         />
         {/* Floating particles */}
         {particles.map((p) => (

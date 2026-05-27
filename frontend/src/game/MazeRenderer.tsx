@@ -2,6 +2,12 @@ import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import { COLORS, SPEED } from "@/src/game/constants";
+import {
+  bossAuraColor,
+  bossVisualScale,
+  bossIsLunging,
+  type BossState,
+} from "@/src/game/boss";
 
 interface Props {
   maze: CellType[][];
@@ -11,6 +17,7 @@ interface Props {
   selectedGhostId: number;
   ready: boolean;
   level: number;
+  boss?: BossState | null;
 }
 
 // Smooth position hook — interpolates grid coords to pixel coords with
@@ -435,10 +442,12 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
   pg,
   size,
   moveDuration,
+  visualScale = 1,
 }: {
   pg: PelletGuy;
   size: number;
   moveDuration: number;
+  visualScale?: number;
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
 
@@ -507,8 +516,10 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           transform: [
             { translateX: animX },
             { translateY: animY },
+            { scale: visualScale },
           ],
           pointerEvents: "none",
+          zIndex: visualScale > 1 ? 2 : 1,
         },
       ]}
     >
@@ -564,6 +575,7 @@ export default function MazeRenderer({
   selectedGhostId,
   ready,
   level,
+  boss,
 }: Props) {
   const width = maze[0].length * cellSize;
   const height = maze.length * cellSize;
@@ -571,6 +583,11 @@ export default function MazeRenderer({
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
+
+  // Boss visuals — aura tint + sprite scale + active lunge flash.
+  const bossScale = bossVisualScale(boss ?? null);
+  const aura = bossAuraColor(boss ?? null);
+  const lunging = bossIsLunging(boss ?? null, performance.now());
 
   return (
     <View
@@ -603,7 +620,24 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        <PelletGuySprite pg={pelletGuy} size={cellSize} moveDuration={pgDuration} />
+        {/* Boss aura beneath Pellet Guy (pulses red while lunging) */}
+        {boss && aura && pelletGuy.alive && (
+          <BossAuraSprite
+            x={pelletGuy.x}
+            y={pelletGuy.y}
+            size={cellSize}
+            scale={bossScale + (lunging ? 0.25 : 0)}
+            color={aura}
+            lunging={lunging}
+            moveDuration={pgDuration}
+          />
+        )}
+        <PelletGuySprite
+          pg={pelletGuy}
+          size={cellSize}
+          moveDuration={pgDuration}
+          visualScale={bossScale}
+        />
         {ghosts.map((g) => (
           <GhostSprite
             key={g.id}
@@ -618,6 +652,81 @@ export default function MazeRenderer({
     </View>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Boss aura — a soft animated circle behind the Pellet Guy showing the phase
+// color and pulsing while a phase-3 lunge is active.
+// ---------------------------------------------------------------------------
+const BossAuraSprite = React.memo(function BossAuraSprite({
+  x,
+  y,
+  size,
+  scale,
+  color,
+  lunging,
+  moveDuration,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  scale: number;
+  color: string;
+  lunging: boolean;
+  moveDuration: number;
+}) {
+  const { animX, animY } = useSmoothPosition(x, y, moveDuration, size);
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  const auraSize = size * scale * 1.5;
+  const offset = (auraSize - size) / 2;
+  const opacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: lunging ? [0.55, 0.95] : [0.25, 0.55],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.entity,
+        {
+          width: size,
+          height: size,
+          left: -offset,
+          top: -offset,
+          transform: [
+            { translateX: animX },
+            { translateY: animY },
+          ],
+          pointerEvents: "none",
+        },
+      ]}
+    >
+      <Animated.View
+        style={{
+          width: auraSize,
+          height: auraSize,
+          borderRadius: auraSize / 2,
+          backgroundColor: color,
+          opacity,
+          shadowColor: color,
+          shadowOpacity: 1,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 0 },
+        }}
+      />
+    </Animated.View>
+  );
+});
 
 const styles = StyleSheet.create({
   maze: {
