@@ -41,7 +41,13 @@ function GhostDpad({
   onSelect: () => void;
   size: number;
 }) {
-  const btnSize = size * 0.32;
+  // Label is a horizontal strip on top; D-pad fills the remaining square area
+  const labelHeight = 28;
+  const padArea = size - labelHeight;
+  // Bigger buttons: ~42% of pad area (vs old 32%)
+  const btnSize = Math.max(48, Math.round(padArea * 0.42));
+  const centerX = size / 2;
+  const padCenterY = labelHeight + padArea / 2;
   const press = (dir: Direction) => {
     if (!alive) return;
     try {
@@ -58,16 +64,24 @@ function GhostDpad({
           width: size,
           height: size,
           borderColor: selected ? color : "#222244",
+          borderWidth: selected ? 4 : 2,
           opacity: alive ? 1 : 0.35,
         },
       ]}
       testID={`ghost-dpad-${ghostId}`}
     >
-      {/* Ghost label */}
+      {/* Ghost label - now on top */}
       <TouchableOpacity
         onPress={onSelect}
-        style={[styles.ghostLabel, { backgroundColor: color }]}
+        style={[
+          styles.ghostLabel,
+          {
+            backgroundColor: color,
+            height: labelHeight,
+          },
+        ]}
         testID={`ghost-select-${ghostId}`}
+        activeOpacity={0.8}
       >
         <Text style={styles.ghostLabelText}>{name}</Text>
       </TouchableOpacity>
@@ -80,12 +94,13 @@ function GhostDpad({
           {
             width: btnSize,
             height: btnSize,
-            top: 0,
-            left: size / 2 - btnSize / 2,
+            top: labelHeight + 2,
+            left: centerX - btnSize / 2,
             backgroundColor: color,
           },
         ]}
         testID={`ghost-${ghostId}-up`}
+        activeOpacity={0.6}
       >
         <Text style={styles.dpadBtnText}>▲</Text>
       </TouchableOpacity>
@@ -97,12 +112,13 @@ function GhostDpad({
           {
             width: btnSize,
             height: btnSize,
-            bottom: 0,
-            left: size / 2 - btnSize / 2,
+            bottom: 2,
+            left: centerX - btnSize / 2,
             backgroundColor: color,
           },
         ]}
         testID={`ghost-${ghostId}-down`}
+        activeOpacity={0.6}
       >
         <Text style={styles.dpadBtnText}>▼</Text>
       </TouchableOpacity>
@@ -114,12 +130,13 @@ function GhostDpad({
           {
             width: btnSize,
             height: btnSize,
-            left: 0,
-            top: size / 2 - btnSize / 2,
+            left: 2,
+            top: padCenterY - btnSize / 2,
             backgroundColor: color,
           },
         ]}
         testID={`ghost-${ghostId}-left`}
+        activeOpacity={0.6}
       >
         <Text style={styles.dpadBtnText}>◀</Text>
       </TouchableOpacity>
@@ -131,12 +148,13 @@ function GhostDpad({
           {
             width: btnSize,
             height: btnSize,
-            right: 0,
-            top: size / 2 - btnSize / 2,
+            right: 2,
+            top: padCenterY - btnSize / 2,
             backgroundColor: color,
           },
         ]}
         testID={`ghost-${ghostId}-right`}
+        activeOpacity={0.6}
       >
         <Text style={styles.dpadBtnText}>▶</Text>
       </TouchableOpacity>
@@ -344,17 +362,21 @@ export default function GameScreen() {
 
   const { width: screenW, height: screenH } = Dimensions.get("window");
 
-  // Compute cell size to fit width and ~52% of height
+  // Compute cell size to fit width and ~48% of height (leave more room for bigger controls)
   const maxMazeW = screenW - 16;
-  const maxMazeH = screenH * 0.5;
+  const maxMazeH = screenH * 0.46;
   const cellSize = Math.floor(
     Math.min(maxMazeW / MAZE_COLS, maxMazeH / MAZE_ROWS),
   );
 
-  // Dpad size based on remaining space
-  const dpadSize = Math.min(
-    (screenW - 48) / 2,
-    (screenH - cellSize * MAZE_ROWS - 160) / 2,
+  // Dpad size: aim for bigger, use available space below the maze
+  const remainingH = screenH - cellSize * MAZE_ROWS - 180;
+  const dpadSize = Math.max(
+    140,
+    Math.min(
+      (screenW - 32) / 2 - 4,
+      remainingH / 2 - 4,
+    ),
   );
 
   // Auto-advance level after a short pause
@@ -752,42 +774,42 @@ const styles = StyleSheet.create({
   controlRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginVertical: 4,
+    marginVertical: 2,
   },
   dpadContainer: {
     position: "relative",
     backgroundColor: "#0a0a18",
-    borderWidth: 2,
     borderRadius: 12,
+    overflow: "hidden",
   },
   ghostLabel: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [{ translateX: -28 }, { translateY: -10 }],
+    width: "100%",
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 4,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 1,
   },
   ghostLabelText: {
     color: "#000",
-    fontSize: 9,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
   },
   dpadBtn: {
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.5)",
   },
   dpadBtnText: {
     color: "#000",
-    fontWeight: "bold",
-    fontSize: 16,
+    fontWeight: "900",
+    fontSize: 22,
   },
   bottomBar: {
     flexDirection: "row",
