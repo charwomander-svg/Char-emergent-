@@ -159,7 +159,12 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
             return None
 
         # Idempotency: if a "completed" purchase doc exists, return it untouched.
-        existing = await purchases.find_one({"_id": session_id})
+        # Projection limits payload to only the fields we read downstream.
+        _purchase_proj = {
+            "status": 1, "player_id": 1, "pack_id": 1, "coins": 1,
+            "amount_cents": 1, "currency": 1, "fulfilled_at": 1, "created_at": 1,
+        }
+        existing = await purchases.find_one({"_id": session_id}, _purchase_proj)
         if existing and existing.get("status") == "completed":
             return existing
 
@@ -219,12 +224,12 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 session_id, coins, player_id,
             )
 
-        return await purchases.find_one({"_id": session_id})
+        return await purchases.find_one({"_id": session_id}, _purchase_proj)
 
     async def _player_total(player_id: str) -> Optional[int]:
         if not player_id:
             return None
-        doc = await players.find_one({"_id": player_id})
+        doc = await players.find_one({"_id": player_id}, {"coins": 1})
         if not doc:
             return 0
         return int(doc.get("coins", 0))
