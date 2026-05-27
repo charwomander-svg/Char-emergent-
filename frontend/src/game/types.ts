@@ -1,12 +1,14 @@
 // Game type definitions
 
-export type CellType = 0 | 1 | 2 | 3 | 4 | 5;
+export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 // 0 = empty path (no pellet)
 // 1 = wall
 // 2 = pellet
 // 3 = super pellet
 // 4 = ghost house (ghosts spawn here)
 // 5 = pellet guy spawn
+// 6 = spike trap (eats any ghost that touches it; one-shot)
+// 7 = barricade (blocks ghosts for limited time)
 
 export type Direction = "up" | "down" | "left" | "right" | "none";
 
@@ -62,4 +64,6 @@ export interface GameState {
   comboCount: number;
   message: string;
   selectedGhostId: GhostId;
+  // Active barricades: track expiry per position
+  barricades: { x: number; y: number; expiresAt: number }[];
 }

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useGhostMaze } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
 import { COLORS, MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
+import { getSoundEngine } from "@/src/game/sounds";
 
 // Mini D-pad for one ghost
 function GhostDpad({
@@ -149,6 +150,22 @@ export default function GameScreen() {
     startNewGame,
   } = useGhostMaze();
 
+  const [soundOn, setSoundOn] = useState(true);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    getSoundEngine().setEnabled(next);
+    if (!next) getSoundEngine().stopMusic();
+    else getSoundEngine().startMusic();
+  };
+
+  // Stop music when leaving game screen
+  useEffect(() => {
+    return () => {
+      getSoundEngine().stopMusic();
+    };
+  }, []);
+
   const { width: screenW, height: screenH } = Dimensions.get("window");
 
   // Compute cell size to fit width and ~52% of height
@@ -245,6 +262,7 @@ export default function GameScreen() {
           cellSize={cellSize}
           selectedGhostId={state.selectedGhostId}
           ready={state.status === "ready"}
+          level={state.level}
         />
         {/* Overlay messages */}
         {state.message !== "" && (
@@ -326,7 +344,10 @@ export default function GameScreen() {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.smallBtn}
-          onPress={togglePause}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            togglePause();
+          }}
           testID="pause-btn"
         >
           <Text style={styles.smallBtnText}>
@@ -335,7 +356,20 @@ export default function GameScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.smallBtn}
-          onPress={() => router.replace("/")}
+          onPress={toggleSound}
+          testID="sound-btn"
+        >
+          <Text style={styles.smallBtnText}>
+            {soundOn ? "🔊 SOUND" : "🔇 MUTED"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.smallBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            getSoundEngine().stopMusic();
+            router.replace("/");
+          }}
           testID="quit-btn"
         >
           <Text style={styles.smallBtnText}>QUIT</Text>
@@ -484,7 +518,7 @@ const styles = StyleSheet.create({
   },
   smallBtn: {
     backgroundColor: COLORS.uiPanel,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
     borderWidth: 1,
@@ -494,6 +528,7 @@ const styles = StyleSheet.create({
     color: "#FFFF00",
     fontWeight: "bold",
     letterSpacing: 1,
+    fontSize: 12,
   },
   btn: {
     backgroundColor: COLORS.uiPanel,

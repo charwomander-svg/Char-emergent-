@@ -245,5 +245,7 @@ export function isWalkable(
   const cell = maze[y][x];
   if (cell === 1) return false; // wall
   if (cell === 4 && forPelletGuy) return false; // pellet guy can't enter ghost house
+  if (cell === 7 && !forPelletGuy) return false; // barricade blocks ghosts
+  // spike (6) is walkable - it triggers a death effect but doesn't block movement
   return true;
 }

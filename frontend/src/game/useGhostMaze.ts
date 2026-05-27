@@ -22,16 +22,27 @@ import {
   SPEED,
   STARTING_LIVES,
   SUPER_PELLET_DURATION_MS,
+  TRAP_DROP_BASE_CHANCE,
+  TRAP_DROP_LEVEL_BOOST,
+  TRAP_DROP_MAX_CHANCE,
+  MAX_ACTIVE_TRAPS,
+  BARRICADE_DURATION_MS,
+  SPIKE_PROBABILITY,
+  SCORE_SPIKED_GHOST_PENALTY,
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
+import { getSoundEngine } from "./sounds";
+import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
 
 function createInitialGhosts(
   spawns: { x: number; y: number }[],
+  themeId: string,
 ): Ghost[] {
+  const theme = getTheme(themeId);
   return [0, 1, 2, 3].map((id) => ({
     id: id as GhostId,
-    color: COLORS.ghosts[id],
+    color: theme.ghostColors[id],
     name: COLORS.ghostNames[id],
     x: spawns[id].x,
     y: spawns[id].y,
@@ -58,7 +69,12 @@ function createInitialPelletGuy(spawn: { x: number; y: number }): PelletGuy {
   };
 }
 
-function buildInitialState(level: number, lives: number, score: number): GameState {
+function buildInitialState(
+  level: number,
+  lives: number,
+  score: number,
+  themeId: string,
+): GameState {
   const { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(level);
   return {
     status: "ready",
@@ -69,12 +85,13 @@ function buildInitialState(level: number, lives: number, score: number): GameSta
     totalPellets,
     pelletsRemaining: totalPellets,
     maze,
-    ghosts: createInitialGhosts(ghostSpawns),
+    ghosts: createInitialGhosts(ghostSpawns, themeId),
     pelletGuy: createInitialPelletGuy(pelletGuySpawn),
     lastComboTime: 0,
     comboCount: 0,
     message: `LEVEL ${level}`,
     selectedGhostId: 0,
+    barricades: [],
   };
 }
 
@@ -141,8 +158,14 @@ export function useGhostMaze() {
 
   const togglePause = useCallback(() => {
     setState((prev) => {
-      if (prev.status === "playing") return { ...prev, status: "paused" };
-      if (prev.status === "paused") return { ...prev, status: "playing" };
+      if (prev.status === "playing") {
+        getSoundEngine().stopMusic();
+        return { ...prev, status: "paused" };
+      }
+      if (prev.status === "paused") {
+        getSoundEngine().startMusic();
+        return { ...prev, status: "playing" };
+      }
       return prev;
     });
   }, []);
@@ -156,6 +179,7 @@ export function useGhostMaze() {
         setState((s) => ({ ...s, status: "playing", message: "" }));
         lastGhostMoveRef.current = [now, now, now, now];
         lastPelletGuyMoveRef.current = now;
+        getSoundEngine().startMusic();
       }
       return;
     }
@@ -240,6 +264,7 @@ export function useGhostMaze() {
     let maze = prev.maze;
     let pelletsRemaining = prev.pelletsRemaining;
     let score = prev.score;
+    let barricades = prev.barricades;
 
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
@@ -256,6 +281,9 @@ export function useGhostMaze() {
     } else if (now - lastPelletGuyMoveRef.current >= pgInterval) {
       lastPelletGuyMoveRef.current = now;
 
+      const pgPrevX = pg.x;
+      const pgPrevY = pg.y;
+
       // choose direction: continue if valid, else pick new
       let dir = pg.direction;
       let next = applyDirection(pg.x, pg.y, dir);
@@ -271,7 +299,7 @@ export function useGhostMaze() {
         return choices.length >= 3 || !isWalkable(prev.maze, next.x, next.y, true);
       })();
       if (atIntersection) {
-        dir = choosePelletGuyDirection(prev.maze, pg, prev.level);
+        dir = choosePelletGuyDirection(prev.maze, pg, prev.level, newGhosts);
         next = applyDirection(pg.x, pg.y, dir);
       }
       if (isWalkable(prev.maze, next.x, next.y, true)) {
@@ -288,6 +316,7 @@ export function useGhostMaze() {
           );
           pelletsRemaining--;
           score += SCORE_PELLET;
+          getSoundEngine().pellet();
         } else if (cell === 3) {
           maze = maze.map((row, ry) =>
             ry === next.y
@@ -295,6 +324,7 @@ export function useGhostMaze() {
               : row,
           );
           score += SCORE_SUPER_PELLET;
+          getSoundEngine().superPellet();
           // make all alive ghosts vulnerable
           for (let i = 0; i < newGhosts.length; i++) {
             if (newGhosts[i].alive) {
@@ -306,6 +336,97 @@ export function useGhostMaze() {
             }
           }
         }
+
+        // --- Trap drop: Pellet Guy may leave a trap at his previous cell ---
+        // Only drop on empty (non-special) cells, away from ghost house & spawn
+        const prevCellType = maze[pgPrevY][pgPrevX];
+        if (prevCellType === 0) {
+          // Count active traps (spikes + barricades)
+          let activeTraps = barricades.length;
+          for (let yy = 0; yy < maze.length; yy++) {
+            for (let xx = 0; xx < maze[0].length; xx++) {
+              if (maze[yy][xx] === 6) activeTraps++;
+            }
+          }
+          if (activeTraps < MAX_ACTIVE_TRAPS) {
+            const dropChance = Math.min(
+              TRAP_DROP_MAX_CHANCE,
+              TRAP_DROP_BASE_CHANCE + (prev.level - 1) * TRAP_DROP_LEVEL_BOOST,
+            );
+            if (Math.random() < dropChance) {
+              const isSpike = Math.random() < SPIKE_PROBABILITY;
+              const tx = pgPrevX;
+              const ty = pgPrevY;
+              if (isSpike) {
+                maze = maze.map((row, ry) =>
+                  ry === ty
+                    ? row.map((c, cx) => (cx === tx ? (6 as CellType) : c))
+                    : row,
+                );
+              } else {
+                maze = maze.map((row, ry) =>
+                  ry === ty
+                    ? row.map((c, cx) => (cx === tx ? (7 as CellType) : c))
+                    : row,
+                );
+                barricades = [
+                  ...barricades,
+                  { x: tx, y: ty, expiresAt: now + BARRICADE_DURATION_MS },
+                ];
+              }
+              getSoundEngine().uiClick();
+            }
+          }
+        }
+      }
+    }
+
+    // --- Expire barricades ---
+    if (barricades.length > 0) {
+      const stillActive: typeof barricades = [];
+      let expiredAny = false;
+      for (const b of barricades) {
+        if (b.expiresAt <= now) {
+          // remove from maze (set back to 0)
+          if (maze[b.y][b.x] === 7) {
+            maze = maze.map((row, ry) =>
+              ry === b.y
+                ? row.map((c, cx) => (cx === b.x ? (0 as CellType) : c))
+                : row,
+            );
+          }
+          expiredAny = true;
+        } else {
+          stillActive.push(b);
+        }
+      }
+      if (expiredAny) {
+        barricades = stillActive;
+        mutated = true;
+      }
+    }
+
+    // --- Ghost-on-spike collision (after ghost moves) ---
+    for (let i = 0; i < newGhosts.length; i++) {
+      const g = newGhosts[i];
+      if (!g.alive) continue;
+      if (maze[g.y][g.x] === 6) {
+        // Spike triggered - ghost dies, spike consumed
+        maze = maze.map((row, ry) =>
+          ry === g.y
+            ? row.map((c, cx) => (cx === g.x ? (0 as CellType) : c))
+            : row,
+        );
+        newGhosts[i] = {
+          ...g,
+          alive: false,
+          respawnAt: now + RESPAWN_MS,
+          vulnerable: false,
+          vulnerableUntil: 0,
+        };
+        score += SCORE_SPIKED_GHOST_PENALTY;
+        getSoundEngine().ghostEaten();
+        mutated = true;
       }
     }
 
@@ -333,17 +454,25 @@ export function useGhostMaze() {
             };
             score += 100;
             mutated = true;
+            getSoundEngine().ghostEaten();
           } else {
             // Ghost catches pellet guy!
             catches++;
+            let triggeredCombo = false;
             if (now - lastComboTime < COMBO_WINDOW_MS) {
               comboCount++;
               score += SCORE_COMBO_BONUS * comboCount;
+              triggeredCombo = true;
             } else {
               comboCount = 0;
             }
             lastComboTime = now;
             score += SCORE_CATCH;
+            if (triggeredCombo) {
+              getSoundEngine().comboHit(comboCount);
+            } else {
+              getSoundEngine().catchHit();
+            }
 
             // Pellet Guy temporarily down
             pg = {
@@ -363,6 +492,19 @@ export function useGhostMaze() {
               message = `LEVEL ${prev.level} CLEARED!\n${pctRemaining}% PELLETS LEFT\n+${
                 pctRemaining * SCORE_PER_PERCENT_REMAINING
               } BONUS`;
+              getSoundEngine().levelWin();
+
+              // Persist progress
+              if (progressRef.current) {
+                const p = { ...progressRef.current };
+                p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
+                p.totalCatches = p.totalCatches + CATCH_TO_WIN;
+                if (pctRemaining === 100) p.perfectClears = p.perfectClears + 1;
+                p.highScore = Math.max(p.highScore, score);
+                // Auto-unlock theme entries by re-scanning
+                progressRef.current = p;
+                saveProgress(p);
+              }
             }
             break; // only one catch per tick
           }
@@ -378,9 +520,19 @@ export function useGhostMaze() {
         if (lives <= 0) {
           status = "gameOver";
           message = "GAME OVER\nPellet Guy ate everything!";
+          getSoundEngine().levelLose();
+          getSoundEngine().stopMusic();
+          // Save high score
+          if (progressRef.current) {
+            const p = { ...progressRef.current };
+            p.highScore = Math.max(p.highScore, score);
+            progressRef.current = p;
+            saveProgress(p);
+          }
         } else {
           status = "levelLost";
           message = "PELLET GUY WINS!\nHe ate all the pellets!";
+          getSoundEngine().levelLose();
         }
       } else {
         const aliveGhosts = newGhosts.filter((g) => g.alive).length;
@@ -389,9 +541,18 @@ export function useGhostMaze() {
           if (lives <= 0) {
             status = "gameOver";
             message = "GAME OVER\nAll ghosts devoured!";
+            getSoundEngine().levelLose();
+            getSoundEngine().stopMusic();
+            if (progressRef.current) {
+              const p = { ...progressRef.current };
+              p.highScore = Math.max(p.highScore, score);
+              progressRef.current = p;
+              saveProgress(p);
+            }
           } else {
             status = "levelLost";
             message = "PELLET GUY WINS!\nHe ate all your ghosts!";
+            getSoundEngine().levelLose();
           }
         }
       }
@@ -411,6 +572,7 @@ export function useGhostMaze() {
         lives,
         status,
         message,
+        barricades,
       };
       setState(nextState);
     }

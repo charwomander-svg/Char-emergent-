@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
+import { getSoundEngine } from "@/src/game/sounds";
 
 export default function MainMenu() {
   const router = useRouter();
@@ -51,10 +52,25 @@ export default function MainMenu() {
         {/* Play Button */}
         <TouchableOpacity
           style={styles.playBtn}
-          onPress={() => router.push("/game")}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/game");
+          }}
           testID="play-btn"
         >
           <Text style={styles.playBtnText}>▶ START GAME</Text>
+        </TouchableOpacity>
+
+        {/* Characters Button */}
+        <TouchableOpacity
+          style={styles.charactersBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/characters");
+          }}
+          testID="characters-btn"
+        >
+          <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
         </TouchableOpacity>
 
         {/* How to play */}
@@ -186,6 +202,21 @@ const styles = StyleSheet.create({
     color: "#000000",
     fontWeight: "900",
     fontSize: 20,
+    letterSpacing: 2,
+  },
+  charactersBtn: {
+    marginTop: 14,
+    backgroundColor: COLORS.uiPanel,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FFFF00",
+  },
+  charactersBtnText: {
+    color: "#FFFF00",
+    fontWeight: "bold",
+    fontSize: 14,
     letterSpacing: 2,
   },
   howToWrap: {

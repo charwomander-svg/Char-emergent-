@@ -33,12 +33,22 @@ export const SPEED = {
   ghostVulnerable: 320, // slower when vulnerable
 };
 
+// Power-up balance
 export const SUPER_PELLET_DURATION_MS = 6000;
 export const COMBO_WINDOW_MS = 1500;
 export const RESPAWN_MS = 1500;
 export const READY_DURATION_MS = 1500;
 export const CATCH_TO_WIN = 3;
 export const STARTING_LIVES = 3;
+
+// Pellet Guy traps
+export const TRAP_DROP_BASE_CHANCE = 0.025; // per-move chance at level 1
+export const TRAP_DROP_LEVEL_BOOST = 0.012; // added per level
+export const TRAP_DROP_MAX_CHANCE = 0.12;
+export const MAX_ACTIVE_TRAPS = 3;
+export const BARRICADE_DURATION_MS = 8000;
+export const SPIKE_PROBABILITY = 0.65; // vs barricade
+export const SCORE_SPIKED_GHOST_PENALTY = -150;
 
 // Scoring
 export const SCORE_PELLET = 10;

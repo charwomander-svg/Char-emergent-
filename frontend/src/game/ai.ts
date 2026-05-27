@@ -1,7 +1,9 @@
 // Pellet Guy AI
 // MVP: pure random movement that doesn't reverse unless dead-end
+// Level 2+: avoids nearby ghosts (evasion weighting)
+// Level 4+: actively flees from closest ghost
 
-import type { CellType, Direction, PelletGuy } from "./types";
+import type { CellType, Direction, Ghost, PelletGuy } from "./types";
 import { isWalkable } from "./maze";
 
 const OPPOSITE: Record<Direction, Direction> = {
@@ -35,13 +37,15 @@ export function getValidDirections(
 
 /**
  * Choose Pellet Guy's next direction.
- * MVP: random with no-reverse preference.
- * Future levels can add evasion + pellet seeking weighting.
+ * - Level 1: mostly random, prefers continuing straight
+ * - Level 2-3: weighted to avoid ghost-adjacent cells
+ * - Level 4+: actively flees nearest threat (Manhattan-distance maximization)
  */
 export function choosePelletGuyDirection(
   maze: CellType[][],
   pg: PelletGuy,
   level: number,
+  ghosts: Ghost[] = [],
 ): Direction {
   const valid = getValidDirections(maze, pg.x, pg.y, true);
   if (valid.length === 0) return "none";
@@ -51,15 +55,66 @@ export function choosePelletGuyDirection(
   let candidates = valid.filter((d) => d !== reverse);
   if (candidates.length === 0) candidates = valid;
 
-  // For level 1: keep going straight if possible (less twitchy)
+  // Level 1: random with straight preference, no AI threat awareness
   if (level <= 1) {
-    if (candidates.includes(pg.direction)) {
-      // 70% chance to keep going straight
-      if (Math.random() < 0.7) return pg.direction;
+    if (candidates.includes(pg.direction) && Math.random() < 0.7) {
+      return pg.direction;
     }
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  // Threats: alive non-vulnerable ghosts within sense radius
+  const senseRadius = level <= 3 ? 4 : 7;
+  const threats = ghosts.filter(
+    (g) =>
+      g.alive &&
+      !g.vulnerable &&
+      Math.abs(g.x - pg.x) + Math.abs(g.y - pg.y) <= senseRadius,
+  );
+
+  if (threats.length === 0) {
+    // No threats - prefer continuing straight, else pick from candidates
+    if (candidates.includes(pg.direction) && Math.random() < 0.6) {
+      return pg.direction;
+    }
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // Score each candidate direction by sum of distances to threats
+  // Higher score = farther from threats = safer
+  const scored = candidates.map((d) => {
+    const [dx, dy] = DELTAS[d];
+    const nx = pg.x + dx;
+    const ny = pg.y + dy;
+    let score = 0;
+    for (const t of threats) {
+      const dist = Math.abs(t.x - nx) + Math.abs(t.y - ny);
+      score += dist;
+      // Heavy penalty for moving INTO a ghost cell
+      if (t.x === nx && t.y === ny) score -= 1000;
+    }
+    return { dir: d, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  if (level >= 4) {
+    // Greedy evasion - always pick highest score (with tiny randomization for ties)
+    const best = scored[0].score;
+    const tied = scored.filter((s) => s.score === best);
+    return tied[Math.floor(Math.random() * tied.length)].dir;
+  }
+
+  // Level 2-3: weighted random favoring safer directions
+  const minScore = Math.min(...scored.map((s) => s.score));
+  const weights = scored.map((s) => Math.max(1, s.score - minScore + 1));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < scored.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return scored[i].dir;
+  }
+  return scored[0].dir;
 }
 
 export function applyDirection(
