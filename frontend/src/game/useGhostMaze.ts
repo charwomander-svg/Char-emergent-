@@ -213,8 +213,23 @@ export function useGhostMaze() {
         next = applyDirection(ghost.x, ghost.y, dir);
       }
       if (!isWalkable(prev.maze, next.x, next.y, false)) {
-        // stay put
-        continue;
+        // Both queued and current direction blocked - pick any valid direction
+        // (so ghost doesn't sit forever if user-set direction hits a wall)
+        const validDirs = (["up", "down", "left", "right"] as Direction[]).filter(
+          (d) => {
+            const n = applyDirection(ghost.x, ghost.y, d);
+            return isWalkable(prev.maze, n.x, n.y, false);
+          },
+        );
+        if (validDirs.length === 0) continue; // truly stuck
+        // Prefer non-reverse if possible
+        const reverse = opposite(ghost.direction);
+        const nonReverse = validDirs.filter((d) => d !== reverse);
+        const choice = (nonReverse.length > 0 ? nonReverse : validDirs)[
+          Math.floor(Math.random() * (nonReverse.length > 0 ? nonReverse.length : validDirs.length))
+        ];
+        dir = choice;
+        next = applyDirection(ghost.x, ghost.y, dir);
       }
       newGhosts[i] = { ...ghost, x: next.x, y: next.y, direction: dir };
       mutated = true;

@@ -162,6 +162,23 @@ const GhostSprite = React.memo(function GhostSprite({
       {/* Ghost body */}
       {ghost.alive && (
         <>
+          {/* Identity outline (visible especially when vulnerable) */}
+          {ghost.vulnerable && (
+            <View
+              style={{
+                position: "absolute",
+                left: size * 0.08,
+                top: size * 0.08,
+                width: size * 0.84,
+                height: size * 0.8,
+                borderTopLeftRadius: bodyRadius * 1.1,
+                borderTopRightRadius: bodyRadius * 1.1,
+                borderWidth: 2,
+                borderColor: ghost.color,
+                opacity: 0.95,
+              }}
+            />
+          )}
           <View
             style={{
               position: "absolute",
@@ -172,6 +189,20 @@ const GhostSprite = React.memo(function GhostSprite({
               borderTopLeftRadius: bodyRadius,
               borderTopRightRadius: bodyRadius,
               backgroundColor: color,
+            }}
+          />
+          {/* Color tuft on top of head - always shows original color */}
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.38,
+              top: size * 0.0,
+              width: size * 0.24,
+              height: size * 0.18,
+              borderRadius: size * 0.12,
+              backgroundColor: ghost.color,
+              borderWidth: 1.5,
+              borderColor: "#000000",
             }}
           />
           <View
@@ -219,7 +250,9 @@ const GhostSprite = React.memo(function GhostSprite({
               width: eyeSize,
               height: eyeSize,
               borderRadius: eyeSize / 2,
-              backgroundColor: ghost.vulnerable ? "transparent" : "#FFFFFF",
+              backgroundColor: ghost.vulnerable ? ghost.color : "#FFFFFF",
+              borderWidth: ghost.vulnerable ? 1 : 0,
+              borderColor: "#FFFFFF",
             }}
           >
             {!ghost.vulnerable && (
@@ -244,7 +277,9 @@ const GhostSprite = React.memo(function GhostSprite({
               width: eyeSize,
               height: eyeSize,
               borderRadius: eyeSize / 2,
-              backgroundColor: ghost.vulnerable ? "transparent" : "#FFFFFF",
+              backgroundColor: ghost.vulnerable ? ghost.color : "#FFFFFF",
+              borderWidth: ghost.vulnerable ? 1 : 0,
+              borderColor: "#FFFFFF",
             }}
           >
             {!ghost.vulnerable && (
