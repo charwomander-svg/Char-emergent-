@@ -69,7 +69,7 @@ def seed_from_date(d: str) -> int:
 
 
 class ScoreSubmission(BaseModel):
-    player_name: str = Field(min_length=1, max_length=16)
+    player_name: str = Field(min_length=1)
     score: int = Field(ge=0)
     level: int = Field(ge=1)
     catches: int = Field(ge=0)
@@ -82,7 +82,6 @@ class ScoreSubmission(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("player_name cannot be blank")
-        # strip non-printable / weird chars; keep alphanumerics and a few symbols
         keep = "".join(c for c in v if c.isalnum() or c in "-_.! ")
         return (keep or "GHOST")[:16]
 
