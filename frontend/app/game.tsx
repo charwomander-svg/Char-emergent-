@@ -410,26 +410,42 @@ export default function GameScreen() {
 
   const { width: screenW, height: screenH } = useWindowDimensions();
 
-  // Compute cell size to fit width and ~42% of height (leave more room for bigger controls + power-up bar)
-  // Fallback for SSR/initial render before measurement: use sensible defaults.
+  // ---------------------------------------------------------------------
+  // Fixed-pixel layout budget. We reserve space for every non-maze chunk
+  // FIRST, then give the maze whatever pixels remain. Percentage-based
+  // sizing breaks on real phones whose viewport is much shorter than the
+  // "screen height" useWindowDimensions reports (Chrome chrome, etc).
+  // ---------------------------------------------------------------------
   const safeW = screenW || 400;
   const safeH = screenH || 800;
+
+  const HUD_H = 48;
+  const PELLETS_H = 18;
+  const POWERBAR_H = 56;
+  const BOTTOM_H = 42;
+  const VERTICAL_MARGINS = 20;
+
+  // Each dpad must be ≥132px so the 48px touch-target buttons don't overlap
+  // (3 × 48 = 144 + margins, minus label-strip overhead).
+  const minDpadSize = 132;
+  const idealDpadSize = Math.min(Math.floor((safeW - 24) / 2), 156);
+
+  const reservedH =
+    HUD_H + PELLETS_H + POWERBAR_H + BOTTOM_H + VERTICAL_MARGINS + minDpadSize * 2;
+  const availableMazeH = Math.max(120, safeH - reservedH);
+
   const maxMazeW = safeW - 16;
-  const maxMazeH = safeH * 0.42;
   const cellSize = Math.max(
     10,
-    Math.floor(Math.min(maxMazeW / MAZE_COLS, maxMazeH / MAZE_ROWS)),
+    Math.floor(Math.min(maxMazeW / MAZE_COLS, availableMazeH / MAZE_ROWS)),
   );
 
-  // Dpad size: aim for bigger, use available space below the maze
-  // Buffer accounts for HUD (~60) + pellets bar (18) + power-up bar (~58) + active effects (~28) + bottom bar (~44) + margins (~22) ≈ 230
-  const remainingH = safeH - cellSize * MAZE_ROWS - 270;
+  const mazeH = cellSize * MAZE_ROWS;
+  const leftoverH =
+    safeH - HUD_H - PELLETS_H - mazeH - POWERBAR_H - BOTTOM_H - VERTICAL_MARGINS;
   const dpadSize = Math.max(
-    130,
-    Math.min(
-      (safeW - 32) / 2 - 4,
-      remainingH / 2 - 4,
-    ),
+    minDpadSize,
+    Math.min(idealDpadSize, Math.floor(leftoverH / 2) - 4),
   );
 
   // Auto-advance level after a short pause
@@ -864,34 +880,38 @@ const styles = StyleSheet.create({
   },
   hud: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
+    alignItems: "center",
     width: "100%",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     backgroundColor: COLORS.uiPanel,
     borderBottomWidth: 2,
     borderBottomColor: COLORS.uiBorder,
   },
   hudCell: {
     alignItems: "center",
-    minWidth: 60,
+    flex: 1,
+    minWidth: 0,
   },
   hudLabel: {
     color: "#FFFF00",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "bold",
     letterSpacing: 1,
   },
   hudValue: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "bold",
     fontVariant: ["tabular-nums"],
   },
   livesRow: {
     flexDirection: "row",
-    marginTop: 4,
-    minHeight: 16,
+    marginTop: 3,
+    minHeight: 14,
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
   pelletsBar: {
     height: 18,
@@ -940,15 +960,15 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   controls: {
-    marginTop: 8,
+    marginTop: 6,
     width: "100%",
     paddingHorizontal: 8,
-    flex: 1,
-    justifyContent: "center",
+    alignItems: "center",
   },
   controlRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
+    width: "100%",
     marginVertical: 2,
   },
   dpadContainer: {
