@@ -166,10 +166,14 @@ init_stripe()
 payments_router = get_payments_router(db)
 app.include_router(payments_router, prefix="/api")
 
+# CORS — accept comma-separated origins from env, default to "*" for the
+# casual game preview/deployment.
+_cors_env = os.environ.get("CORS_ORIGINS", "*").strip()
+_cors_origins = ["*"] if _cors_env in ("", "*") else [o.strip() for o in _cors_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
