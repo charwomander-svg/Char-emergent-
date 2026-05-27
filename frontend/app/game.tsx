@@ -24,6 +24,7 @@ import { shareCard, buildScoreCard, buildChallengeUrl } from "@/src/game/share";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER, PowerUpId } from "@/src/game/powerups";
 import { loadSettings, SettingsData, DEFAULT_SETTINGS } from "@/src/game/settings";
+import { useFullscreen } from "@/src/utils/useFullscreen";
 
 // Mini D-pad for one ghost
 function GhostDpad({
@@ -185,6 +186,11 @@ export default function GameScreen() {
 
   // Economy hook (Ghost Coins + inventory)
   const { coins, inventory, earnCoins, useInventory } = useEconomy();
+
+  // Fullscreen / immersive mode while playing. Auto-enters on first gesture on
+  // web; on native it hides status + navigation bars immediately.
+  const { isFullscreen, toggle: toggleFullscreen, isSupported: fullscreenSupported } =
+    useFullscreen({ autoEnter: true });
 
   const {
     state,
@@ -866,9 +872,21 @@ export default function GameScreen() {
           testID="sound-btn"
         >
           <Text style={styles.smallBtnText}>
-            {settings.soundOn ? "🔊 SOUND" : "🔇 MUTED"}
+            {settings.soundOn ? "🔊" : "🔇"}
           </Text>
         </TouchableOpacity>
+        {fullscreenSupported && (
+          <TouchableOpacity
+            style={styles.smallBtn}
+            onPress={() => {
+              getSoundEngine().uiClick();
+              void toggleFullscreen();
+            }}
+            testID="fullscreen-btn"
+          >
+            <Text style={styles.smallBtnText}>{isFullscreen ? "🗗" : "⛶"}</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.smallBtn}
           onPress={() => {

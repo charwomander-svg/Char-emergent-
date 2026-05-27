@@ -3,6 +3,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { useFullscreen } from "@/src/utils/useFullscreen";
 
 // Keep the native splash visible from cold start until icon fonts register.
 // Required because @expo/vector-icons' componentDidMount fallback fires
@@ -12,6 +13,12 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
+
+  // App-wide fullscreen / immersive mode. On web we auto-enter on the first
+  // user gesture (browsers require one); on native we hide the status bar
+  // and Android nav bar immediately on mount. This reclaims the ~80px of
+  // browser chrome that was making the UI feel cramped on phones.
+  useFullscreen({ autoEnter: true });
 
   useEffect(() => {
     if (loaded || error) {
