@@ -1,21 +1,35 @@
-// Retro chiptune sound engine
-// Uses Web Audio API to generate 8-bit style sounds procedurally.
-// On native (Expo Go), audio gracefully no-ops until WAV assets are bundled.
+// Hybrid sound engine: bundled WAV files via expo-audio on all platforms,
+// with a Web Audio API music loop (chiptune bassline) since music as a
+// looping asset would be much larger than synthesized.
 
 import { Platform } from "react-native";
+import { createAudioPlayer, AudioPlayer } from "expo-audio";
 
-type Wave = "square" | "triangle" | "sawtooth" | "sine";
+type SfxKey =
+  | "chomp"
+  | "pellet"
+  | "super"
+  | "catch"
+  | "combo"
+  | "ghostEaten"
+  | "death"
+  | "win"
+  | "lose"
+  | "uiClick";
 
-interface BeepOpts {
-  freq: number;
-  duration: number; // ms
-  wave?: Wave;
-  volume?: number; // 0..1
-  attack?: number; // ms
-  release?: number; // ms
-  // For pitch sweeps
-  endFreq?: number;
-}
+// Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
+const SFX_SOURCES: Record<SfxKey, number> = {
+  chomp: require("@/assets/sounds/chomp.wav"),
+  pellet: require("@/assets/sounds/pellet.wav"),
+  super: require("@/assets/sounds/super.wav"),
+  catch: require("@/assets/sounds/catch.wav"),
+  combo: require("@/assets/sounds/combo.wav"),
+  ghostEaten: require("@/assets/sounds/ghost_eaten.wav"),
+  death: require("@/assets/sounds/death.wav"),
+  win: require("@/assets/sounds/win.wav"),
+  lose: require("@/assets/sounds/lose.wav"),
+  uiClick: require("@/assets/sounds/ui_click.wav"),
+};
 
 interface SoundEngine {
   enabled: boolean;
@@ -34,11 +48,11 @@ interface SoundEngine {
   stopMusic: () => void;
 }
 
+// --- Music engine (Web Audio API, web only) ---
 function getAudioContext(): AudioContext | null {
   if (Platform.OS !== "web") return null;
   if (typeof window === "undefined") return null;
-  const AC =
-    (window as any).AudioContext || (window as any).webkitAudioContext;
+  const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
   if (!AC) return null;
   if (!(window as any).__ghostMazeAudioCtx) {
     try {
@@ -50,106 +64,81 @@ function getAudioContext(): AudioContext | null {
   return (window as any).__ghostMazeAudioCtx as AudioContext;
 }
 
-function beep(ctx: AudioContext, opts: BeepOpts) {
-  const {
-    freq,
-    duration,
-    wave = "square",
-    volume = 0.06,
-    attack = 4,
-    release = 60,
-    endFreq,
-  } = opts;
-
+function beep(
+  ctx: AudioContext,
+  freq: number,
+  duration: number,
+  wave: OscillatorType = "triangle",
+  volume = 0.035,
+) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = wave;
   osc.frequency.setValueAtTime(freq, ctx.currentTime);
-  if (endFreq != null) {
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(1, endFreq),
-      ctx.currentTime + duration / 1000,
-    );
-  }
-
   const t0 = ctx.currentTime;
   gain.gain.setValueAtTime(0, t0);
-  gain.gain.linearRampToValueAtTime(volume, t0 + attack / 1000);
-  gain.gain.setValueAtTime(volume, t0 + (duration - release) / 1000);
+  gain.gain.linearRampToValueAtTime(volume, t0 + 0.006);
+  gain.gain.setValueAtTime(volume, t0 + (duration - 40) / 1000);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration / 1000);
-
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start(t0);
   osc.stop(t0 + duration / 1000 + 0.02);
 }
 
-function sequence(ctx: AudioContext, notes: BeepOpts[], gap = 0) {
-  let t = 0;
-  for (const n of notes) {
-    setTimeout(() => beep(ctx, n), t);
-    t += n.duration + gap;
+let musicIntervalId: any = null;
+let musicStep = 0;
+function playMusicStep(ctx: AudioContext) {
+  const A2 = 110, C3 = 130.81, E3 = 164.81, G3 = 196, A3 = 220;
+  const bass = [A2, A2, E3, A2, C3, A2, G3, A2];
+  const treble = [A3, 0, E3, 0, A3, 0, G3, 0];
+  const f = bass[musicStep % bass.length];
+  if (f > 0) beep(ctx, f, 180, "triangle", 0.035);
+  const t = treble[musicStep % treble.length];
+  if (t > 0) beep(ctx, t, 90, "square", 0.018);
+  musicStep++;
+}
+
+// --- expo-audio: pool of players per SFX so rapid retriggers don't cut off ---
+const POOL_SIZE = 3;
+type Pool = { players: AudioPlayer[]; next: number };
+const pools: Partial<Record<SfxKey, Pool>> = {};
+
+function getPool(key: SfxKey): Pool | null {
+  let p = pools[key];
+  if (p) return p;
+  try {
+    const players: AudioPlayer[] = [];
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const player = createAudioPlayer(SFX_SOURCES[key]);
+      player.volume = 0.6;
+      players.push(player);
+    }
+    p = { players, next: 0 };
+    pools[key] = p;
+    return p;
+  } catch {
+    return null;
   }
 }
 
-// --- Music loop: simple ghost-chase bassline ---
-let musicIntervalId: any = null;
-let musicStep = 0;
-
-function playMusicStep(ctx: AudioContext) {
-  // 8-step bassline in minor key (A minor) - eerie, classic arcade feel
-  const A2 = 110;
-  const C3 = 130.81;
-  const E3 = 164.81;
-  const G3 = 196;
-  const A3 = 220;
-  const bass = [A2, A2, E3, A2, C3, A2, G3, A2];
-  const treble = [A3, 0, E3, 0, A3, 0, G3, 0];
-
-  const f = bass[musicStep % bass.length];
-  if (f > 0) {
-    beep(ctx, {
-      freq: f,
-      duration: 180,
-      wave: "triangle",
-      volume: 0.035,
-      attack: 6,
-      release: 40,
-    });
-  }
-  const t = treble[musicStep % treble.length];
-  if (t > 0) {
-    beep(ctx, {
-      freq: t,
-      duration: 90,
-      wave: "square",
-      volume: 0.018,
-      attack: 2,
-      release: 30,
-    });
-  }
-  musicStep++;
+function playSfx(key: SfxKey) {
+  const p = getPool(key);
+  if (!p) return;
+  const player = p.players[p.next];
+  p.next = (p.next + 1) % p.players.length;
+  try {
+    player.seekTo(0);
+    player.play();
+  } catch {}
 }
 
 export function createSoundEngine(): SoundEngine {
   let enabled = true;
-
-  const tryCtx = () => {
-    const ctx = getAudioContext();
-    if (!ctx) return null;
-    // Resume context if suspended (browser auto-pause on inactivity)
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    return ctx;
-  };
-
-  const play = (fn: (ctx: AudioContext) => void) => {
+  const safePlay = (key: SfxKey) => {
     if (!enabled) return;
-    const ctx = tryCtx();
-    if (!ctx) return;
     try {
-      fn(ctx);
+      playSfx(key);
     } catch {}
   };
 
@@ -158,122 +147,30 @@ export function createSoundEngine(): SoundEngine {
     setEnabled(b) {
       enabled = b;
       this.enabled = b;
-      if (!b) {
-        if (musicIntervalId) {
-          clearInterval(musicIntervalId);
-          musicIntervalId = null;
-        }
+      if (!b && musicIntervalId) {
+        clearInterval(musicIntervalId);
+        musicIntervalId = null;
       }
     },
-    chomp() {
-      play((ctx) =>
-        beep(ctx, {
-          freq: 280,
-          duration: 50,
-          wave: "square",
-          volume: 0.04,
-          endFreq: 220,
-          attack: 1,
-          release: 20,
-        }),
-      );
-    },
-    pellet() {
-      play((ctx) =>
-        beep(ctx, {
-          freq: 420,
-          duration: 35,
-          wave: "square",
-          volume: 0.03,
-          attack: 1,
-          release: 20,
-        }),
-      );
-    },
-    superPellet() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 220, duration: 90, wave: "square", volume: 0.07 },
-          { freq: 330, duration: 90, wave: "square", volume: 0.07 },
-          { freq: 440, duration: 90, wave: "square", volume: 0.07 },
-          { freq: 660, duration: 180, wave: "square", volume: 0.07 },
-        ]);
-      });
-    },
-    catchHit() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 880, duration: 80, wave: "square", volume: 0.08, endFreq: 1320 },
-          { freq: 1320, duration: 120, wave: "square", volume: 0.08, endFreq: 1760 },
-        ]);
-      });
-    },
-    comboHit(combo) {
-      play((ctx) => {
-        const base = 880 + combo * 220;
-        sequence(ctx, [
-          { freq: base, duration: 60, wave: "square", volume: 0.08 },
-          { freq: base * 1.5, duration: 60, wave: "square", volume: 0.08 },
-          { freq: base * 2, duration: 100, wave: "square", volume: 0.08 },
-        ]);
-      });
-    },
-    ghostEaten() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 660, duration: 80, wave: "triangle", volume: 0.06 },
-          { freq: 880, duration: 80, wave: "triangle", volume: 0.06 },
-          { freq: 1320, duration: 120, wave: "triangle", volume: 0.06 },
-        ]);
-      });
-    },
-    pelletGuyDeath() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 440, duration: 140, wave: "sawtooth", volume: 0.07, endFreq: 220 },
-          { freq: 220, duration: 200, wave: "sawtooth", volume: 0.07, endFreq: 110 },
-          { freq: 110, duration: 260, wave: "sawtooth", volume: 0.07, endFreq: 55 },
-        ]);
-      });
-    },
-    levelWin() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 523, duration: 110, wave: "square", volume: 0.07 }, // C5
-          { freq: 659, duration: 110, wave: "square", volume: 0.07 }, // E5
-          { freq: 784, duration: 110, wave: "square", volume: 0.07 }, // G5
-          { freq: 1047, duration: 240, wave: "square", volume: 0.08 }, // C6
-        ]);
-      });
-    },
-    levelLose() {
-      play((ctx) => {
-        sequence(ctx, [
-          { freq: 392, duration: 160, wave: "sawtooth", volume: 0.07 },
-          { freq: 311, duration: 160, wave: "sawtooth", volume: 0.07 },
-          { freq: 220, duration: 280, wave: "sawtooth", volume: 0.08 },
-        ]);
-      });
-    },
-    uiClick() {
-      play((ctx) =>
-        beep(ctx, {
-          freq: 660,
-          duration: 40,
-          wave: "square",
-          volume: 0.04,
-          attack: 1,
-          release: 20,
-        }),
-      );
-    },
+    chomp: () => safePlay("chomp"),
+    pellet: () => safePlay("pellet"),
+    superPellet: () => safePlay("super"),
+    catchHit: () => safePlay("catch"),
+    comboHit: (_combo) => safePlay("combo"),
+    ghostEaten: () => safePlay("ghostEaten"),
+    pelletGuyDeath: () => safePlay("death"),
+    levelWin: () => safePlay("win"),
+    levelLose: () => safePlay("lose"),
+    uiClick: () => safePlay("uiClick"),
     startMusic() {
       if (!enabled) return;
       if (musicIntervalId) return;
-      const ctx = tryCtx();
-      if (!ctx) return;
+      const ctx = getAudioContext();
+      if (!ctx) return; // native: music skipped (could add looping mp3 asset later)
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
       musicStep = 0;
-      // Tempo: ~150bpm with 8 steps per bar = 200ms per step
       musicIntervalId = setInterval(() => {
         try {
           playMusicStep(ctx);
@@ -289,7 +186,6 @@ export function createSoundEngine(): SoundEngine {
   };
 }
 
-// Module-level singleton
 let _engine: SoundEngine | null = null;
 export function getSoundEngine(): SoundEngine {
   if (!_engine) _engine = createSoundEngine();

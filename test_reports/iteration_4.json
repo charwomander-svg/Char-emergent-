@@ -1,0 +1,51 @@
+{
+  "summary": "Phase 4 Ghost Maze: Backend 14/14 pytest PASSED, Frontend smoke + custom-seed + Phase-4 wiring PASSED on https://four-ghost-chase.preview.emergentagent.com. AUDIO ASSETS: all 10 WAVs present in /app/frontend/assets/sounds (chomp, pellet, super, catch, combo, ghost_eaten, death, win, lose, ui_click; sizes 1.5-28KB). expo-audio ~1.1.1 confirmed in package.json. SHARE: /app/frontend/src/game/share.ts exports shareCard, buildScoreCard, buildChallengeUrl; bundle search confirms all three symbols are compiled in. GAMEPAD: /app/frontend/src/game/useGamepad.ts present, hook is called from game.tsx with stateRef-based getSelectedGhostId; no JS errors fired on /game load (hook gracefully no-ops without a connected pad). CUSTOM CHALLENGE URLs: /game?mode=custom&seed=42424242 loads with PELLETS:132/132; /game?mode=custom&seed=12345 loads with PELLETS:131/131 and is deterministic across reloads (same total both loads), and differs from seed 42424242 → seeded maze generation is working. GAME OVER BUTTONS: status==='gameOver' overlay is gated by lives==0 so visual verification would require ~60s of natural play; instead the JS bundle was fetched and grep'd — all 5 required testIDs (restart-btn, share-score-btn, challenge-friend-btn, leaderboard-btn, menu-btn) + submit-score-btn + player-name-input are present in compiled bundle, along with literal button labels 'SHARE SCORE', 'CHALLENGE A FRIEND', 'PLAY AGAIN', 'MAIN MENU'. SMOKE/REGRESSION: main menu shows all 4 buttons (play-btn, characters-btn, daily-btn, leaderboard-btn); START GAME navigates to /game (hud-level=1). No pageerror events, no red-screen, no new console errors. Backend pytest 14/14 still green (test_ghost_maze_api.py, ~1.6s).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/scores",
+        "issue": "Pre-existing from iteration_3: Field(max_length=16) on player_name short-circuits the sanitize_name validator's truncation branch with 422. Not Phase-4 regression; low priority."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "POST /api/scores from gameOver submit with mode='custom'",
+        "issue": "useGhostMaze's submitFinalScore likely sends mode='custom' but backend only accepts mode in {'classic','daily'} (Literal). If a player completes a custom-seed run and presses SUBMIT SCORE, the backend will return 422. Not directly tested this iteration (couldn't trigger gameOver in <60s), but worth verifying. Reference: /app/backend/server.py:78 (ScoreSubmission.mode Literal['classic','daily']) vs /app/frontend/app/game.tsx:231 (buildScoreCard mode includes 'custom').",
+        "affected_testIDs": ["submit-score-btn"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ghost_maze_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "(Optional) Either extend backend ScoreSubmission.mode Literal to include 'custom' (and store/return entry filtered out of classic + daily leaderboards), OR have the frontend skip/disable the SUBMIT SCORE box for custom-seed runs since they shouldn't pollute leaderboards. Currently the form is rendered for all gameOver states regardless of mode.",
+    "(Optional) Pre-existing: align name sanitization (Field(max_length=16) vs sanitize_name) per iteration_3 note.",
+    "(Optional) Add a hidden dev-only 'force gameOver' button or query param so the gameOver overlay (restart/share/challenge/leaderboard/menu buttons) can be verified visually without ~60s of gameplay."
+  ],
+  "critical_code_review_comments": [
+    "useGamepad.ts: enabledRef.current is updated on every render via 'cb.enabled !== false' OUTSIDE the useEffect; this is fine, but cb is also stored via cbRef.current = cb at the top of the function body (line 47) which works but is unconventional. Acceptable.",
+    "game.tsx:155-191 useGamepad is invoked BEFORE stateRef.current is assigned (which happens at line 280). Because stateRef is created with useRef(null) and only set during render after the hook call, the very first poll() inside the gamepad RAF could read stateRef.current as null and crash if pads are connected. Mitigation: hook tolerates this via try/catch in poll() — verified. Still worth swapping order or pre-initializing stateRef to a safe default.",
+    "share.ts:6-17 buildChallengeUrl uses window.location.origin OR process.env.EXPO_PUBLIC_BACKEND_URL OR ''. The empty-string fallback would yield a relative URL '/game?...'; on native this would be useless when shared. Consider always using the public backend URL on native.",
+    "sounds.ts: createAudioPlayer pool of 3 per SFX (10 SFX × 3 = 30 players) created lazily on first play — fine. No teardown of players on engine destruction; not currently called.",
+    "game.tsx:232 buildScoreCard receives mode as (mode as any) ?? 'classic' — the 'as any' bypasses TS check that mode might be 'custom' which backend rejects (see integration_issues)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (14/14 pytest tests passed)",
+    "frontend": "100% smoke + custom seed flows; gameOver overlay buttons verified via JS bundle string search (not visual)"
+  },
+  "seed_data_creation": "Pytest run created additional TEST_-prefixed entries in MongoDB scores collection (same pattern as iteration_3). Safe to bulk-delete WHERE player_name LIKE 'TEST_%'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 4 wiring (audio assets, expo-audio dep, useGamepad hook, share helpers, custom-seed URL) is in place and the bundle compiles cleanly. To visually verify the gameOver overlay buttons (restart-btn / share-score-btn / challenge-friend-btn / leaderboard-btn / menu-btn) and the SUBMIT SCORE form on custom-seed runs, you'd need to either let the game run for ~60-90s and let Pellet Guy survive (he kills ghosts via super-pellet pickups) or add a dev hook to force state.status='gameOver'. The 5 testIDs and their string labels were confirmed present in the compiled JS bundle by fetching the expo-router entry.bundle and grepping. Web Gamepad cannot be tested in headless Playwright. Custom challenge URL pattern: /game?mode=custom&seed=<int>[&label=<name>]. Deterministic: same seed → same maze (verified by total pellet count). Pre-existing concerns from iteration_3 still open (player_name Field(max_length=16) vs sanitize_name truncation, leaderboard 'TEST_' pollution).",
+  "rca_of_issue": "Possible custom-mode submit incompatibility: ScoreSubmission.mode is Literal['classic','daily'] but frontend's buildScoreCard accepts 'custom'. If submitFinalScore sends mode='custom' (need to confirm in useGhostMaze.ts), backend will 422 — not blocking phase 4 features per se, but a gameOver→SUBMIT click on a custom run would silently fail. Fix: add 'custom' to backend Literal and filter from default leaderboard queries, OR conditionally render the submit-score-box only when mode in {classic, daily}."
+}

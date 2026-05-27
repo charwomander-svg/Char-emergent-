@@ -106,16 +106,16 @@ function speedScale(level: number): number {
 }
 
 export function useGhostMaze(opts?: {
-  mode?: "classic" | "daily";
+  mode?: "classic" | "daily" | "custom";
   dailySeed?: number;
   dailySeedDate?: string;
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
-  const modeRef = useRef<"classic" | "daily">(opts?.mode ?? "classic");
+  const modeRef = useRef<"classic" | "daily" | "custom">(opts?.mode ?? "classic");
   const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
-    opts?.dailySeed != null && opts.dailySeedDate
-      ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate }
+    opts?.dailySeed != null
+      ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
       : null,
   );
 
@@ -655,13 +655,14 @@ export function useGhostMaze(opts?: {
   const submitFinalScore = useCallback(
     async (playerName: string) => {
       const { submitScore } = await import("./api");
-      const isDaily = modeRef.current === "daily" && dailyRef.current;
+      const isDaily = modeRef.current === "daily" && dailyRef.current?.seedDate;
       return submitScore({
         player_name: playerName,
         score: state.score,
         level: state.level,
         catches: state.catches,
         theme_id: themeIdRef.current,
+        // Custom challenges score against classic leaderboard (no daily date)
         mode: isDaily ? "daily" : "classic",
         daily_seed_date: isDaily ? dailyRef.current?.seedDate : undefined,
       });
@@ -672,6 +673,7 @@ export function useGhostMaze(opts?: {
   return {
     state,
     mode: modeRef.current,
+    seed: dailyRef.current?.seed,
     dailySeedDate: dailyRef.current?.seedDate,
     setGhostDirection,
     selectGhost,

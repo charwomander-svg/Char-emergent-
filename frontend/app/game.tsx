@@ -18,6 +18,8 @@ import MazeRenderer from "@/src/game/MazeRenderer";
 import { COLORS, MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { getSoundEngine } from "@/src/game/sounds";
+import { useGamepad } from "@/src/game/useGamepad";
+import { shareCard, buildScoreCard, buildChallengeUrl } from "@/src/game/share";
 
 // Mini D-pad for one ghost
 function GhostDpad({
@@ -150,12 +152,17 @@ export default function GameScreen() {
     seedDate?: string;
   }>();
 
+  // stateRef must be defined BEFORE useGamepad/PanResponder closures
+  const stateRef = useRef<any>(null);
+
   const isDaily = params.mode === "daily";
+  const isCustom = params.mode === "custom";
   const seedNum = params.seed ? parseInt(params.seed, 10) : undefined;
 
   const {
     state,
     mode,
+    seed: gameSeed,
     dailySeedDate,
     setGhostDirection,
     selectGhost,
@@ -171,8 +178,19 @@ export default function GameScreen() {
           dailySeed: seedNum,
           dailySeedDate: typeof params.seedDate === "string" ? params.seedDate : undefined,
         }
+      : isCustom && seedNum != null
+      ? { mode: "custom", dailySeed: seedNum }
       : { mode: "classic" },
   );
+
+  // Gamepad integration
+  useGamepad({
+    onDirection: (id, dir) => setGhostDirection(id, dir),
+    onSelect: (id) => selectGhost(id),
+    getSelectedGhostId: () => stateRef.current.selectedGhostId,
+  });
+
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   const [soundOn, setSoundOn] = useState(true);
   const [playerName, setPlayerName] = useState("GHOST");
@@ -203,6 +221,46 @@ export default function GameScreen() {
     }
   }, [state.status]);
 
+  const handleShare = async () => {
+    getSoundEngine().uiClick();
+    const card = buildScoreCard({
+      playerName: playerName || "GHOST",
+      score: state.score,
+      level: state.level,
+      catches: state.catches,
+      mode: (mode as any) ?? "classic",
+      dailyDate: dailySeedDate || undefined,
+      seed: gameSeed,
+    });
+    const result = await shareCard(card);
+    setShareStatus(
+      result === "shared" ? "Shared!" :
+      result === "copied" ? "Copied to clipboard!" :
+      "Share failed",
+    );
+    setTimeout(() => setShareStatus(null), 2500);
+  };
+
+  const handleChallengeFriend = async () => {
+    getSoundEngine().uiClick();
+    // Generate a fresh random seed for the challenge run
+    const seed =
+      gameSeed ?? Math.floor(Math.random() * 0x7fffffff);
+    const url = buildChallengeUrl(seed, playerName || "GHOST");
+    const card = {
+      title: "Ghost Maze Challenge",
+      message: `${playerName || "GHOST"} challenges you!\n${state.score.toLocaleString()} points on Level ${state.level} · ${state.catches} catches · seed ${seed}`,
+      url,
+    };
+    const result = await shareCard(card);
+    setShareStatus(
+      result === "shared" ? "Challenge sent!" :
+      result === "copied" ? "Challenge link copied!" :
+      "Share failed",
+    );
+    setTimeout(() => setShareStatus(null), 2500);
+  };
+
   const handleSubmit = async () => {
     if (submitting || submitted) return;
     setSubmitting(true);
@@ -219,7 +277,6 @@ export default function GameScreen() {
   };
 
   // --- Swipe gesture controls: swipe on maze area to set selected ghost's direction ---
-  const stateRef = useRef(state);
   stateRef.current = state;
   const SWIPE_THRESHOLD = 25; // pixels
   const panResponder = useRef(
@@ -474,6 +531,27 @@ export default function GameScreen() {
                 >
                   <Text style={styles.btnText}>PLAY AGAIN</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { marginTop: 8 }]}
+                  onPress={handleShare}
+                  testID="share-score-btn"
+                >
+                  <Text style={styles.btnText}>📤 SHARE SCORE</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { marginTop: 8, borderColor: "#FF00FF" }]}
+                  onPress={handleChallengeFriend}
+                  testID="challenge-friend-btn"
+                >
+                  <Text style={[styles.btnText, { color: "#FF00FF" }]}>
+                    ⚔️ CHALLENGE A FRIEND
+                  </Text>
+                </TouchableOpacity>
+                {shareStatus && (
+                  <Text style={styles.shareStatus} testID="share-status">
+                    {shareStatus}
+                  </Text>
+                )}
                 <TouchableOpacity
                   style={[styles.btn, { marginTop: 8 }]}
                   onPress={() => router.replace("/leaderboard")}
@@ -787,5 +865,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 18,
     letterSpacing: 2,
+  },
+  shareStatus: {
+    color: "#00FF88",
+    fontSize: 12,
+    letterSpacing: 1,
+    marginTop: 8,
+    fontWeight: "bold",
   },
 });
