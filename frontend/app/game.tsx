@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   TextInput,
   ActivityIndicator,
   PanResponder,
@@ -20,6 +20,9 @@ import type { Direction, GhostId } from "@/src/game/types";
 import { getSoundEngine } from "@/src/game/sounds";
 import { useGamepad } from "@/src/game/useGamepad";
 import { shareCard, buildScoreCard, buildChallengeUrl } from "@/src/game/share";
+import { useEconomy } from "@/src/game/useEconomy";
+import { POWER_UPS, POWER_UP_ORDER, PowerUpId } from "@/src/game/powerups";
+import { loadSettings, SettingsData, DEFAULT_SETTINGS } from "@/src/game/settings";
 
 // Mini D-pad for one ghost
 function GhostDpad({
@@ -168,6 +171,7 @@ export default function GameScreen() {
     mode?: string;
     seed?: string;
     seedDate?: string;
+    level?: string;
   }>();
 
   // stateRef must be defined BEFORE useGamepad/PanResponder closures
@@ -176,6 +180,10 @@ export default function GameScreen() {
   const isDaily = params.mode === "daily";
   const isCustom = params.mode === "custom";
   const seedNum = params.seed ? parseInt(params.seed, 10) : undefined;
+  const startingLevel = params.level ? Math.max(1, parseInt(params.level, 10)) : 1;
+
+  // Economy hook (Ghost Coins + inventory)
+  const { coins, inventory, earnCoins, useInventory } = useEconomy();
 
   const {
     state,
@@ -189,16 +197,18 @@ export default function GameScreen() {
     retryLevel,
     startNewGame,
     submitFinalScore,
+    applyPowerUp,
   } = useGhostMaze(
     isDaily
       ? {
           mode: "daily",
           dailySeed: seedNum,
           dailySeedDate: typeof params.seedDate === "string" ? params.seedDate : undefined,
+          onCoinsEarned: (n) => earnCoins(n),
         }
       : isCustom && seedNum != null
-      ? { mode: "custom", dailySeed: seedNum }
-      : { mode: "classic" },
+      ? { mode: "custom", dailySeed: seedNum, onCoinsEarned: (n) => earnCoins(n) }
+      : { mode: "classic", startingLevel, onCoinsEarned: (n) => earnCoins(n) },
   );
 
   // Gamepad integration
@@ -210,18 +220,55 @@ export default function GameScreen() {
 
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 
-  const [soundOn, setSoundOn] = useState(true);
+  const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
   const [playerName, setPlayerName] = useState("GHOST");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [powerUpFlash, setPowerUpFlash] = useState<string | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings().then((s) => {
+      setSettings(s);
+      getSoundEngine().setEnabled(s.soundOn);
+    });
+  }, []);
 
   const toggleSound = () => {
-    const next = !soundOn;
-    setSoundOn(next);
+    const next = !settings.soundOn;
+    const newSettings = { ...settings, soundOn: next };
+    setSettings(newSettings);
+    // Persist
+    import("@/src/game/settings").then(({ saveSettings }) => saveSettings(newSettings));
     getSoundEngine().setEnabled(next);
     if (!next) getSoundEngine().stopMusic();
     else getSoundEngine().startMusic();
+  };
+
+  // Activate a power-up from the in-game bar
+  const handlePowerUp = (id: PowerUpId) => {
+    if (state.status !== "playing") return;
+    const owned = inventory[id] ?? 0;
+    if (owned <= 0) {
+      setPowerUpFlash("No " + POWER_UPS[id].name + " left!");
+      setTimeout(() => setPowerUpFlash(null), 1500);
+      getSoundEngine().uiClick();
+      return;
+    }
+    // Try to apply effect first; only consume on success
+    const ok = applyPowerUp(id);
+    if (!ok) {
+      setPowerUpFlash(POWER_UPS[id].name + " unavailable");
+      setTimeout(() => setPowerUpFlash(null), 1500);
+      return;
+    }
+    useInventory(id);
+    if (settings.haptics) {
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    }
+    setPowerUpFlash(POWER_UPS[id].icon + " " + POWER_UPS[id].name + "!");
+    setTimeout(() => setPowerUpFlash(null), 1500);
   };
 
   // Stop music when leaving game screen
@@ -360,21 +407,26 @@ export default function GameScreen() {
     prevCatchesRef.current = state.catches;
   }, [state.catches, state.comboCount, state.pelletGuy.x, state.pelletGuy.y]);
 
-  const { width: screenW, height: screenH } = Dimensions.get("window");
+  const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Compute cell size to fit width and ~48% of height (leave more room for bigger controls)
-  const maxMazeW = screenW - 16;
-  const maxMazeH = screenH * 0.46;
-  const cellSize = Math.floor(
-    Math.min(maxMazeW / MAZE_COLS, maxMazeH / MAZE_ROWS),
+  // Fallback for SSR/initial render before measurement: use sensible defaults.
+  const safeW = screenW || 400;
+  const safeH = screenH || 800;
+  const maxMazeW = safeW - 16;
+  const maxMazeH = safeH * 0.46;
+  const cellSize = Math.max(
+    10,
+    Math.floor(Math.min(maxMazeW / MAZE_COLS, maxMazeH / MAZE_ROWS)),
   );
 
   // Dpad size: aim for bigger, use available space below the maze
-  const remainingH = screenH - cellSize * MAZE_ROWS - 180;
+  // Buffer accounts for HUD + pellets + power-up bar + active effects + bottom bar
+  const remainingH = safeH - cellSize * MAZE_ROWS - 240;
   const dpadSize = Math.max(
     140,
     Math.min(
-      (screenW - 32) / 2 - 4,
+      (safeW - 32) / 2 - 4,
       remainingH / 2 - 4,
     ),
   );
@@ -408,9 +460,32 @@ export default function GameScreen() {
           </Text>
         </View>
         <View style={styles.hudCell}>
+          <Text style={styles.hudLabel}>COINS</Text>
+          <Text style={[styles.hudValue, { color: "#FFD23F" }]} testID="hud-coins">
+            🪙{coins}
+          </Text>
+        </View>
+        <View style={styles.hudCell}>
           <Text style={styles.hudLabel}>CATCHES</Text>
           <Text style={styles.hudValue} testID="hud-catches">
             {state.catches}/3
+          </Text>
+        </View>
+        <View style={styles.hudCell}>
+          <Text style={styles.hudLabel}>DOWN</Text>
+          <Text
+            style={[
+              styles.hudValue,
+              {
+                color: state.ghostDeathsThisLevel >= 3 ? "#FF0044" :
+                       state.ghostDeathsThisLevel >= 1 ? "#FFB852" : "#FFFFFF",
+                fontSize: 14,
+              },
+            ]}
+            testID="hud-deaths"
+          >
+            {state.ghostDeathsThisLevel}
+            {state.ghostDeathsThisLevel > 0 ? ` (${(1 + state.ghostDeathsThisLevel * 0.6).toFixed(1)}x)` : ""}
           </Text>
         </View>
         <View style={styles.hudCell}>
@@ -642,6 +717,83 @@ export default function GameScreen() {
         </View>
       </View>
 
+      {/* Active effects strip */}
+      {(state.effects.speedBoostUntil > Date.now() ||
+        state.effects.freezeUntil > Date.now() ||
+        state.effects.magnetUntil > Date.now() ||
+        state.effects.revealUntil > Date.now() ||
+        state.effects.fastRespawn ||
+        state.effects.shieldGhostId != null ||
+        state.effects.decoy) && (
+        <View style={styles.effectsStrip} testID="active-effects">
+          {state.effects.speedBoostUntil > Date.now() && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.speedBoost.color }]}>
+              ⚡SPEED
+            </Text>
+          )}
+          {state.effects.freezeUntil > Date.now() && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.freeze.color }]}>
+              ❄️FREEZE
+            </Text>
+          )}
+          {state.effects.magnetUntil > Date.now() && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.magnet.color }]}>
+              🧲MAGNET
+            </Text>
+          )}
+          {state.effects.revealUntil > Date.now() && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.reveal.color }]}>
+              👁️REVEAL
+            </Text>
+          )}
+          {state.effects.shieldGhostId != null && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.shield.color }]}>
+              🛡️SHIELD
+            </Text>
+          )}
+          {state.effects.fastRespawn && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.fastRespawn.color }]}>
+              ⏱REVIVE
+            </Text>
+          )}
+          {state.effects.decoy && (
+            <Text style={[styles.effectBadge, { color: POWER_UPS.decoy.color }]}>
+              👻DECOY
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Power-up bar */}
+      <View style={styles.powerBar} testID="power-bar">
+        {POWER_UP_ORDER.map((id) => {
+          const def = POWER_UPS[id];
+          const count = inventory[id] ?? 0;
+          const disabled = count <= 0 || state.status !== "playing";
+          return (
+            <TouchableOpacity
+              key={id}
+              style={[
+                styles.powerSlot,
+                { borderColor: def.color },
+                disabled && { opacity: 0.35 },
+              ]}
+              onPress={() => handlePowerUp(id)}
+              disabled={disabled}
+              testID={`power-${id}`}
+            >
+              <Text style={styles.powerIcon}>{def.icon}</Text>
+              <Text style={[styles.powerCount, { color: def.color }]}>×{count}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {powerUpFlash && (
+        <Text style={styles.powerFlash} testID="power-flash">
+          {powerUpFlash}
+        </Text>
+      )}
+
       {/* Bottom action row */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
@@ -662,7 +814,7 @@ export default function GameScreen() {
           testID="sound-btn"
         >
           <Text style={styles.smallBtnText}>
-            {soundOn ? "🔊 SOUND" : "🔇 MUTED"}
+            {settings.soundOn ? "🔊 SOUND" : "🔇 MUTED"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -677,6 +829,22 @@ export default function GameScreen() {
           <Text style={styles.smallBtnText}>QUIT</Text>
         </TouchableOpacity>
       </View>
+
+      {/* CRT scanline overlay - thin & subtle */}
+      {settings.scanlines && (
+        <View style={styles.scanlineOverlay} testID="scanlines">
+          {Array.from({ length: 120 }).map((_, i) => (
+            <View
+              key={i}
+              style={{
+                height: 1,
+                marginTop: 4,
+                backgroundColor: "rgba(255,255,255,0.18)",
+              }}
+            />
+          ))}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -894,5 +1062,75 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 8,
     fontWeight: "bold",
+  },
+  powerBar: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    backgroundColor: "#0a0a18",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.uiBorder,
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  powerSlot: {
+    minWidth: 40,
+    height: 44,
+    backgroundColor: COLORS.uiPanel,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  powerIcon: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  powerCount: {
+    fontSize: 9,
+    fontWeight: "900",
+    marginTop: -2,
+  },
+  powerFlash: {
+    position: "absolute",
+    top: "40%",
+    alignSelf: "center",
+    color: "#FFFF00",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 2,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    zIndex: 100,
+  },
+  effectsStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    gap: 8,
+  },
+  effectBadge: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  scanlineOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: "none" as any,
   },
 });

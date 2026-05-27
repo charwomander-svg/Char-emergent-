@@ -49,6 +49,20 @@ export type GameStatus =
   | "levelLost"
   | "gameOver";
 
+export interface ActiveEffects {
+  // timestamps (performance.now) when each buff expires; 0 = inactive
+  speedBoostUntil: number;
+  freezeUntil: number;
+  magnetUntil: number;
+  revealUntil: number;
+  // selected ghost has shield against next spike (or pellet-guy chomp)
+  shieldGhostId: GhostId | null;
+  // halve ghost respawn delays for current level
+  fastRespawn: boolean;
+  // optional decoy ghost the AI treats as a threat to evade
+  decoy: { x: number; y: number; until: number; ghostId: GhostId } | null;
+}
+
 export interface GameState {
   status: GameStatus;
   level: number;
@@ -66,4 +80,8 @@ export interface GameState {
   selectedGhostId: GhostId;
   // Active barricades: track expiry per position
   barricades: { x: number; y: number; expiresAt: number }[];
+  // Cumulative ghost deaths (eaten + spiked) on the current level.
+  // Each successive death increases the respawn cooldown.
+  ghostDeathsThisLevel: number;
+  effects: ActiveEffects;
 }

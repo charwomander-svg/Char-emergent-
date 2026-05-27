@@ -34,12 +34,23 @@ export const SPEED = {
 };
 
 // Power-up balance
+// Power-up balance
 export const SUPER_PELLET_DURATION_MS = 6000;
 export const COMBO_WINDOW_MS = 1500;
 export const RESPAWN_MS = 1500;
 export const READY_DURATION_MS = 1500;
 export const CATCH_TO_WIN = 3;
 export const STARTING_LIVES = 3;
+
+// Respawn cooldown scaling: each prior death on the current level adds this
+// multiplier of the base. Formula: base * (1 + prior_deaths * STEP), capped.
+//   1st death → 1.0× (1.5s)
+//   2nd death → 1.6× (2.4s)
+//   3rd death → 2.2× (3.3s)
+//   4th death → 2.8× (4.2s)
+//   5th death → 3.4× (5.1s)  ... and so on, capped at 5×
+export const RESPAWN_DEATH_STEP = 0.6;
+export const RESPAWN_MAX_MULTIPLIER = 5.0;
 
 // Pellet Guy traps
 export const TRAP_DROP_BASE_CHANCE = 0.025; // per-move chance at level 1

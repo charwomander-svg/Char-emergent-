@@ -41,11 +41,17 @@ export function getValidDirections(
  * - Level 2-3: weighted to avoid ghost-adjacent cells
  * - Level 4+: actively flees nearest threat (Manhattan-distance maximization)
  */
+export interface PgAiOpts {
+  magnetActive?: boolean;
+  decoy?: { x: number; y: number } | null;
+}
+
 export function choosePelletGuyDirection(
   maze: CellType[][],
   pg: PelletGuy,
   level: number,
   ghosts: Ghost[] = [],
+  opts: PgAiOpts = {},
 ): Direction {
   const valid = getValidDirections(maze, pg.x, pg.y, true);
   if (valid.length === 0) return "none";
@@ -55,8 +61,11 @@ export function choosePelletGuyDirection(
   let candidates = valid.filter((d) => d !== reverse);
   if (candidates.length === 0) candidates = valid;
 
+  const magnetActive = !!opts.magnetActive;
+
   // Level 1: random with straight preference, no AI threat awareness
-  if (level <= 1) {
+  // ...unless magnet is active, in which case PG is yanked toward nearest ghost
+  if (level <= 1 && !magnetActive) {
     if (candidates.includes(pg.direction) && Math.random() < 0.7) {
       return pg.direction;
     }
@@ -64,15 +73,20 @@ export function choosePelletGuyDirection(
   }
 
   // Threats: alive non-vulnerable ghosts within sense radius
-  const senseRadius = level <= 3 ? 4 : 7;
+  // Magnet treats ALL alive ghosts as attractors (even vulnerable, full map).
+  const senseRadius = magnetActive ? 9999 : level <= 3 ? 4 : 7;
   const threats = ghosts.filter(
     (g) =>
       g.alive &&
-      !g.vulnerable &&
+      (magnetActive || !g.vulnerable) &&
       Math.abs(g.x - pg.x) + Math.abs(g.y - pg.y) <= senseRadius,
   );
 
-  if (threats.length === 0) {
+  // Decoy acts as an additional "threat" the AI tries to flee.
+  // Even during magnet, decoy still repels.
+  const decoy = opts.decoy ?? null;
+
+  if (threats.length === 0 && !decoy) {
     // No threats - prefer continuing straight, else pick from candidates
     if (candidates.includes(pg.direction) && Math.random() < 0.6) {
       return pg.direction;
@@ -82,6 +96,7 @@ export function choosePelletGuyDirection(
 
   // Score each candidate direction by sum of distances to threats
   // Higher score = farther from threats = safer
+  // When magnet is active: scoring inverted so PG moves TOWARDS ghosts.
   const scored = candidates.map((d) => {
     const [dx, dy] = DELTAS[d];
     const nx = pg.x + dx;
@@ -89,16 +104,26 @@ export function choosePelletGuyDirection(
     let score = 0;
     for (const t of threats) {
       const dist = Math.abs(t.x - nx) + Math.abs(t.y - ny);
-      score += dist;
-      // Heavy penalty for moving INTO a ghost cell
-      if (t.x === nx && t.y === ny) score -= 1000;
+      if (magnetActive) {
+        // Closer is better -> larger score for smaller distance
+        score += (50 - dist);
+      } else {
+        score += dist;
+        if (t.x === nx && t.y === ny) score -= 1000;
+      }
+    }
+    if (decoy) {
+      const dDist = Math.abs(decoy.x - nx) + Math.abs(decoy.y - ny);
+      // Decoy always repels (treated like a non-magnet threat)
+      score += dDist;
+      if (decoy.x === nx && decoy.y === ny) score -= 1000;
     }
     return { dir: d, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
 
-  if (level >= 4) {
+  if (level >= 4 || magnetActive) {
     // Greedy evasion - always pick highest score (with tiny randomization for ties)
     const best = scored[0].score;
     const tied = scored.filter((s) => s.score === best);

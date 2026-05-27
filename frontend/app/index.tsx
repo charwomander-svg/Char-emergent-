@@ -11,10 +11,12 @@ import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
 import { fetchDailySeed } from "@/src/game/api";
+import { useEconomy } from "@/src/game/useEconomy";
 
 export default function MainMenu() {
   const router = useRouter();
   const [dailyDate, setDailyDate] = useState<string | null>(null);
+  const { coins } = useEconomy();
 
   useEffect(() => {
     fetchDailySeed()
@@ -68,6 +70,12 @@ export default function MainMenu() {
           <Text style={styles.targetLabel}>PELLET GUY</Text>
         </View>
 
+        {/* Coin balance */}
+        <View style={styles.coinBadgeTop} testID="menu-coin-balance">
+          <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
+          <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
+        </View>
+
         {/* Play Button */}
         <TouchableOpacity
           style={styles.playBtn}
@@ -78,6 +86,32 @@ export default function MainMenu() {
           testID="play-btn"
         >
           <Text style={styles.playBtnText}>▶ START GAME</Text>
+        </TouchableOpacity>
+
+        {/* Levels Button */}
+        <TouchableOpacity
+          style={styles.charactersBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/levels");
+          }}
+          testID="levels-btn"
+        >
+          <Text style={styles.charactersBtnText}>🎯 LEVEL SELECT</Text>
+        </TouchableOpacity>
+
+        {/* Shop Button */}
+        <TouchableOpacity
+          style={[styles.charactersBtn, { borderColor: "#FFD23F" }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/shop");
+          }}
+          testID="shop-btn"
+        >
+          <Text style={[styles.charactersBtnText, { color: "#FFD23F" }]}>
+            🛒 SHOP & POWER-UPS
+          </Text>
         </TouchableOpacity>
 
         {/* Characters Button */}
@@ -112,6 +146,18 @@ export default function MainMenu() {
           testID="leaderboard-btn"
         >
           <Text style={styles.charactersBtnText}>🏆 LEADERBOARD</Text>
+        </TouchableOpacity>
+
+        {/* Settings */}
+        <TouchableOpacity
+          style={styles.charactersBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/settings");
+          }}
+          testID="settings-btn"
+        >
+          <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
         </TouchableOpacity>
 
         {/* How to play */}
@@ -309,5 +355,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 24,
     letterSpacing: 1,
+  },
+  coinBadgeTop: {
+    marginTop: 16,
+    backgroundColor: "#1f1f3a",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: "#FFD23F",
+    alignItems: "center",
+  },
+  coinBadgeText: {
+    color: "#FFD23F",
+    fontWeight: "900",
+    fontSize: 22,
+    letterSpacing: 1,
+  },
+  coinBadgeLabel: {
+    color: "#FFB897",
+    fontSize: 9,
+    letterSpacing: 2,
+    fontWeight: "bold",
+    marginTop: 2,
   },
 });

@@ -14,6 +14,8 @@ import {
   COMBO_WINDOW_MS,
   READY_DURATION_MS,
   RESPAWN_MS,
+  RESPAWN_DEATH_STEP,
+  RESPAWN_MAX_MULTIPLIER,
   SCORE_CATCH,
   SCORE_COMBO_BONUS,
   SCORE_PELLET,
@@ -34,6 +36,19 @@ import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
 import { getSoundEngine } from "./sounds";
 import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
+import type { PowerUpId } from "./powerups";
+import { COIN_REWARD } from "./economy";
+import type { ActiveEffects } from "./types";
+
+const EMPTY_EFFECTS: ActiveEffects = {
+  speedBoostUntil: 0,
+  freezeUntil: 0,
+  magnetUntil: 0,
+  revealUntil: 0,
+  shieldGhostId: null,
+  fastRespawn: false,
+  decoy: null,
+};
 
 function createInitialGhosts(
   spawns: { x: number; y: number }[],
@@ -96,7 +111,18 @@ function buildInitialState(
     message: daily ? `DAILY ${daily.seedDate}` : `LEVEL ${level}`,
     selectedGhostId: 0,
     barricades: [],
+    ghostDeathsThisLevel: 0,
+    effects: { ...EMPTY_EFFECTS },
   };
+}
+
+function computeRespawnDelay(priorDeaths: number, fastRespawn = false): number {
+  const mult = Math.min(
+    RESPAWN_MAX_MULTIPLIER,
+    1 + priorDeaths * RESPAWN_DEATH_STEP,
+  );
+  const base = fastRespawn ? RESPAWN_MS * 0.5 : RESPAWN_MS;
+  return base * mult;
 }
 
 // Speed scaling per level
@@ -109,6 +135,8 @@ export function useGhostMaze(opts?: {
   mode?: "classic" | "daily" | "custom";
   dailySeed?: number;
   dailySeedDate?: string;
+  startingLevel?: number;
+  onCoinsEarned?: (n: number, reason: "pellet" | "superPellet" | "catch" | "levelClear" | "perfect") => void;
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
@@ -118,9 +146,12 @@ export function useGhostMaze(opts?: {
       ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
       : null,
   );
+  const onCoinsEarnedRef = useRef(opts?.onCoinsEarned);
+  onCoinsEarnedRef.current = opts?.onCoinsEarned;
+  const initialLevel = Math.max(1, opts?.startingLevel ?? 1);
 
   const [state, setState] = useState<GameState>(() =>
-    buildInitialState(1, STARTING_LIVES, 0, "classic", dailyRef.current),
+    buildInitialState(initialLevel, STARTING_LIVES, 0, "classic", dailyRef.current),
   );
 
   // Load saved progress (theme + stats) on mount
@@ -129,9 +160,9 @@ export function useGhostMaze(opts?: {
       progressRef.current = p;
       themeIdRef.current = p.selectedThemeId;
       setState((cur) => {
-        if (cur.status !== "ready" || cur.level !== 1 || cur.score !== 0) return cur;
+        if (cur.status !== "ready" || cur.level !== initialLevel || cur.score !== 0) return cur;
         return buildInitialState(
-          1,
+          initialLevel,
           STARTING_LIVES,
           0,
           p.selectedThemeId,
@@ -139,7 +170,7 @@ export function useGhostMaze(opts?: {
         );
       });
     });
-  }, []);
+  }, [initialLevel]);
 
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
@@ -233,8 +264,13 @@ export function useGhostMaze(opts?: {
     if (prev.status !== "playing") return;
 
     const scale = speedScale(prev.level);
-    const ghostInterval = SPEED.ghost * scale;
-    const ghostVulnInterval = SPEED.ghostVulnerable * scale;
+    const effects = prev.effects;
+    const speedBoostActive = effects.speedBoostUntil > now;
+    const freezeActive = effects.freezeUntil > now;
+    const magnetActive = effects.magnetUntil > now;
+    const ghostSpeedMult = speedBoostActive ? 0.6 : 1.0;
+    const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
+    const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
     const pgInterval = SPEED.pelletGuy * scale;
 
     let nextState: GameState = prev;
@@ -316,6 +352,7 @@ export function useGhostMaze(opts?: {
     let pelletsRemaining = prev.pelletsRemaining;
     let score = prev.score;
     let barricades = prev.barricades;
+    let ghostDeathsThisLevel = prev.ghostDeathsThisLevel;
 
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
@@ -329,7 +366,7 @@ export function useGhostMaze(opts?: {
         lastPelletGuyMoveRef.current = now;
         mutated = true;
       }
-    } else if (now - lastPelletGuyMoveRef.current >= pgInterval) {
+    } else if (!freezeActive && now - lastPelletGuyMoveRef.current >= pgInterval) {
       lastPelletGuyMoveRef.current = now;
 
       const pgPrevX = pg.x;
@@ -349,8 +386,13 @@ export function useGhostMaze(opts?: {
         );
         return choices.length >= 3 || !isWalkable(prev.maze, next.x, next.y, true);
       })();
+      const decoyAlive =
+        effects.decoy && effects.decoy.until > now ? effects.decoy : null;
       if (atIntersection) {
-        dir = choosePelletGuyDirection(prev.maze, pg, prev.level, newGhosts);
+        dir = choosePelletGuyDirection(prev.maze, pg, prev.level, newGhosts, {
+          magnetActive,
+          decoy: decoyAlive ? { x: decoyAlive.x, y: decoyAlive.y } : null,
+        });
         next = applyDirection(pg.x, pg.y, dir);
       }
       if (isWalkable(prev.maze, next.x, next.y, true)) {
@@ -368,6 +410,7 @@ export function useGhostMaze(opts?: {
           pelletsRemaining--;
           score += SCORE_PELLET;
           getSoundEngine().pellet();
+          onCoinsEarnedRef.current?.(COIN_REWARD.pellet, "pellet");
         } else if (cell === 3) {
           maze = maze.map((row, ry) =>
             ry === next.y
@@ -376,6 +419,7 @@ export function useGhostMaze(opts?: {
           );
           score += SCORE_SUPER_PELLET;
           getSoundEngine().superPellet();
+          onCoinsEarnedRef.current?.(COIN_REWARD.superPellet, "superPellet");
           // make all alive ghosts vulnerable
           for (let i = 0; i < newGhosts.length; i++) {
             if (newGhosts[i].alive) {
@@ -458,20 +502,32 @@ export function useGhostMaze(opts?: {
     }
 
     // --- Ghost-on-spike collision (after ghost moves) ---
+    let effectsNext: ActiveEffects = effects;
     for (let i = 0; i < newGhosts.length; i++) {
       const g = newGhosts[i];
       if (!g.alive) continue;
       if (maze[g.y][g.x] === 6) {
-        // Spike triggered - ghost dies, spike consumed
+        // Spike triggered. Consume the spike either way.
         maze = maze.map((row, ry) =>
           ry === g.y
             ? row.map((c, cx) => (cx === g.x ? (0 as CellType) : c))
             : row,
         );
+
+        // Shield absorbs this trap without death/penalty.
+        if (effectsNext.shieldGhostId === g.id) {
+          effectsNext = { ...effectsNext, shieldGhostId: null };
+          getSoundEngine().uiClick();
+          mutated = true;
+          continue;
+        }
+
+        const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
+        ghostDeathsThisLevel++;
         newGhosts[i] = {
           ...g,
           alive: false,
-          respawnAt: now + RESPAWN_MS,
+          respawnAt: now + delay,
           vulnerable: false,
           vulnerableUntil: 0,
         };
@@ -495,11 +551,21 @@ export function useGhostMaze(opts?: {
         if (!g.alive) continue;
         if (g.x === pg.x && g.y === pg.y) {
           if (g.vulnerable) {
+            // Shield blocks one chomp
+            if (effectsNext.shieldGhostId === g.id) {
+              effectsNext = { ...effectsNext, shieldGhostId: null };
+              newGhosts[i] = { ...g, vulnerable: false, vulnerableUntil: 0 };
+              getSoundEngine().uiClick();
+              mutated = true;
+              continue;
+            }
             // Pellet guy eats ghost
+            const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
+            ghostDeathsThisLevel++;
             newGhosts[i] = {
               ...g,
               alive: false,
-              respawnAt: now + RESPAWN_MS,
+              respawnAt: now + delay,
               vulnerable: false,
               vulnerableUntil: 0,
             };
@@ -519,6 +585,7 @@ export function useGhostMaze(opts?: {
             }
             lastComboTime = now;
             score += SCORE_CATCH;
+            onCoinsEarnedRef.current?.(COIN_REWARD.catch, "catch");
             if (triggeredCombo) {
               getSoundEngine().comboHit(comboCount);
             } else {
@@ -544,6 +611,13 @@ export function useGhostMaze(opts?: {
                 pctRemaining * SCORE_PER_PERCENT_REMAINING
               } BONUS`;
               getSoundEngine().levelWin();
+
+              // Award level coins
+              const lvlCoins = COIN_REWARD.levelClear + Math.floor(pctRemaining * COIN_REWARD.perPercentRemaining);
+              onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
+              if (pctRemaining === 100) {
+                onCoinsEarnedRef.current?.(COIN_REWARD.perfectBonus, "perfect");
+              }
 
               // Persist progress
               if (progressRef.current) {
@@ -609,7 +683,13 @@ export function useGhostMaze(opts?: {
       }
     }
 
-    if (mutated || status !== prev.status) {
+    // Expire decoy
+    if (effectsNext.decoy && effectsNext.decoy.until <= now) {
+      effectsNext = { ...effectsNext, decoy: null };
+      mutated = true;
+    }
+
+    if (mutated || status !== prev.status || effectsNext !== effects) {
       nextState = {
         ...prev,
         ghosts: newGhosts,
@@ -624,6 +704,8 @@ export function useGhostMaze(opts?: {
         status,
         message,
         barricades,
+        ghostDeathsThisLevel,
+        effects: effectsNext,
       };
       setState(nextState);
     }
@@ -670,6 +752,189 @@ export function useGhostMaze(opts?: {
     [state.score, state.level, state.catches],
   );
 
+  // Apply a power-up effect to the game state.
+  // Returns true if the activation succeeded (false = ignored, e.g. not playing).
+  const applyPowerUp = useCallback((id: PowerUpId): boolean => {
+    const cur = stateRef.current;
+    if (cur.status !== "playing") return false;
+    const now = performance.now();
+
+    let nextState: GameState | null = null;
+    switch (id) {
+      case "speedBoost": {
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, speedBoostUntil: now + 6000 },
+        };
+        break;
+      }
+      case "freeze": {
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, freezeUntil: now + 4000 },
+        };
+        break;
+      }
+      case "magnet": {
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, magnetUntil: now + 5000 },
+        };
+        break;
+      }
+      case "reveal": {
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, revealUntil: now + 8000 },
+        };
+        break;
+      }
+      case "fastRespawn": {
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, fastRespawn: true },
+        };
+        break;
+      }
+      case "shield": {
+        const ghost = cur.ghosts[cur.selectedGhostId];
+        if (!ghost || !ghost.alive) return false;
+        nextState = {
+          ...cur,
+          effects: { ...cur.effects, shieldGhostId: cur.selectedGhostId },
+        };
+        break;
+      }
+      case "teleport": {
+        const ghost = cur.ghosts[cur.selectedGhostId];
+        if (!ghost || !ghost.alive) return false;
+        // Find an adjacent walkable tile next to PG
+        const pg = cur.pelletGuy;
+        if (!pg.alive) return false;
+        const targets = (
+          [
+            [pg.x, pg.y - 1],
+            [pg.x, pg.y + 1],
+            [pg.x - 1, pg.y],
+            [pg.x + 1, pg.y],
+            [pg.x, pg.y],
+          ] as [number, number][]
+        ).filter(([x, y]) => isWalkable(cur.maze, x, y, false));
+        if (targets.length === 0) return false;
+        const [tx, ty] = targets[0];
+        const ghosts = cur.ghosts.map((g, i) =>
+          i === cur.selectedGhostId
+            ? { ...g, x: tx, y: ty }
+            : g,
+        );
+        nextState = { ...cur, ghosts };
+        break;
+      }
+      case "key": {
+        // Open the closest active barricade
+        if (cur.barricades.length === 0) return false;
+        const ghost = cur.ghosts[cur.selectedGhostId];
+        const ref = ghost && ghost.alive ? ghost : null;
+        // pick nearest to selected ghost, else first
+        const sorted = [...cur.barricades].sort((a, b) => {
+          if (!ref) return 0;
+          return (
+            Math.abs(a.x - ref.x) + Math.abs(a.y - ref.y) -
+            (Math.abs(b.x - ref.x) + Math.abs(b.y - ref.y))
+          );
+        });
+        const target = sorted[0];
+        const maze = cur.maze.map((row, ry) =>
+          ry === target.y
+            ? row.map((c, cx) => (cx === target.x && c === 7 ? (0 as CellType) : c))
+            : row,
+        );
+        const barricades = cur.barricades.filter(
+          (b) => !(b.x === target.x && b.y === target.y),
+        );
+        nextState = { ...cur, maze, barricades };
+        break;
+      }
+      case "pelletScatter": {
+        // Drop 8 fresh pellets on random empty walkable tiles
+        const empties: { x: number; y: number }[] = [];
+        for (let y = 0; y < cur.maze.length; y++) {
+          for (let x = 0; x < cur.maze[0].length; x++) {
+            if (cur.maze[y][x] === 0) empties.push({ x, y });
+          }
+        }
+        // shuffle and pick 8
+        for (let i = empties.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [empties[i], empties[j]] = [empties[j], empties[i]];
+        }
+        const picks = empties.slice(0, 8);
+        if (picks.length === 0) return false;
+        const set = new Set(picks.map((p) => `${p.x},${p.y}`));
+        const maze = cur.maze.map((row, ry) =>
+          row.map((c, cx) =>
+            set.has(`${cx},${ry}`) ? (2 as CellType) : c,
+          ),
+        );
+        nextState = {
+          ...cur,
+          maze,
+          totalPellets: cur.totalPellets + picks.length,
+          pelletsRemaining: cur.pelletsRemaining + picks.length,
+        };
+        break;
+      }
+      case "decoy": {
+        const ghost = cur.ghosts[cur.selectedGhostId];
+        if (!ghost || !ghost.alive) return false;
+        nextState = {
+          ...cur,
+          effects: {
+            ...cur.effects,
+            decoy: {
+              x: ghost.x,
+              y: ghost.y,
+              until: now + 6000,
+              ghostId: cur.selectedGhostId,
+            },
+          },
+        };
+        break;
+      }
+      case "rewind": {
+        // Reset Pellet Guy to spawn and clear all traps
+        let maze = cur.maze;
+        // remove spikes (6) and barricades (7)
+        maze = maze.map((row) =>
+          row.map((c) => ((c === 6 || c === 7) ? (0 as CellType) : c)),
+        );
+        nextState = {
+          ...cur,
+          maze,
+          barricades: [],
+          pelletGuy: {
+            ...cur.pelletGuy,
+            x: cur.pelletGuy.spawnX,
+            y: cur.pelletGuy.spawnY,
+            direction: "left",
+            alive: true,
+            respawnAt: 0,
+          },
+        };
+        break;
+      }
+      default:
+        return false;
+    }
+
+    if (nextState) {
+      setState(nextState);
+      getSoundEngine().uiClick();
+      return true;
+    }
+    return false;
+  }, []);
+
   return {
     state,
     mode: modeRef.current,
@@ -682,5 +947,6 @@ export function useGhostMaze(opts?: {
     advanceLevel,
     retryLevel,
     submitFinalScore,
+    applyPowerUp,
   };
 }
