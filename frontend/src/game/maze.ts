@@ -1,17 +1,19 @@
 // Maze generation using recursive backtracking + loop carving
 // Produces a symmetric, randomized Pac-Man style maze
+// Optional seed for deterministic Daily Challenge mazes
 
 import type { CellType } from "./types";
 import { MAZE_COLS, MAZE_ROWS } from "./constants";
+import { makeRng } from "./rng";
 
 // Cell helpers
 const inBounds = (x: number, y: number) =>
   x >= 0 && y >= 0 && x < MAZE_COLS && y < MAZE_ROWS;
 
-function shuffle<T>(arr: T[]): T[] {
+function shuffle<T>(arr: T[], rand: () => number): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rand() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -19,22 +21,21 @@ function shuffle<T>(arr: T[]): T[] {
 
 /**
  * Generate a randomized maze.
- * Strategy:
- *  1. Build a perfect maze on the LEFT half using recursive backtracking
- *     (cells at odd coords, walls between them at even coords).
- *  2. Mirror the left half onto the right half for symmetry.
- *  3. Knock down some random walls to create loops (Pac-Man style).
- *  4. Carve out a central ghost house.
- *  5. Place pellets on all walkable cells.
- *  6. Place super pellets in 4 corner regions.
- *  7. Designate ghost & pellet guy spawn points.
+ * @param level Difficulty level (affects loop density + super pellet count)
+ * @param seed  Optional 32-bit seed for deterministic generation (Daily Challenge)
  */
-export function generateMaze(level: number): {
+export function generateMaze(
+  level: number,
+  seed?: number,
+): {
   maze: CellType[][];
   ghostSpawns: { x: number; y: number }[];
   pelletGuySpawn: { x: number; y: number };
   totalPellets: number;
 } {
+  const rand =
+    seed !== undefined ? makeRng((seed ^ (level * 0x9e3779b1)) >>> 0) : Math.random;
+
   const cols = MAZE_COLS;
   const rows = MAZE_ROWS;
 
@@ -61,7 +62,7 @@ export function generateMaze(level: number): {
 
   while (stack.length > 0) {
     const [cx, cy] = stack[stack.length - 1];
-    const neighbors = shuffle(dirs)
+    const neighbors = shuffle(dirs, rand)
       .map(([dx, dy]) => [cx + dx, cy + dy] as [number, number])
       .filter(
         ([nx, ny]) =>
@@ -83,13 +84,10 @@ export function generateMaze(level: number): {
   }
 
   // Carve loops on left half - knock down random walls
-  // More loops at higher levels = more options for pellet guy
-  // Lower levels: more loops (easier), higher levels: fewer loops (narrower)
   const loopChance = Math.max(0.12, 0.35 - level * 0.02);
   for (let y = 2; y < rows - 2; y += 2) {
     for (let x = 2; x <= halfCols; x += 2) {
-      if (grid[y][x] === 1 && Math.random() < loopChance) {
-        // pick a random wall around this junction to remove
+      if (grid[y][x] === 1 && rand() < loopChance) {
         const candidates: [number, number][] = [];
         if (y > 1 && grid[y - 1][x] === 1) candidates.push([x, y - 1]);
         if (y < rows - 2 && grid[y + 1][x] === 1) candidates.push([x, y + 1]);
@@ -97,7 +95,7 @@ export function generateMaze(level: number): {
         if (x < halfCols && grid[y][x + 1] === 1) candidates.push([x + 1, y]);
         if (candidates.length) {
           const [wx, wy] =
-            candidates[Math.floor(Math.random() * candidates.length)];
+            candidates[Math.floor(rand() * candidates.length)];
           grid[wy][wx] = 0;
         }
       }
@@ -194,7 +192,7 @@ export function generateMaze(level: number): {
     }
     if (pelletCells.length === 0) break;
     const [px, py] =
-      pelletCells[Math.floor(Math.random() * pelletCells.length)];
+      pelletCells[Math.floor(rand() * pelletCells.length)];
     grid[py][px] = 3 as CellType;
     totalPellets--;
   }

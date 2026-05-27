@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  TextInput,
+  ActivityIndicator,
+  PanResponder,
+  Animated as RNAnimated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useGhostMaze } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
@@ -140,17 +144,42 @@ function GhostDpad({
 
 export default function GameScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    mode?: string;
+    seed?: string;
+    seedDate?: string;
+  }>();
+
+  const isDaily = params.mode === "daily";
+  const seedNum = params.seed ? parseInt(params.seed, 10) : undefined;
+
   const {
     state,
+    mode,
+    dailySeedDate,
     setGhostDirection,
     selectGhost,
     togglePause,
     advanceLevel,
     retryLevel,
     startNewGame,
-  } = useGhostMaze();
+    submitFinalScore,
+  } = useGhostMaze(
+    isDaily
+      ? {
+          mode: "daily",
+          dailySeed: seedNum,
+          dailySeedDate: typeof params.seedDate === "string" ? params.seedDate : undefined,
+        }
+      : { mode: "classic" },
+  );
 
   const [soundOn, setSoundOn] = useState(true);
+  const [playerName, setPlayerName] = useState("GHOST");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
@@ -165,6 +194,96 @@ export default function GameScreen() {
       getSoundEngine().stopMusic();
     };
   }, []);
+
+  // Reset submission state on new run
+  useEffect(() => {
+    if (state.status === "ready" || state.status === "playing") {
+      setSubmitted(false);
+      setSubmitError(null);
+    }
+  }, [state.status]);
+
+  const handleSubmit = async () => {
+    if (submitting || submitted) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitFinalScore(playerName || "GHOST");
+      setSubmitted(true);
+      getSoundEngine().levelWin();
+    } catch (e: any) {
+      setSubmitError(e.message || "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Swipe gesture controls: swipe on maze area to set selected ghost's direction ---
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const SWIPE_THRESHOLD = 25; // pixels
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
+      onPanResponderRelease: (_, g) => {
+        const dx = g.dx;
+        const dy = g.dy;
+        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+          return;
+        }
+        let dir: Direction;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          dir = dx > 0 ? "right" : "left";
+        } else {
+          dir = dy > 0 ? "down" : "up";
+        }
+        try {
+          Haptics.selectionAsync();
+        } catch {}
+        setGhostDirection(stateRef.current.selectedGhostId as GhostId, dir);
+      },
+    }),
+  ).current;
+
+  // --- Particle effects for catches ---
+  const [particles, setParticles] = useState<
+    { id: string; x: number; y: number; text: string; color: string; anim: RNAnimated.Value }[]
+  >([]);
+
+  // Detect catch event -> spawn particle
+  const prevCatchesRef = useRef(0);
+  useEffect(() => {
+    if (state.catches > prevCatchesRef.current) {
+      // Caught Pellet Guy - spawn floating "+200" at his location
+      const isCombo = state.comboCount > 0;
+      const pts = 200 + (isCombo ? 300 * state.comboCount : 0);
+      const id = `${Date.now()}-${Math.random()}`;
+      const anim = new RNAnimated.Value(0);
+      const px = state.pelletGuy.x;
+      const py = state.pelletGuy.y;
+      setParticles((cur) => [
+        ...cur,
+        {
+          id,
+          x: px,
+          y: py,
+          text: `+${pts}${isCombo ? " COMBO!" : ""}`,
+          color: isCombo ? "#FF00FF" : "#FFFF00",
+          anim,
+        },
+      ]);
+      RNAnimated.timing(anim, {
+        toValue: 1,
+        duration: 1100,
+        useNativeDriver: true,
+      }).start(() => {
+        setParticles((cur) => cur.filter((p) => p.id !== id));
+      });
+    }
+    prevCatchesRef.current = state.catches;
+  }, [state.catches, state.comboCount, state.pelletGuy.x, state.pelletGuy.y]);
 
   const { width: screenW, height: screenH } = Dimensions.get("window");
 
@@ -254,7 +373,7 @@ export default function GameScreen() {
       </View>
 
       {/* Maze */}
-      <View style={styles.mazeWrap}>
+      <View style={styles.mazeWrap} {...panResponder.panHandlers}>
         <MazeRenderer
           maze={state.maze}
           ghosts={state.ghosts}
@@ -264,6 +383,44 @@ export default function GameScreen() {
           ready={state.status === "ready"}
           level={state.level}
         />
+        {/* Floating particles */}
+        {particles.map((p) => (
+          <RNAnimated.Text
+            key={p.id}
+            style={{
+              position: "absolute",
+              left: p.x * cellSize,
+              top: p.y * cellSize - 16,
+              color: p.color,
+              fontWeight: "900",
+              fontSize: 14,
+              textShadowColor: "#000",
+              textShadowOffset: { width: 1, height: 1 },
+              textShadowRadius: 2,
+              opacity: p.anim.interpolate({
+                inputRange: [0, 0.7, 1],
+                outputRange: [1, 1, 0],
+              }),
+              transform: [
+                {
+                  translateY: p.anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -40],
+                  }),
+                },
+                {
+                  scale: p.anim.interpolate({
+                    inputRange: [0, 0.2, 1],
+                    outputRange: [0.7, 1.4, 1],
+                  }),
+                },
+              ],
+            }}
+            pointerEvents="none"
+          >
+            {p.text}
+          </RNAnimated.Text>
+        ))}
         {/* Overlay messages */}
         {state.message !== "" && (
           <View style={[styles.overlay, { pointerEvents: "box-none" }]}>
@@ -271,13 +428,58 @@ export default function GameScreen() {
               {state.message}
             </Text>
             {(state.status === "gameOver") && (
-              <View style={{ marginTop: 12 }}>
+              <View style={{ marginTop: 12, alignItems: "center" }}>
+                {/* Score submission form */}
+                {!submitted ? (
+                  <View style={styles.submitBox} testID="submit-score-box">
+                    <Text style={styles.submitLabel}>SUBMIT TO LEADERBOARD</Text>
+                    <TextInput
+                      style={styles.nameInput}
+                      value={playerName}
+                      onChangeText={(t) => setPlayerName(t.toUpperCase().slice(0, 16))}
+                      placeholder="GHOST"
+                      placeholderTextColor="#666688"
+                      maxLength={16}
+                      autoCapitalize="characters"
+                      testID="player-name-input"
+                    />
+                    <TouchableOpacity
+                      style={[styles.btn, submitting && { opacity: 0.6 }]}
+                      onPress={handleSubmit}
+                      disabled={submitting}
+                      testID="submit-score-btn"
+                    >
+                      {submitting ? (
+                        <ActivityIndicator color="#FFFF00" />
+                      ) : (
+                        <Text style={styles.btnText}>
+                          {isDaily ? "SUBMIT DAILY" : "SUBMIT SCORE"}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                    {submitError && (
+                      <Text style={styles.errorText}>{submitError}</Text>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={styles.submittedText} testID="submitted-text">
+                    ✓ SCORE SUBMITTED!
+                  </Text>
+                )}
+
                 <TouchableOpacity
-                  style={styles.btn}
+                  style={[styles.btn, { marginTop: 12 }]}
                   onPress={() => startNewGame()}
                   testID="restart-btn"
                 >
                   <Text style={styles.btnText}>PLAY AGAIN</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { marginTop: 8 }]}
+                  onPress={() => router.replace("/leaderboard")}
+                  testID="leaderboard-btn"
+                >
+                  <Text style={styles.btnText}>LEADERBOARD</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.btn, { marginTop: 8 }]}
@@ -543,5 +745,47 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 1,
     fontSize: 16,
+  },
+  submitBox: {
+    backgroundColor: COLORS.uiPanel,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    alignItems: "center",
+    minWidth: 220,
+  },
+  submitLabel: {
+    color: "#FFB897",
+    fontSize: 11,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  nameInput: {
+    backgroundColor: "#000",
+    color: "#FFFF00",
+    fontSize: 18,
+    fontWeight: "bold",
+    letterSpacing: 2,
+    textAlign: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    width: 200,
+    marginBottom: 10,
+  },
+  errorText: {
+    color: COLORS.danger,
+    fontSize: 11,
+    marginTop: 6,
+  },
+  submittedText: {
+    color: "#00FF88",
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 2,
   },
 });

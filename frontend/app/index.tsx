@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
+import { fetchDailySeed } from "@/src/game/api";
 
 export default function MainMenu() {
   const router = useRouter();
+  const [dailyDate, setDailyDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDailySeed()
+      .then((s) => setDailyDate(s.seed_date))
+      .catch(() => setDailyDate(null));
+  }, []);
+
+  const startDaily = async () => {
+    getSoundEngine().uiClick();
+    try {
+      const seed = await fetchDailySeed();
+      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.seed_date}`);
+    } catch {
+      // fall back to classic if backend offline
+      router.push("/game");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -71,6 +90,28 @@ export default function MainMenu() {
           testID="characters-btn"
         >
           <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
+        </TouchableOpacity>
+
+        {/* Daily Challenge */}
+        <TouchableOpacity
+          style={styles.dailyBtn}
+          onPress={startDaily}
+          testID="daily-btn"
+        >
+          <Text style={styles.dailyBtnText}>📅 DAILY CHALLENGE</Text>
+          {dailyDate && <Text style={styles.dailyDate}>{dailyDate}</Text>}
+        </TouchableOpacity>
+
+        {/* Leaderboard */}
+        <TouchableOpacity
+          style={styles.charactersBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/leaderboard");
+          }}
+          testID="leaderboard-btn"
+        >
+          <Text style={styles.charactersBtnText}>🏆 LEADERBOARD</Text>
         </TouchableOpacity>
 
         {/* How to play */}
@@ -218,6 +259,28 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
     letterSpacing: 2,
+  },
+  dailyBtn: {
+    marginTop: 14,
+    backgroundColor: "#1a1a2e",
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FF00FF",
+    alignItems: "center",
+  },
+  dailyBtnText: {
+    color: "#FF00FF",
+    fontWeight: "bold",
+    fontSize: 14,
+    letterSpacing: 2,
+  },
+  dailyDate: {
+    color: "#FFB897",
+    fontSize: 10,
+    marginTop: 2,
+    letterSpacing: 1,
   },
   howToWrap: {
     marginTop: 32,

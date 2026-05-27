@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 3 Ghost Maze: Backend (14/14 pytest) + Frontend (10/10 new flows) all PASSED on https://four-ghost-chase.preview.emergentagent.com. Backend: GET /api/daily-seed returns {seed_date=today (2026-05-27), seed=<deterministic int>}; deterministic across calls. POST /api/scores classic creates ScoreEntry with id/timestamp, no _id leak. POST /api/scores daily defaults daily_seed_date to today; rejects mismatched daily_seed_date with HTTP 400 + detail. GET /api/leaderboard?mode=classic returns desc-sorted entries (verified higher score appears before lower across two TEST_ inserts); daily mode is implicitly filtered to today; classic excludes daily and vice versa; limit param respected. Name sanitization strips '<>#$%^&*' chars; blank rejected (422). Frontend (414x896): main menu now shows 4 buttons (play-btn, characters-btn, daily-btn with today's date '2026-05-27', leaderboard-btn). leaderboard-btn navigates to /leaderboard which shows tab-classic + tab-daily; switching tabs re-loads data. Submitted score 'TEST_UI_010133' via in-page fetch then switched tab→classic and verified the row appears (visible via document.innerText). Daily tab shows '2026-05-27 · seed #37606308' header and play-daily-btn ('PLAY TODAY'S MAZE') which navigates to /game?mode=daily&seed=37606308&seedDate=2026-05-27. Daily-mode game-screen loaded; took 3 screenshots over ~2s — ghost-house exit stagger visible: at t=0.7s only Blinky+Inky+Pinky outside house; by t=1.4s all 4 ghosts visible at various positions; by t=2.1s all 4 are in maze upper area (score went 100→170→260 confirming game loop is live). Main menu daily-btn also navigates to /game with mode=daily params. No JS errors, no red screens; only existing 'useNativeDriver' fallback warning (Expo Web expected). No deprecated packages newly introduced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/scores",
+        "issue": "player_name uses Pydantic Field(max_length=16) which causes names > 16 chars to be rejected with HTTP 422 BEFORE the sanitize_name validator runs. Spec said player_name should be 'sanitized (max 16 chars)' implying truncation. Either (a) remove the field-level max_length so the validator truncates, or (b) update the spec/UI to clamp on the client. Currently the UI will likely fail with a confusing 422 if user types > 16 chars. Reference: /app/backend/server.py:72 (player_name: str = Field(min_length=1, max_length=16))"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ghost_maze_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_3.json"
+  ],
+  "action_items": [
+    "Optional: align name sanitization behavior — either drop Field(max_length=16) so submit_name validator truncates as documented, OR add a 16-char hard limit on the client-side name input so long names never reach the API. Low priority; current behavior is safe (returns 422), just inconsistent with the 'sanitize' wording.",
+    "Particle effect ('+200' floating text on ghost catch) was not directly captured in screenshots because Pellet Guy wasn't caught during the 2s window; however no JS errors fired during gameplay so the code path is at minimum loaded without crashing. If this matters, main agent may want to dispatch a synthetic catch via test-only hook in a follow-up.",
+    "Pre-existing console warning: 'props.pointerEvents is deprecated' from a 3rd-party dep — already noted in iteration_2; no new warnings introduced this phase."
+  ],
+  "critical_code_review_comments": [
+    "server.py:80-87 sanitize_name validator implements truncation to 16 chars and char filtering, but Field(max_length=16) at line 72 short-circuits this for any name > 16 chars. The truncation branch is therefore unreachable from the API. Trim max_length or remove it to make the validator effective.",
+    "server.py:141-158 leaderboard endpoint correctly excludes Mongo _id via projection {'_id': 0}. Good.",
+    "leaderboard.tsx:31-44 'load' depends on dailySeed; once dailySeed is fetched it remains in state (good caching), but switching back from daily→classic→daily won't refetch a NEW dailySeed at UTC midnight rollover until the user reloads. Minor UX edge case.",
+    "leaderboard.tsx:62-65 typo-safe but tab switch flow sets loading=true and lets useEffect chain trigger load(); fine. No double-fetch observed.",
+    "api.ts:3 uses process.env.EXPO_PUBLIC_BACKEND_URL ?? '' — relative path '/api/...' would still work in web preview but on a real device with no base URL the fetch will hit nothing. Acceptable since EXPO_PUBLIC_BACKEND_URL is set in .env."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ghost_maze_api.py (created — 14 pytest cases for daily-seed, scores classic/daily, name sanitization, leaderboard filters)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 pytest tests passed)",
+    "frontend": "100% (10/10 Phase 3 UI/integration steps passed; Phase 1+2 regressions still green from iteration 2)"
+  },
+  "seed_data_creation": "Several TEST_-prefixed score entries created during pytest run (classic + daily). They persist in MongoDB but are clearly prefixed for easy cleanup; they do affect future leaderboard ordering (top-1 currently is one of these TEST_ entries with score 999999 — main agent may want a small cleanup script that deletes WHERE player_name LIKE 'TEST_%').",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend public URL: https://four-ghost-chase.preview.emergentagent.com. Backend tests live at /app/backend/tests/test_ghost_maze_api.py (pytest, 14 cases, ~1.1s). Run: `python -m pytest backend/tests/test_ghost_maze_api.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. Frontend mobile viewport 414x896. Main-menu testIDs: main-menu, play-btn, characters-btn, daily-btn, leaderboard-btn. Leaderboard testIDs: leaderboard-screen, back-btn, tab-classic, tab-daily, play-daily-btn, score-row-<index>. Daily mode URL pattern: /game?mode=daily&seed=<int>&seedDate=<YYYY-MM-DD>. TEST_-prefixed leaderboard rows are pollution from automated tests and should be ignored/cleaned. UTC date drift: if tests run near midnight UTC the daily seed date may flip between request and response; not observed but possible.",
+  "rca_of_issue": "Only one minor backend inconsistency: name truncation. RCA — Pydantic `Field(max_length=16)` runs at schema-validation time (before custom @validator), so any input >16 chars is rejected with 422 instead of being truncated by sanitize_name. Mitigation — remove or raise max_length on the Field so sanitize_name can truncate; OR enforce a maxLength=16 on the TextInput in the client. Either fix is one-line."
+}

@@ -74,8 +74,12 @@ function buildInitialState(
   lives: number,
   score: number,
   themeId: string,
+  daily?: { seed: number; seedDate: string } | null,
 ): GameState {
-  const { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(level);
+  const { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
+    level,
+    daily?.seed,
+  );
   return {
     status: "ready",
     level,
@@ -89,7 +93,7 @@ function buildInitialState(
     pelletGuy: createInitialPelletGuy(pelletGuySpawn),
     lastComboTime: 0,
     comboCount: 0,
-    message: `LEVEL ${level}`,
+    message: daily ? `DAILY ${daily.seedDate}` : `LEVEL ${level}`,
     selectedGhostId: 0,
     barricades: [],
   };
@@ -101,10 +105,41 @@ function speedScale(level: number): number {
   return Math.max(0.55, 1 - (level - 1) * 0.05);
 }
 
-export function useGhostMaze() {
-  const [state, setState] = useState<GameState>(() =>
-    buildInitialState(1, STARTING_LIVES, 0),
+export function useGhostMaze(opts?: {
+  mode?: "classic" | "daily";
+  dailySeed?: number;
+  dailySeedDate?: string;
+}) {
+  const themeIdRef = useRef<string>("classic");
+  const progressRef = useRef<ProgressData | null>(null);
+  const modeRef = useRef<"classic" | "daily">(opts?.mode ?? "classic");
+  const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
+    opts?.dailySeed != null && opts.dailySeedDate
+      ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate }
+      : null,
   );
+
+  const [state, setState] = useState<GameState>(() =>
+    buildInitialState(1, STARTING_LIVES, 0, "classic", dailyRef.current),
+  );
+
+  // Load saved progress (theme + stats) on mount
+  useEffect(() => {
+    loadProgress().then((p) => {
+      progressRef.current = p;
+      themeIdRef.current = p.selectedThemeId;
+      setState((cur) => {
+        if (cur.status !== "ready" || cur.level !== 1 || cur.score !== 0) return cur;
+        return buildInitialState(
+          1,
+          STARTING_LIVES,
+          0,
+          p.selectedThemeId,
+          dailyRef.current,
+        );
+      });
+    });
+  }, []);
 
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
@@ -114,12 +149,21 @@ export function useGhostMaze() {
   const rafRef = useRef<number | null>(null);
   const stateRef = useRef<GameState>(state);
   stateRef.current = state;
+  // Ghost-house exit stagger
+  const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
 
   const startLevel = useCallback((level: number, lives: number, score: number) => {
-    const fresh = buildInitialState(level, lives, score);
+    const fresh = buildInitialState(
+      level,
+      lives,
+      score,
+      themeIdRef.current,
+      dailyRef.current,
+    );
     readyStartRef.current = performance.now();
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
+    ghostReleaseAtRef.current = [0, 0, 0, 0];
     setState(fresh);
   }, []);
 
@@ -179,6 +223,8 @@ export function useGhostMaze() {
         setState((s) => ({ ...s, status: "playing", message: "" }));
         lastGhostMoveRef.current = [now, now, now, now];
         lastPelletGuyMoveRef.current = now;
+        // Stagger ghost releases: 0, 500, 1000, 1500ms
+        ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
         getSoundEngine().startMusic();
       }
       return;
@@ -214,6 +260,11 @@ export function useGhostMaze() {
           lastGhostMoveRef.current[i] = now;
           mutated = true;
         }
+        continue;
+      }
+
+      // Ghost-house exit stagger: hold ghost in place until release time
+      if (now < ghostReleaseAtRef.current[i]) {
         continue;
       }
 
@@ -601,13 +652,33 @@ export function useGhostMaze() {
     startLevel(state.level, state.lives, state.score);
   }, [state.level, state.lives, state.score, startLevel]);
 
+  const submitFinalScore = useCallback(
+    async (playerName: string) => {
+      const { submitScore } = await import("./api");
+      const isDaily = modeRef.current === "daily" && dailyRef.current;
+      return submitScore({
+        player_name: playerName,
+        score: state.score,
+        level: state.level,
+        catches: state.catches,
+        theme_id: themeIdRef.current,
+        mode: isDaily ? "daily" : "classic",
+        daily_seed_date: isDaily ? dailyRef.current?.seedDate : undefined,
+      });
+    },
+    [state.score, state.level, state.catches],
+  );
+
   return {
     state,
+    mode: modeRef.current,
+    dailySeedDate: dailyRef.current?.seedDate,
     setGhostDirection,
     selectGhost,
     togglePause,
     startNewGame,
     advanceLevel,
     retryLevel,
+    submitFinalScore,
   };
 }
