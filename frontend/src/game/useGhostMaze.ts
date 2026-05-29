@@ -18,9 +18,7 @@ import {
   RESPAWN_MAX_MULTIPLIER,
   SCORE_CATCH,
   SCORE_COMBO_BONUS,
-  SCORE_PELLET,
   SCORE_PER_PERCENT_REMAINING,
-  SCORE_SUPER_PELLET,
   SPEED,
   STARTING_LIVES,
   SUPER_PELLET_DURATION_MS,
@@ -448,7 +446,6 @@ export function useGhostMaze(opts?: {
               : row,
           );
           pelletsRemaining--;
-          score += SCORE_PELLET;
           getSoundEngine().pellet();
           onCoinsEarnedRef.current?.(COIN_REWARD.pellet, "pellet");
         } else if (cell === 3) {
@@ -457,7 +454,6 @@ export function useGhostMaze(opts?: {
               ? row.map((c, cx) => (cx === next.x ? (0 as CellType) : c))
               : row,
           );
-          score += SCORE_SUPER_PELLET;
           getSoundEngine().superPellet();
           onCoinsEarnedRef.current?.(COIN_REWARD.superPellet, "superPellet");
           // make all alive ghosts vulnerable
@@ -637,7 +633,6 @@ export function useGhostMaze(opts?: {
               vulnerable: false,
               vulnerableUntil: 0,
             };
-            score += 100;
             mutated = true;
             getSoundEngine().ghostEaten();
           } else {
