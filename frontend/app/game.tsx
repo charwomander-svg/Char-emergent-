@@ -1,14 +1,4 @@
-function GhostDpad({
-  ghostId,
-  color,
-  name,
-  alive,
-  selected,
-  onDirection,
-  onSelect,
-  size,
-}: {
-  ghostId: GhostId;
+function ghostId: GhostId;
   color: string;
   name: string;
   alive: boolean;
@@ -158,17 +148,7 @@ import { loadSettings, SettingsData, DEFAULT_SETTINGS } from "@/src/game/setting
 import { useFullscreen } from "@/src/utils/useFullscreen";
 
 // Mini D-pad for one ghost
-function GhostDpad({
-  ghostId,
-  color,
-  name,
-  alive,
-  selected,
-  onDirection,
-  onSelect,
-  size,
-}: {
-  ghostId: GhostId;
+function ghostId: GhostId;
   color: string;
   name: string;
   alive: boolean;
@@ -299,6 +279,43 @@ function GhostDpad({
 }
 
 export default function GameScreen() {
+	<View style={styles.ghostStrip}>
+  {([0, 1, 2, 3] as GhostId[]).map((id) => (
+    <TouchableOpacity
+      key={id}
+      onPress={() => selectGhost(id)}
+      style={[
+        styles.ghostTab,
+        state.selectedGhostId === id && styles.ghostTabActive,
+      ]}
+    >
+      <Text style={styles.ghostTabText}>
+        {["Blinky", "Pinky", "Inky", "Clyde"][id]}
+      </Text>
+    </TouchableOpacity>
+  ))}
+ghostStrip: {
+  flexDirection: "row",
+  justifyContent: "space-around",
+  paddingVertical: 8,
+  backgroundColor: "#0a0a12",
+},
+
+ghostTab: {
+  paddingVertical: 6,
+  paddingHorizontal: 10,
+  borderRadius: 8,
+  backgroundColor: "#1a1a2a",
+},
+
+ghostTabActive: {
+  backgroundColor: "#333366",
+},
+
+ghostTabText: {
+  color: "white",
+  fontSize: 12,
+}</View>
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -877,51 +894,7 @@ const panResponder = useRef(
       {/* Controls - 2x2 grid of mini D-pads */}
       <View style={styles.controls} testID="controls">
         <View style={styles.controlRow}>
-          <GhostDpad
-            ghostId={0}
-            color={COLORS.ghosts[0]}
-            name={COLORS.ghostNames[0]}
-            alive={state.ghosts[0]?.alive ?? false}
-            selected={state.selectedGhostId === 0}
-            onDirection={(d) => setGhostDirection(0, d)}
-            onSelect={() => selectGhost(0)}
-            size={dpadSize}
-          />
-          <GhostDpad
-            ghostId={1}
-            color={COLORS.ghosts[1]}
-            name={COLORS.ghostNames[1]}
-            alive={state.ghosts[1]?.alive ?? false}
-            selected={state.selectedGhostId === 1}
-            onDirection={(d) => setGhostDirection(1, d)}
-            onSelect={() => selectGhost(1)}
-            size={dpadSize}
-          />
-        </View>
-        <View style={styles.controlRow}>
-          <GhostDpad
-            ghostId={2}
-            color={COLORS.ghosts[2]}
-            name={COLORS.ghostNames[2]}
-            alive={state.ghosts[2]?.alive ?? false}
-            selected={state.selectedGhostId === 2}
-            onDirection={(d) => setGhostDirection(2, d)}
-            onSelect={() => selectGhost(2)}
-            size={dpadSize}
-          />
-          <GhostDpad
-            ghostId={3}
-            color={COLORS.ghosts[3]}
-            name={COLORS.ghostNames[3]}
-            alive={state.ghosts[3]?.alive ?? false}
-            selected={state.selectedGhostId === 3}
-            onDirection={(d) => setGhostDirection(3, d)}
-            onSelect={() => selectGhost(3)}
-            size={dpadSize}
-          />
-        </View>
-      </View>
-
+        
       {/* Active effects strip */}
       {(state.effects.speedBoostUntil > Date.now() ||
         state.effects.freezeUntil > Date.now() ||
