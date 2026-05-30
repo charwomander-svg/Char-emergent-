@@ -482,12 +482,35 @@ export default function GameScreen() {
   stateRef.current = state;
   const SWIPE_THRESHOLD = 25; // pixels
   const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
-      onPanResponderRelease: (_, g) => {
-        const dx = g.dx;
+const panResponder = useRef(
+  PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) =>
+      Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
+
+    onPanResponderRelease: (_, g) => {
+      const dx = g.dx;
+      const dy = g.dy;
+
+      if (Math.abs(dx) < 25 && Math.abs(dy) < 25) return;
+
+      let dir: Direction;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        dir = dx > 0 ? "right" : "left";
+      } else {
+        dir = dy > 0 ? "down" : "up";
+      }
+
+      Haptics.selectionAsync?.();
+
+      setGhostDirection(
+        stateRef.current.selectedGhostId as GhostId,
+        dir
+      );
+    },
+  })
+).current;        const dx = g.dx;
         const dy = g.dy;
         if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
           return;
