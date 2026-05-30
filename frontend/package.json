@@ -10,6 +10,15 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
+"scripts": {
+  "start": "expo start",
+  "reset-project": "node ./scripts/reset-project.js",
+  "android": "expo start --android",
+  "ios": "expo start --ios",
+  "web": "expo start --web",
+  "lint": "expo lint",
+  "ship": "bash scripts/ship.sh"
+},
   "dependencies": {
     "@babel/runtime": "^7.20.6",
     "@expo/metro-runtime": "^6.1.2",
@@ -31,7 +40,6 @@
     "expo-linking": "~8.0.11",
     "expo-navigation-bar": "~5.0.10",
     "expo-router": "~6.0.22",
-    "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
