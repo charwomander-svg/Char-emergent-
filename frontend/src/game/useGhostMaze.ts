@@ -47,7 +47,10 @@ import {
   bossIsLunging,
   BOSS_REWARDS,
 } from "./boss";
-
+const inputQueueRef = useRef<{
+  ghostId: GhostId;
+  dir: Direction;
+} | null>(null);
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -817,10 +820,22 @@ export function useGhostMaze(opts?: {
 
   // Game loop
   useEffect(() => {
-    const loop = () => {
+  
+  const loop = () => {
       const now = performance.now();
       lastFrameRef.current = now;
       tick(now);
+	  const input = inputQueueRef.current;
+
+if (input) {
+  setGhostDirection(input.ghostId, input.dir);
+  inputQueueRef.current = null;
+	  const dir = queuedDirectionRef.current;
+if (dir) {
+  // apply to selected ghost safely through existing logic
+  setGhostDirection(selectedGhostId, dir);
+  queuedDirectionRef.current = null;
+}
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);

@@ -48,7 +48,7 @@ export default function MainMenu() {
           <Text style={[styles.title, { color: "#FFFF00" }]}>MAZE</Text>
         </View>
 
-        <Text style={styles.subtitle}>Reverse Pac-Man Chase</Text>
+        <Text style={styles.subtitle}>Reverse Maze Chase</Text>
 
         {/* Ghost preview row */}
         <View style={styles.ghostRow} testID="ghost-preview-row">

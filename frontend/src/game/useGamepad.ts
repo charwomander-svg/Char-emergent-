@@ -15,7 +15,8 @@ const STICK_THRESHOLD = 0.55;
 const DEBOUNCE_MS = 110;
 
 interface Callbacks {
-  onDirection: (ghostId: GhostId, dir: Direction) => void;
+  onDirection: (ghostId, dir) => {
+  inputQueueRef.current = { ghostId, dir };
   onSelect: (ghostId: GhostId) => void;
   getSelectedGhostId: () => GhostId;
   enabled?: boolean;
@@ -80,7 +81,7 @@ export function useGamepad(cb: Callbacks) {
 
           const now = performance.now();
           if (dir && now - lastDirectionTimeRef.current > DEBOUNCE_MS) {
-            cbRef.current.onDirection(cbRef.current.getSelectedGhostId(), dir);
+            queuedDirectionRef.current = dir;
             lastDirectionTimeRef.current = now;
           }
 
