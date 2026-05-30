@@ -821,28 +821,38 @@ export function useGhostMaze(opts?: {
   // Game loop
   useEffect(() => {
   
+ useEffect(() => {
   const loop = () => {
-      const now = performance.now();
-      lastFrameRef.current = now;
-      tick(now);
-	  const input = inputQueueRef.current;
+    const now = performance.now();
+    lastFrameRef.current = now;
 
-if (input) {
-  setGhostDirection(input.ghostId, input.dir);
-  inputQueueRef.current = null;
-	  const dir = queuedDirectionRef.current;
-if (dir) {
-  // apply to selected ghost safely through existing logic
-  setGhostDirection(selectedGhostId, dir);
-  queuedDirectionRef.current = null;
-}
-      rafRef.current = requestAnimationFrame(loop);
-    };
+    tick(now);
+
+    const input = inputQueueRef.current;
+    if (input) {
+      setGhostDirection(input.ghostId, input.dir);
+      inputQueueRef.current = null;
+    }
+
+    const dir = queuedDirectionRef.current;
+    if (dir !== undefined && dir !== null) {
+      setGhostDirection(stateRef.current.selectedGhostId, dir);
+      queuedDirectionRef.current = null;
+    }
+
     rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [tick]);
+  };
+
+  rafRef.current = requestAnimationFrame(loop);
+
+  return () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  };
+}, [tick, setGhostDirection]);requestAnimationFrame(loop);
+    return () => {return () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  };
+}, [tick, setGhostDirection]);
 
   // Auto-advance from levelWon -> next level after a short delay
   const advanceLevel = useCallback(() => {

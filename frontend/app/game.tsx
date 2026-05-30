@@ -1,4 +1,135 @@
-import React, { useEffect, useRef, useState } from "react";
+function GhostDpad({
+  ghostId,
+  color,
+  name,
+  alive,
+  selected,
+  onDirection,
+  onSelect,
+  size,
+}: {
+  ghostId: GhostId;
+  color: string;
+  name: string;
+  alive: boolean;
+  selected: boolean;
+  onDirection: (dir: Direction) => void;
+  onSelect: () => void;
+  size: number;
+}) {
+  const labelHeight = 28;
+  const padArea = size - labelHeight;
+  const btnSize = Math.max(48, Math.round(padArea * 0.42));
+  const centerX = size / 2;
+
+  const press = (dir: Direction) => {
+    if (!alive) return;
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    onDirection(dir);
+    onSelect();
+  };
+
+  return (
+    <View
+      style={[
+        styles.dpadContainer,
+        {
+          width: size,
+          height: size,
+          borderColor: selected ? color : "#222244",
+          borderWidth: selected ? 4 : 2,
+          opacity: alive ? 1 : 0.35,
+        },
+      ]}
+    >
+      {/* Label */}
+      <TouchableOpacity
+        onPress={onSelect}
+        style={[
+          styles.ghostLabel,
+          { backgroundColor: color, height: labelHeight },
+        ]}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.ghostLabelText}>{name}</Text>
+      </TouchableOpacity>
+
+      {/* Up */}
+      <TouchableOpacity
+        onPress={() => press("up")}
+        style={[
+          styles.dpadBtn,
+          {
+            width: btnSize,
+            height: btnSize,
+            top: labelHeight + 2,
+            left: centerX - btnSize / 2,
+            backgroundColor: color,
+          },
+        ]}
+        activeOpacity={0.6}
+      >
+        <Text style={styles.dpadBtnText}>▲</Text>
+      </TouchableOpacity>
+
+      {/* Down */}
+      <TouchableOpacity
+        onPress={() => press("down")}
+        style={[
+          styles.dpadBtn,
+          {
+            width: btnSize,
+            height: btnSize,
+            bottom: 2,
+            left: centerX - btnSize / 2,
+            backgroundColor: color,
+          },
+        ]}
+        activeOpacity={0.6}
+      >
+        <Text style={styles.dpadBtnText}>▼</Text>
+      </TouchableOpacity>
+
+      {/* Left */}
+      <TouchableOpacity
+        onPress={() => press("left")}
+        style={[
+          styles.dpadBtn,
+          {
+            width: btnSize,
+            height: btnSize,
+            left: 2,
+            top: labelHeight + padArea / 2 - btnSize / 2,
+            backgroundColor: color,
+          },
+        ]}
+        activeOpacity={0.6}
+      >
+        <Text style={styles.dpadBtnText}>◀</Text>
+      </TouchableOpacity>
+
+      {/* Right */}
+      <TouchableOpacity
+        onPress={() => press("right")}
+        style={[
+          styles.dpadBtn,
+          {
+            width: btnSize,
+            height: btnSize,
+            right: 2,
+            top: labelHeight + padArea / 2 - btnSize / 2,
+            backgroundColor: color,
+          },
+        ]}
+        activeOpacity={0.6}
+      >
+        <Text style={styles.dpadBtnText}>▶</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -52,7 +183,11 @@ function GhostDpad({
   // Bigger buttons: ~42% of pad area (vs old 32%)
   const btnSize = Math.max(48, Math.round(padArea * 0.42));
   const centerX = size / 2;
-  const padCenterY = labelHeight + padArea / 2;
+  cons>
+
+      {/* Up */}
+      <TouchableOpacity
+        onPress={() =>t padCenterY = labelHeight + padArea / 2;
   const press = (dir: Direction) => {
     if (!alive) return;
     try {
@@ -89,11 +224,7 @@ function GhostDpad({
         activeOpacity={0.8}
       >
         <Text style={styles.ghostLabelText}>{name}</Text>
-      </TouchableOpacity>
-
-      {/* Up */}
-      <TouchableOpacity
-        onPress={() => press("up")}
+      </TouchableOpacity press("up")}
         style={[
           styles.dpadBtn,
           {
@@ -257,7 +388,6 @@ export default function GameScreen() {
   const handlePowerUp = (id: PowerUpId) => {
     if (state.status !== "playing") return;
     const owned = inventory[id] ?? 0;
-    if (owned <= 0) {
       setPowerUpFlash("No " + POWER_UPS[id].name + " left!");
       setTimeout(() => setPowerUpFlash(null), 1500);
       getSoundEngine().uiClick();
