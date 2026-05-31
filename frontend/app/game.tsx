@@ -1,4 +1,3 @@
-function ghostId: GhostId;
   color: string;
   name: string;
   alive: boolean;
