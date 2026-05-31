@@ -819,16 +819,16 @@ export function useGhostMaze(opts?: {
   }, []);
 
   // Game loop
-  useEffect(() => {
-  const applyInput = useCallback(() => {
+ const applyInput = useCallback(() => {
   const input = inputRef.current;
   if (!input) return;
 
-setGhostDirection(input.ghostId, input.dir);
-inputRef.current = null;
-};
+  setGhostDirection(input.ghostId, input.dir);
+  inputRef.current = null;
+}, []);
 
-useEffect(() => { 
+// Game loop
+useEffect(() => {	
 	const loop = (now: number) => {
     tick(now);
     applyInput();
