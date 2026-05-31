@@ -1,1337 +1,145 @@
-  color: string;
-  name: string;
-  alive: boolean;
-  selected: boolean;
-  onDirection: (dir: Direction) => void;
-  onSelect: () => void;
-  size: number;
-}) {
-  const labelHeight = 28;
-  const padArea = size - labelHeight;
-  const btnSize = Math.max(48, Math.round(padArea * 0.42));
-  const centerX = size / 2;
-
-  const press = (dir: Direction) => {
-    if (!alive) return;
-    try {
-      Haptics.selectionAsync();
-    } catch {}
-    onDirection(dir);
-    onSelect();
-  };
-
-  return (
-    <View
-      style={[
-        styles.dpadContainer,
-        {
-          width: size,
-          height: size,
-          borderColor: selected ? color : "#222244",
-          borderWidth: selected ? 4 : 2,
-          opacity: alive ? 1 : 0.35,
-        },
-      ]}
-    >
-      {/* Label */}
-      <TouchableOpacity
-        onPress={onSelect}
-        style={[
-          styles.ghostLabel,
-          { backgroundColor: color, height: labelHeight },
-        ]}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.ghostLabelText}>{name}</Text>
-      </TouchableOpacity>
-
-      {/* Up */}
-      <TouchableOpacity
-        onPress={() => press("up")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            top: labelHeight + 2,
-            left: centerX - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▲</Text>
-      </TouchableOpacity>
-
-      {/* Down */}
-      <TouchableOpacity
-        onPress={() => press("down")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            bottom: 2,
-            left: centerX - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▼</Text>
-      </TouchableOpacity>
-
-      {/* Left */}
-      <TouchableOpacity
-        onPress={() => press("left")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            left: 2,
-            top: labelHeight + padArea / 2 - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>◀</Text>
-      </TouchableOpacity>
-
-      {/* Right */}
-      <TouchableOpacity
-        onPress={() => press("right")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            right: 2,
-            top: labelHeight + padArea / 2 - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▶</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
-  TextInput,
-  ActivityIndicator,
   PanResponder,
-  ScrollView,
-  Animated as RNAnimated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
+
 import { useGhostMaze } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
-import { COLORS, MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
-import { getSoundEngine } from "@/src/game/sounds";
 import { useGamepad } from "@/src/game/useGamepad";
-import { shareCard, buildScoreCard, buildChallengeUrl } from "@/src/game/share";
-import { useEconomy } from "@/src/game/useEconomy";
-import { POWER_UPS, POWER_UP_ORDER, PowerUpId } from "@/src/game/powerups";
-import { loadSettings, SettingsData, DEFAULT_SETTINGS } from "@/src/game/settings";
-import { useFullscreen } from "@/src/utils/useFullscreen";
-
-// Mini D-pad for one ghost
-function ghostId: GhostId;
-  color: string;
-  name: string;
-  alive: boolean;
-  selected: boolean;
-  onDirection: (dir: Direction) => void;
-  onSelect: () => void;
-  size: number;
-}) {
-  // Label is a horizontal strip on top; D-pad fills the remaining square area
-  const labelHeight = 28;
-  const padArea = size - labelHeight;
-  // Bigger buttons: ~42% of pad area (vs old 32%)
-  const btnSize = Math.max(48, Math.round(padArea * 0.42));
-  const centerX = size / 2;
-  cons>
-
-      {/* Up */}
-      <TouchableOpacity
-        onPress={() =>t padCenterY = labelHeight + padArea / 2;
-  const press = (dir: Direction) => {
-    if (!alive) return;
-    try {
-      Haptics.selectionAsync();
-    } catch {}
-    onDirection(dir);
-    onSelect();
-  };
-  return (
-    <View
-      style={[
-        styles.dpadContainer,
-        {
-          width: size,
-          height: size,
-          borderColor: selected ? color : "#222244",
-          borderWidth: selected ? 4 : 2,
-          opacity: alive ? 1 : 0.35,
-        },
-      ]}
-      testID={`ghost-dpad-${ghostId}`}
-    >
-      {/* Ghost label - now on top */}
-      <TouchableOpacity
-        onPress={onSelect}
-        style={[
-          styles.ghostLabel,
-          {
-            backgroundColor: color,
-            height: labelHeight,
-          },
-        ]}
-        testID={`ghost-select-${ghostId}`}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.ghostLabelText}>{name}</Text>
-      </TouchableOpacity press("up")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            top: labelHeight + 2,
-            left: centerX - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        testID={`ghost-${ghostId}-up`}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▲</Text>
-      </TouchableOpacity>
-      {/* Down */}
-      <TouchableOpacity
-        onPress={() => press("down")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            bottom: 2,
-            left: centerX - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        testID={`ghost-${ghostId}-down`}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▼</Text>
-      </TouchableOpacity>
-      {/* Left */}
-      <TouchableOpacity
-        onPress={() => press("left")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            left: 2,
-            top: padCenterY - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        testID={`ghost-${ghostId}-left`}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>◀</Text>
-      </TouchableOpacity>
-      {/* Right */}
-      <TouchableOpacity
-        onPress={() => press("right")}
-        style={[
-          styles.dpadBtn,
-          {
-            width: btnSize,
-            height: btnSize,
-            right: 2,
-            top: padCenterY - btnSize / 2,
-            backgroundColor: color,
-          },
-        ]}
-        testID={`ghost-${ghostId}-right`}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.dpadBtnText}>▶</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 export default function GameScreen() {
-	<View style={styles.ghostStrip}>
-  {([0, 1, 2, 3] as GhostId[]).map((id) => (
-    <TouchableOpacity
-      key={id}
-      onPress={() => selectGhost(id)}
-      style={[
-        styles.ghostTab,
-        state.selectedGhostId === id && styles.ghostTabActive,
-      ]}
-    >
-      <Text style={styles.ghostTabText}>
-        {["Blinky", "Pinky", "Inky", "Clyde"][id]}
-      </Text>
-    </TouchableOpacity>
-  ))}
-ghostStrip: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  paddingVertical: 8,
-  backgroundColor: "#0a0a12",
-},
-
-ghostTab: {
-  paddingVertical: 6,
-  paddingHorizontal: 10,
-  borderRadius: 8,
-  backgroundColor: "#1a1a2a",
-},
-
-ghostTabActive: {
-  backgroundColor: "#333366",
-},
-
-ghostTabText: {
-  color: "white",
-  fontSize: 12,
-}</View>
-  const router = useRouter();
-  const params = useLocalSearchParams<{
-    mode?: string;
-    seed?: string;
-    seedDate?: string;
-    level?: string;
-  }>();
-
-  // stateRef must be defined BEFORE useGamepad/PanResponder closures
-  const stateRef = useRef<any>(null);
-
-  const isDaily = params.mode === "daily";
-  const isCustom = params.mode === "custom";
-  const seedNum = params.seed ? parseInt(params.seed, 10) : undefined;
-  const startingLevel = params.level ? Math.max(1, parseInt(params.level, 10)) : 1;
-
-  // Economy hook (Ghost Coins + inventory)
-  const { coins, inventory, earnCoins, useInventory } = useEconomy();
-
-  // Fullscreen / immersive mode while playing. Auto-enters on first gesture on
-  // web; on native it hides status + navigation bars immediately.
-  const { isFullscreen, toggle: toggleFullscreen, isSupported: fullscreenSupported } =
-    useFullscreen({ autoEnter: true });
-
   const {
     state,
-    mode,
-    seed: gameSeed,
-    dailySeedDate,
     setGhostDirection,
     selectGhost,
-    togglePause,
-    advanceLevel,
-    retryLevel,
-    startNewGame,
-    submitFinalScore,
-    applyPowerUp,
-  } = useGhostMaze(
-    isDaily
-      ? {
-          mode: "daily",
-          dailySeed: seedNum,
-          dailySeedDate: typeof params.seedDate === "string" ? params.seedDate : undefined,
-          onCoinsEarned: (n) => earnCoins(n),
-        }
-      : isCustom && seedNum != null
-      ? { mode: "custom", dailySeed: seedNum, onCoinsEarned: (n) => earnCoins(n) }
-      : { mode: "classic", startingLevel, onCoinsEarned: (n) => earnCoins(n) },
-  );
+  } = useGhostMaze();
 
-  // Gamepad integration
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // -----------------------------
+  // GAMEPAD (optional)
+  // -----------------------------
   useGamepad({
-    onDirection: (id, dir) => setGhostDirection(id, dir),
-    onSelect: (id) => selectGhost(id),
+    onDirection: (id, dir) => {
+      setGhostDirection(id, dir);
+    },
+    onSelect: (id) => {
+      selectGhost(id);
+    },
     getSelectedGhostId: () => stateRef.current.selectedGhostId,
   });
 
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  // -----------------------------
+  // SWIPE INPUT
+  // -----------------------------
+  const SWIPE_THRESHOLD = 25;
 
-  const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
-  const [playerName, setPlayerName] = useState("GHOST");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [powerUpFlash, setPowerUpFlash] = useState<string | null>(null);
-
-  // Load settings on mount
-  useEffect(() => {
-    loadSettings().then((s) => {
-      setSettings(s);
-      getSoundEngine().setEnabled(s.soundOn);
-    });
-  }, []);
-
-  const toggleSound = () => {
-    const next = !settings.soundOn;
-    const newSettings = { ...settings, soundOn: next };
-    setSettings(newSettings);
-    // Persist
-    import("@/src/game/settings").then(({ saveSettings }) => saveSettings(newSettings));
-    getSoundEngine().setEnabled(next);
-    if (!next) getSoundEngine().stopMusic();
-    else getSoundEngine().startMusic();
-  };
-
-  // Activate a power-up from the in-game bar
-  const handlePowerUp = (id: PowerUpId) => {
-    if (state.status !== "playing") return;
-    const owned = inventory[id] ?? 0;
-      setPowerUpFlash("No " + POWER_UPS[id].name + " left!");
-      setTimeout(() => setPowerUpFlash(null), 1500);
-      getSoundEngine().uiClick();
-      return;
-    }
-    // Try to apply effect first; only consume on success
-    const ok = applyPowerUp(id);
-    if (!ok) {
-      setPowerUpFlash(POWER_UPS[id].name + " unavailable");
-      setTimeout(() => setPowerUpFlash(null), 1500);
-      return;
-    }
-    useInventory(id);
-    if (settings.haptics) {
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-    }
-    setPowerUpFlash(POWER_UPS[id].icon + " " + POWER_UPS[id].name + "!");
-    setTimeout(() => setPowerUpFlash(null), 1500);
-  };
-
-  // Stop music when leaving game screen
-  useEffect(() => {
-    return () => {
-      getSoundEngine().stopMusic();
-    };
-  }, []);
-
-  // Reset submission state on new run
-  useEffect(() => {
-    if (state.status === "ready" || state.status === "playing") {
-      setSubmitted(false);
-      setSubmitError(null);
-    }
-  }, [state.status]);
-
-  const handleShare = async () => {
-    getSoundEngine().uiClick();
-    const card = buildScoreCard({
-      playerName: playerName || "GHOST",
-      score: state.score,
-      level: state.level,
-      catches: state.catches,
-      mode: (mode as any) ?? "classic",
-      dailyDate: dailySeedDate || undefined,
-      seed: gameSeed,
-    });
-    const result = await shareCard(card);
-    setShareStatus(
-      result === "shared" ? "Shared!" :
-      result === "copied" ? "Copied to clipboard!" :
-      "Share failed",
-    );
-    setTimeout(() => setShareStatus(null), 2500);
-  };
-
-  const handleChallengeFriend = async () => {
-    getSoundEngine().uiClick();
-    // Generate a fresh random seed for the challenge run
-    const seed =
-      gameSeed ?? Math.floor(Math.random() * 0x7fffffff);
-    const url = buildChallengeUrl(seed, playerName || "GHOST");
-    const card = {
-      title: "Ghost Maze Challenge",
-      message: `${playerName || "GHOST"} challenges you!\n${state.score.toLocaleString()} points on Level ${state.level} · ${state.catches} catches · seed ${seed}`,
-      url,
-    };
-    const result = await shareCard(card);
-    setShareStatus(
-      result === "shared" ? "Challenge sent!" :
-      result === "copied" ? "Challenge link copied!" :
-      "Share failed",
-    );
-    setTimeout(() => setShareStatus(null), 2500);
-  };
-
-  const handleSubmit = async () => {
-    if (submitting || submitted) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      await submitFinalScore(playerName || "GHOST");
-      setSubmitted(true);
-      getSoundEngine().levelWin();
-    } catch (e: any) {
-      setSubmitError(e.message || "Failed to submit");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // --- Swipe gesture controls: swipe on maze area to set selected ghost's direction ---
-  stateRef.current = state;
-  const SWIPE_THRESHOLD = 25; // pixels
   const panResponder = useRef(
-const panResponder = useRef(
-  PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, g) =>
-      Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
 
-    onPanResponderRelease: (_, g) => {
-      const dx = g.dx;
-      const dy = g.dy;
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
 
-      if (Math.abs(dx) < 25 && Math.abs(dy) < 25) return;
-
-      let dir: Direction;
-
-      if (Math.abs(dx) > Math.abs(dy)) {
-        dir = dx > 0 ? "right" : "left";
-      } else {
-        dir = dy > 0 ? "down" : "up";
-      }
-
-      Haptics.selectionAsync?.();
-
-      setGhostDirection(
-        stateRef.current.selectedGhostId as GhostId,
-        dir
-      );
-    },
-  })
-).current;        const dx = g.dx;
+      onPanResponderRelease: (_, g) => {
+        const dx = g.dx;
         const dy = g.dy;
+
         if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
           return;
         }
+
         let dir: Direction;
+
         if (Math.abs(dx) > Math.abs(dy)) {
           dir = dx > 0 ? "right" : "left";
         } else {
           dir = dy > 0 ? "down" : "up";
         }
+
         try {
           Haptics.selectionAsync();
         } catch {}
-        setGhostDirection(stateRef.current.selectedGhostId as GhostId, dir);
+
+        setGhostDirection(stateRef.current.selectedGhostId, dir);
       },
-    }),
+    })
   ).current;
 
-  // --- Particle effects for catches ---
-  const [particles, setParticles] = useState<
-    { id: string; x: number; y: number; text: string; color: string; anim: RNAnimated.Value }[]
-  >([]);
-
-  // Detect catch event -> spawn particle
-  const prevCatchesRef = useRef(0);
-  useEffect(() => {
-    if (state.catches > prevCatchesRef.current) {
-      // Caught Pellet Guy - spawn floating "+200" at his location
-      const isCombo = state.comboCount > 0;
-      const pts = 200 + (isCombo ? 300 * state.comboCount : 0);
-      const id = `${Date.now()}-${Math.random()}`;
-      const anim = new RNAnimated.Value(0);
-      const px = state.pelletGuy.x;
-      const py = state.pelletGuy.y;
-      setParticles((cur) => [
-        ...cur,
-        {
-          id,
-          x: px,
-          y: py,
-          text: `+${pts}${isCombo ? " COMBO!" : ""}`,
-          color: isCombo ? "#FF00FF" : "#FFFF00",
-          anim,
-        },
-      ]);
-      RNAnimated.timing(anim, {
-        toValue: 1,
-        duration: 1100,
-        useNativeDriver: true,
-      }).start(() => {
-        setParticles((cur) => cur.filter((p) => p.id !== id));
-      });
-    }
-    prevCatchesRef.current = state.catches;
-  }, [state.catches, state.comboCount, state.pelletGuy.x, state.pelletGuy.y]);
-
-  const { width: screenW, height: screenH } = useWindowDimensions();
-
-  // ---------------------------------------------------------------------
-  // Fixed-pixel layout budget. We reserve space for every non-maze chunk
-  // FIRST, then give the maze whatever pixels remain. Percentage-based
-  // sizing breaks on real phones whose viewport is much shorter than the
-  // "screen height" useWindowDimensions reports (Chrome chrome, etc).
-  // ---------------------------------------------------------------------
-  const safeW = screenW || 400;
-  const safeH = screenH || 800;
-
-  const HUD_H = 48;
-  const PELLETS_H = 18;
-  const POWERBAR_H = 56;
-  const BOTTOM_H = 42;
-  const VERTICAL_MARGINS = 20;
-
-  // Each dpad must be ≥132px so the 48px touch-target buttons don't overlap
-  // (3 × 48 = 144 + margins, minus label-strip overhead).
-  const minDpadSize = 132;
-  const idealDpadSize = Math.min(Math.floor((safeW - 24) / 2), 156);
-
-  const reservedH =
-    HUD_H + PELLETS_H + POWERBAR_H + BOTTOM_H + VERTICAL_MARGINS + minDpadSize * 2;
-  const availableMazeH = Math.max(120, safeH - reservedH);
-
-  const maxMazeW = safeW - 16;
-  const cellSize = Math.max(
-    10,
-    Math.floor(Math.min(maxMazeW / MAZE_COLS, availableMazeH / MAZE_ROWS)),
-  );
-
-  const mazeH = cellSize * MAZE_ROWS;
-  const leftoverH =
-    safeH - HUD_H - PELLETS_H - mazeH - POWERBAR_H - BOTTOM_H - VERTICAL_MARGINS;
-  const dpadSize = Math.max(
-    minDpadSize,
-    Math.min(idealDpadSize, Math.floor(leftoverH / 2) - 4),
-  );
-
-  // Auto-advance level after a short pause
-  useEffect(() => {
-    if (state.status === "levelWon") {
-      const t = setTimeout(() => advanceLevel(), 2500);
-      return () => clearTimeout(t);
-    }
-    if (state.status === "levelLost") {
-      const t = setTimeout(() => retryLevel(), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [state.status, advanceLevel, retryLevel]);
-
+  // -----------------------------
+  // RENDER
+  // -----------------------------
   return (
-    <SafeAreaView style={styles.container} testID="game-screen">
-      {/* HUD */}
-      <View style={styles.hud} testID="game-hud">
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>LEVEL</Text>
-          <Text style={styles.hudValue} testID="hud-level">
-            {state.level}
-          </Text>
-        </View>
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>SCORE</Text>
-          <Text style={styles.hudValue} testID="hud-score">
-            {state.score}
-          </Text>
-        </View>
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>COINS</Text>
-          <Text style={[styles.hudValue, { color: "#FFD23F" }]} testID="hud-coins">
-            🪙{coins}
-          </Text>
-        </View>
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>CATCHES</Text>
-          <Text style={styles.hudValue} testID="hud-catches">
-            {state.catches}/3
-          </Text>
-        </View>
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>DOWN</Text>
-          <Text
-            style={[
-              styles.hudValue,
-              {
-                color: state.ghostDeathsThisLevel >= 3 ? "#FF0044" :
-                       state.ghostDeathsThisLevel >= 1 ? "#FFB852" : "#FFFFFF",
-                fontSize: 14,
-              },
-            ]}
-            testID="hud-deaths"
-          >
-            {state.ghostDeathsThisLevel}
-            {state.ghostDeathsThisLevel > 0 ? ` (${(1 + state.ghostDeathsThisLevel * 0.6).toFixed(1)}x)` : ""}
-          </Text>
-        </View>
-        <View style={styles.hudCell}>
-          <Text style={styles.hudLabel}>LIVES</Text>
-          <View style={styles.livesRow}>
-            {Array.from({ length: state.lives }).map((_, i) => (
-              <View
-                key={i}
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: 7,
-                  backgroundColor: COLORS.pelletGuy,
-                  marginRight: 3,
-                }}
-              />
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Pellets / Boss HP bar */}
-      {state.boss ? (
-        <View
-          style={[
-            styles.pelletsBar,
-            { backgroundColor: "#1a0511", borderColor: "#FF477E" },
-          ]}
-          testID="boss-bar"
-        >
-          <View
-            style={[
-              styles.pelletsFill,
-              {
-                width: `${(state.boss.hp / state.boss.maxHp) * 100}%`,
-                backgroundColor:
-                  state.boss.phase === 3
-                    ? "#FF2233"
-                    : state.boss.phase === 2
-                      ? "#FF477E"
-                      : "#FF9D6A",
-              },
-            ]}
-          />
-          <Text style={[styles.pelletsText, { color: "#FFFFFF" }]} testID="boss-text">
-            ⚠️ {state.boss.title} · HP {state.boss.hp}/{state.boss.maxHp}
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.pelletsBar} testID="pellets-bar">
-          <View
-            style={[
-              styles.pelletsFill,
-              {
-                width: `${
-                  state.totalPellets > 0
-                    ? Math.round((state.pelletsRemaining / state.totalPellets) * 100)
-                    : 0
-                }%`,
-              },
-            ]}
-          />
-          <Text style={styles.pelletsText} testID="pellets-text">
-            PELLETS: {state.pelletsRemaining}/{state.totalPellets}
-          </Text>
-        </View>
-      )}
-
-      {/* Maze */}
-      <View style={styles.mazeWrap} {...panResponder.panHandlers}>
-        <MazeRenderer
-          maze={state.maze}
-          ghosts={state.ghosts}
-          pelletGuy={state.pelletGuy}
-          cellSize={cellSize}
-          selectedGhostId={state.selectedGhostId}
-          ready={state.status === "ready"}
-          level={state.level}
-          boss={state.boss}
-        />
-        {/* Floating particles */}
-        {particles.map((p) => (
-          <RNAnimated.Text
-            key={p.id}
-            style={{
-              position: "absolute",
-              left: p.x * cellSize,
-              top: p.y * cellSize - 16,
-              color: p.color,
-              fontWeight: "900",
-              fontSize: 14,
-              textShadowColor: "#000",
-              textShadowOffset: { width: 1, height: 1 },
-              textShadowRadius: 2,
-              opacity: p.anim.interpolate({
-                inputRange: [0, 0.7, 1],
-                outputRange: [1, 1, 0],
-              }),
-              transform: [
-                {
-                  translateY: p.anim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -40],
-                  }),
-                },
-                {
-                  scale: p.anim.interpolate({
-                    inputRange: [0, 0.2, 1],
-                    outputRange: [0.7, 1.4, 1],
-                  }),
-                },
-              ],
-            }}
-            pointerEvents="none"
-          >
-            {p.text}
-          </RNAnimated.Text>
-        ))}
-        {/* Overlay messages */}
-        {state.message !== "" && (
-          <View style={[styles.overlay, { pointerEvents: "box-none" }]}>
-            <Text style={styles.overlayText} testID="overlay-message">
-              {state.message}
-            </Text>
-            {(state.status === "gameOver") && (
-              <View style={{ marginTop: 12, alignItems: "center" }}>
-                {/* Score submission form */}
-                {!submitted ? (
-                  <View style={styles.submitBox} testID="submit-score-box">
-                    <Text style={styles.submitLabel}>SUBMIT TO LEADERBOARD</Text>
-                    <TextInput
-                      style={styles.nameInput}
-                      value={playerName}
-                      onChangeText={(t) => setPlayerName(t.toUpperCase().slice(0, 16))}
-                      placeholder="GHOST"
-                      placeholderTextColor="#666688"
-                      maxLength={16}
-                      autoCapitalize="characters"
-                      testID="player-name-input"
-                    />
-                    <TouchableOpacity
-                      style={[styles.btn, submitting && { opacity: 0.6 }]}
-                      onPress={handleSubmit}
-                      disabled={submitting}
-                      testID="submit-score-btn"
-                    >
-                      {submitting ? (
-                        <ActivityIndicator color="#FFFF00" />
-                      ) : (
-                        <Text style={styles.btnText}>
-                          {isDaily ? "SUBMIT DAILY" : "SUBMIT SCORE"}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                    {submitError && (
-                      <Text style={styles.errorText}>{submitError}</Text>
-                    )}
-                  </View>
-                ) : (
-                  <Text style={styles.submittedText} testID="submitted-text">
-                    ✓ SCORE SUBMITTED!
-                  </Text>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 12 }]}
-                  onPress={() => startNewGame()}
-                  testID="restart-btn"
-                >
-                  <Text style={styles.btnText}>PLAY AGAIN</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 8 }]}
-                  onPress={handleShare}
-                  testID="share-score-btn"
-                >
-                  <Text style={styles.btnText}>📤 SHARE SCORE</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 8, borderColor: "#FF00FF" }]}
-                  onPress={handleChallengeFriend}
-                  testID="challenge-friend-btn"
-                >
-                  <Text style={[styles.btnText, { color: "#FF00FF" }]}>
-                    ⚔️ CHALLENGE A FRIEND
-                  </Text>
-                </TouchableOpacity>
-                {shareStatus && (
-                  <Text style={styles.shareStatus} testID="share-status">
-                    {shareStatus}
-                  </Text>
-                )}
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 8 }]}
-                  onPress={() => router.replace("/leaderboard")}
-                  testID="leaderboard-btn"
-                >
-                  <Text style={styles.btnText}>LEADERBOARD</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 8 }]}
-                  onPress={() => router.replace("/")}
-                  testID="menu-btn"
-                >
-                  <Text style={styles.btnText}>MAIN MENU</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Controls - 2x2 grid of mini D-pads */}
-      <View style={styles.controls} testID="controls">
-        <View style={styles.controlRow}>
-        
-      {/* Active effects strip */}
-      {(state.effects.speedBoostUntil > Date.now() ||
-        state.effects.freezeUntil > Date.now() ||
-        state.effects.magnetUntil > Date.now() ||
-        state.effects.revealUntil > Date.now() ||
-        state.effects.fastRespawn ||
-        state.effects.shieldGhostId != null ||
-        state.effects.decoy) && (
-        <View style={styles.effectsStrip} testID="active-effects">
-          {state.effects.speedBoostUntil > Date.now() && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.speedBoost.color }]}>
-              ⚡SPEED
-            </Text>
-          )}
-          {state.effects.freezeUntil > Date.now() && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.freeze.color }]}>
-              ❄️FREEZE
-            </Text>
-          )}
-          {state.effects.magnetUntil > Date.now() && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.magnet.color }]}>
-              🧲MAGNET
-            </Text>
-          )}
-          {state.effects.revealUntil > Date.now() && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.reveal.color }]}>
-              👁️REVEAL
-            </Text>
-          )}
-          {state.effects.shieldGhostId != null && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.shield.color }]}>
-              🛡️SHIELD
-            </Text>
-          )}
-          {state.effects.fastRespawn && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.fastRespawn.color }]}>
-              ⏱REVIVE
-            </Text>
-          )}
-          {state.effects.decoy && (
-            <Text style={[styles.effectBadge, { color: POWER_UPS.decoy.color }]}>
-              👻DECOY
-            </Text>
-          )}
-        </View>
-      )}
-
-      {/* Power-up bar (horizontally scrollable so 11 items don't wrap) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.powerBar}
-        contentContainerStyle={styles.powerBarContent}
-        testID="power-bar"
-      >
-        {POWER_UP_ORDER.map((id) => {
-          const def = POWER_UPS[id];
-          const count = inventory[id] ?? 0;
-          const disabled = count <= 0 || state.status !== "playing";
-          return (
-            <TouchableOpacity
-              key={id}
-              style={[
-                styles.powerSlot,
-                { borderColor: def.color },
-                disabled && { opacity: 0.35 },
-              ]}
-              onPress={() => handlePowerUp(id)}
-              disabled={disabled}
-              testID={`power-${id}`}
-            >
-              <Text style={styles.powerIcon}>{def.icon}</Text>
-              <Text style={[styles.powerCount, { color: def.color }]}>×{count}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-      {powerUpFlash && (
-        <Text style={styles.powerFlash} testID="power-flash">
-          {powerUpFlash}
-        </Text>
-      )}
-
-      {/* Bottom action row */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.smallBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            togglePause();
-          }}
-          testID="pause-btn"
-        >
-          <Text style={styles.smallBtnText}>
-            {state.status === "paused" ? "RESUME" : "PAUSE"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.smallBtn}
-          onPress={toggleSound}
-          testID="sound-btn"
-        >
-          <Text style={styles.smallBtnText}>
-            {settings.soundOn ? "🔊" : "🔇"}
-          </Text>
-        </TouchableOpacity>
-        {fullscreenSupported && (
+    <SafeAreaView style={styles.container}>
+      
+      {/* Ghost selector strip */}
+      <View style={styles.ghostStrip}>
+        {([0, 1, 2, 3] as GhostId[]).map((id) => (
           <TouchableOpacity
-            style={styles.smallBtn}
-            onPress={() => {
-              getSoundEngine().uiClick();
-              void toggleFullscreen();
-            }}
-            testID="fullscreen-btn"
+            key={id}
+            onPress={() => selectGhost(id)}
+            style={[
+              styles.ghostTab,
+              state.selectedGhostId === id && styles.ghostTabActive,
+            ]}
           >
-            <Text style={styles.smallBtnText}>{isFullscreen ? "🗗" : "⛶"}</Text>
+            <Text style={styles.ghostTabText}>
+              {["Blinky", "Pinky", "Inky", "Clyde"][id]}
+            </Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={styles.smallBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            getSoundEngine().stopMusic();
-            router.replace("/");
-          }}
-          testID="quit-btn"
-        >
-          <Text style={styles.smallBtnText}>QUIT</Text>
-        </TouchableOpacity>
+        ))}
       </View>
 
-      {/* CRT scanline overlay - thin & subtle */}
-      {settings.scanlines && (
-        <View style={styles.scanlineOverlay} testID="scanlines">
-          {Array.from({ length: 120 }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                height: 1,
-                marginTop: 4,
-                backgroundColor: "rgba(255,255,255,0.18)",
-              }}
-            />
-          ))}
-        </View>
-      )}
+      {/* Game area */}
+      <View style={styles.gameArea} {...panResponder.panHandlers}>
+        <MazeRenderer state={state} />
+      </View>
+
     </SafeAreaView>
   );
 }
 
+// -----------------------------
+// STYLES
+// -----------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.uiBg,
-    alignItems: "center",
+    backgroundColor: "#0a0a12",
   },
-  hud: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    backgroundColor: COLORS.uiPanel,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.uiBorder,
-  },
-  hudCell: {
-    alignItems: "center",
+
+  gameArea: {
     flex: 1,
-    minWidth: 0,
   },
-  hudLabel: {
-    color: "#FFFF00",
-    fontSize: 9,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  hudValue: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "bold",
-    fontVariant: ["tabular-nums"],
-  },
-  livesRow: {
+
+  ghostStrip: {
     flexDirection: "row",
-    marginTop: 3,
-    minHeight: 14,
-    flexWrap: "wrap",
-    justifyContent: "center",
+    justifyContent: "space-around",
+    paddingVertical: 8,
+    backgroundColor: "#0f0f1a",
   },
-  pelletsBar: {
-    height: 18,
-    width: "100%",
-    backgroundColor: "#000",
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.uiBorder,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-    overflow: "hidden",
-  },
-  pelletsFill: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: "#5a3a00",
-  },
-  pelletsText: {
-    color: "#FFB897",
-    fontSize: 11,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    zIndex: 2,
-  },
-  mazeWrap: {
-    marginTop: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  overlayText: {
-    color: "#FFFF00",
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
-    letterSpacing: 1,
-    lineHeight: 26,
-  },
-  controls: {
-    marginTop: 6,
-    width: "100%",
-    paddingHorizontal: 8,
-    alignItems: "center",
-  },
-  controlRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginVertical: 2,
-  },
-  dpadContainer: {
-    position: "relative",
-    backgroundColor: "#0a0a18",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  ghostLabel: {
-    width: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  ghostLabelText: {
-    color: "#000",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-  dpadBtn: {
-    position: "absolute",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.5)",
-  },
-  dpadBtnText: {
-    color: "#000",
-    fontWeight: "900",
-    fontSize: 22,
-  },
-  bottomBar: {
-    flexDirection: "row",
+
+  ghostTab: {
     paddingVertical: 6,
-    paddingHorizontal: 16,
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  smallBtn: {
-    backgroundColor: COLORS.uiPanel,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.uiBorder,
-  },
-  smallBtnText: {
-    color: "#FFFF00",
-    fontWeight: "bold",
-    letterSpacing: 1,
-    fontSize: 12,
-  },
-  btn: {
-    backgroundColor: COLORS.uiPanel,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: COLORS.uiBorder,
-  },
-  btnText: {
-    color: "#FFFF00",
-    fontWeight: "bold",
-    letterSpacing: 1,
-    fontSize: 16,
-  },
-  submitBox: {
-    backgroundColor: COLORS.uiPanel,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.uiBorder,
-    alignItems: "center",
-    minWidth: 220,
-  },
-  submitLabel: {
-    color: "#FFB897",
-    fontSize: 11,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  nameInput: {
-    backgroundColor: "#000",
-    color: "#FFFF00",
-    fontSize: 18,
-    fontWeight: "bold",
-    letterSpacing: 2,
-    textAlign: "center",
-    paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.uiBorder,
-    width: 200,
-    marginBottom: 10,
+    borderRadius: 8,
+    backgroundColor: "#1a1a2a",
   },
-  errorText: {
-    color: COLORS.danger,
-    fontSize: 11,
-    marginTop: 6,
+
+  ghostTabActive: {
+    backgroundColor: "#2a2a44",
   },
-  submittedText: {
-    color: "#00FF88",
-    fontWeight: "900",
-    fontSize: 18,
-    letterSpacing: 2,
-  },
-  shareStatus: {
-    color: "#00FF88",
+
+  ghostTabText: {
+    color: "white",
     fontSize: 12,
-    letterSpacing: 1,
-    marginTop: 8,
-    fontWeight: "bold",
-  },
-  powerBar: {
-    width: "100%",
-    maxHeight: 58,
-    backgroundColor: "#0a0a18",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: COLORS.uiBorder,
-    flexGrow: 0,
-  },
-  powerBarContent: {
-    alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    gap: 6,
-  },
-  powerSlot: {
-    minWidth: 44,
-    height: 44,
-    backgroundColor: COLORS.uiPanel,
-    borderRadius: 8,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  powerIcon: {
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  powerCount: {
-    fontSize: 9,
-    fontWeight: "900",
-    marginTop: -2,
-  },
-  powerFlash: {
-    position: "absolute",
-    top: "40%",
-    alignSelf: "center",
-    color: "#FFFF00",
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: 2,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#FFD23F",
-    zIndex: 100,
-  },
-  effectsStrip: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    gap: 8,
-  },
-  effectBadge: {
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  scanlineOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    pointerEvents: "none" as any,
   },
 });
