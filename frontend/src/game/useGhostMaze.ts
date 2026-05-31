@@ -824,10 +824,12 @@ export function useGhostMaze(opts?: {
   const input = inputRef.current;
   if (!input) return;
 
-  setGhostDirection(input.ghostId, input.dir);
-  inputRef.current = null;
-}useEffect(() => {
-  const loop = (now: number) => {
+setGhostDirection(input.ghostId, input.dir);
+inputRef.current = null;
+};
+
+useEffect(() => { 
+	const loop = (now: number) => {
     tick(now);
     applyInput();
     rafRef.current = requestAnimationFrame(loop);
