@@ -47,7 +47,7 @@ import {
   bossIsLunging,
   BOSS_REWARDS,
 } from "./boss";
-const inputQueueRef = useRef<{
+const QueueRef = useRef<{
   ghostId: GhostId;
   dir: Direction;
 } | null>(null);
@@ -820,41 +820,27 @@ export function useGhostMaze(opts?: {
 
   // Game loop
   useEffect(() => {
-  
- useEffect(() => {
-  const loop = () => {
-    const now = performance.now();
-    lastFrameRef.current = now;
+  const applyInput = useCallback(() => {
+  const input = inputRef.current;
+  if (!input) return;
 
+  setGhostDirection(input.ghostId, input.dir);
+  inputRef.current = null;
+}useEffect(() => {
+  const loop = (now: number) => {
     tick(now);
-
-    const input = inputQueueRef.current;
-    if (input) {
-      setGhostDirection(input.ghostId, input.dir);
-      inputQueueRef.current = null;
-    }
-
-    const dir = queuedDirectionRef.current;
-    if (dir !== undefined && dir !== null) {
-      setGhostDirection(stateRef.current.selectedGhostId, dir);
-      queuedDirectionRef.current = null;
-    }
-
+    applyInput();
     rafRef.current = requestAnimationFrame(loop);
   };
 
   rafRef.current = requestAnimationFrame(loop);
 
   return () => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+    }
   };
-}, [tick, setGhostDirection]);requestAnimationFrame(loop);
-    return () => {return () => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-  };
-}, [tick, setGhostDirection]);
-
-  // Auto-advance from levelWon -> next level after a short delay
+}, [tick, applyInput]); // Auto-advance from levelWon -> next level after a short delay
   const advanceLevel = useCallback(() => {
     startLevel(state.level + 1, state.lives, state.score);
   }, [state.level, state.lives, state.score, startLevel]);
