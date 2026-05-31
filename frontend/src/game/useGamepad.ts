@@ -15,13 +15,11 @@ const STICK_THRESHOLD = 0.55;
 const DEBOUNCE_MS = 110;
 
 interface Callbacks {
-  onDirection: (ghostId, dir) => {
-  inputQueueRef.current = { ghostId, dir };
+  onDirection: (ghostId: GhostId, dir: Direction) => void;
   onSelect: (ghostId: GhostId) => void;
   getSelectedGhostId: () => GhostId;
   enabled?: boolean;
-}
-
+ }
 interface ButtonState {
   dpadUp: boolean;
   dpadDown: boolean;
