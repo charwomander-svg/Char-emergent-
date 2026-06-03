@@ -818,18 +818,28 @@ export function useGhostMaze(opts?: {
     }
   }, []);
 
-  // Game loop
- const applyInput = useCallback(() => {
-  const input = inputRef.current;
-  if (!input) return;
+ const inputRef = useRef<{
+  ghostId: GhostId;
+  dir: Direction;
+} | null>(null);
 
-  setGhostDirection(input.ghostId, input.dir);
-  inputRef.current = null;
-}, []);
+const setInput = useCallback((ghostId: GhostId, dir: Direction) => {
+  inputRef.current = { ghostId, dir };
+useEffect(() => {
+  const loop = (now: number) => {
+    tick(now);
+    applyInput();
+    rafRef.current = requestAnimationFrame(loop);
+  };
 
-// Game loop
-useEffect(() => {	
-	const loop = (now: number) => {
+  rafRef.current = requestAnimationFrame(loop);
+
+  return () => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+    }
+  };
+}, [tick, applyInput]);}, []);seEffect(() =>    {	const loop = (now: number) => {
     tick(now);
     applyInput();
     rafRef.current = requestAnimationFrame(loop);
