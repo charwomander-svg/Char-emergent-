@@ -839,7 +839,7 @@ useEffect(() => {
       cancelAnimationFrame(rafRef.current);
     }
   };
-}, [tick, applyInput]);}, []);seEffect(() =>    {	const loop = (now: number) => {
+}, [tick, applyInput]);}, []);useEffect(() =>    {	const loop = (now: number) => {
     tick(now);
     applyInput();
     rafRef.current = requestAnimationFrame(loop);
