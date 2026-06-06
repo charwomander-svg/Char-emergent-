@@ -574,7 +574,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
   );
 });
 
-export default function Renderer({
+export default function MazeRenderer({
   maze,
   ghosts,
   pelletGuy,
