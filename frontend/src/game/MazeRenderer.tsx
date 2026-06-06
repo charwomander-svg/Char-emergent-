@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import { COLORS, SPEED } from "@/src/game/constants";
-import {
 interface Props {
   maze: CellType[][];
   ghosts: Ghost[];
