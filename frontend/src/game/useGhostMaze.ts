@@ -47,7 +47,7 @@ import {
   bossIsLunging,
   BOSS_REWARDS,
 } from "./boss";
-const QueueRef = useRef<{
+const InputRef = useRef<{
   ghostId: GhostId;
   dir: Direction;
 } | null>(null);
@@ -817,43 +817,39 @@ export function useGhostMaze(opts?: {
       setState(nextState);
     }
   }, []);
+// --- Input Management ---
+  const inputRef = useRef<{
+    ghostId: GhostId;
+    dir: Direction;
+  } | null>(null);
 
- const inputRef = useRef<{
-  ghostId: GhostId;
-  dir: Direction;
-} | null>(null);
+  const setInput = useCallback((ghostId: GhostId, dir: Direction) => {
+    inputRef.current = { ghostId, dir };
+  }, []);
 
-const setInput = useCallback((ghostId: GhostId, dir: Direction) => {
-  inputRef.current = { ghostId, dir };
-useEffect(() => {
-  const loop = (now: number) => {
-    tick(now);
-    applyInput();
+  const applyInput = useCallback(() => {
+    if (!inputRef.current) return;
+    const { ghostId, dir } = inputRef.current;
+    setGhostDirection(ghostId, dir);
+    inputRef.current = null;
+  }, [setGhostDirection]);
+
+  // --- Main Game Animation Loop ---
+  useEffect(() => {
+    const loop = (now: number) => {
+      tick(now);
+      applyInput();
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
     rafRef.current = requestAnimationFrame(loop);
-  };
 
-  rafRef.current = requestAnimationFrame(loop);
-
-  return () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-    }
-  };
-}, [tick, applyInput]);}, []);useEffect(() =>    {	const loop = (now: number) => {
-    tick(now);
-    applyInput();
-    rafRef.current = requestAnimationFrame(loop);
-  };
-
-  rafRef.current = requestAnimationFrame(loop);
-
-  return () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-    }
-  };
-}, [tick, applyInput]); // Auto-advance from levelWon -> next level after a short delay
-  const advanceLevel = useCallback(() => {
+    return () => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [tick, applyInput]); const advanceLevel = useCallback(() => {
     startLevel(state.level + 1, state.lives, state.score);
   }, [state.level, state.lives, state.score, startLevel]);
 
