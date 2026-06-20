@@ -1,5 +1,10 @@
+import os
+import sys
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from ultimate_card_collection import CONTENT_PIPELINE, get_blueprint, router
 

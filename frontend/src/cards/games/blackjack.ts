@@ -11,8 +11,8 @@ function createInitialState(seed: number): GameSnapshot {
   const deck = createDeck(seed, 6);
   snapshot.activeSeat = "player-1";
   snapshot.zones.shoe.cards = deck.slice(4);
-  snapshot.zones.player-hand.cards = deck.slice(0, 2).map((card) => ({ ...card, faceUp: true }));
-  snapshot.zones.dealer-hand.cards = [
+  snapshot.zones["player-hand"].cards = deck.slice(0, 2).map((card) => ({ ...card, faceUp: true }));
+  snapshot.zones["dealer-hand"].cards = [
     { ...deck[2], faceUp: true },
     { ...deck[3], faceUp: false },
   ];

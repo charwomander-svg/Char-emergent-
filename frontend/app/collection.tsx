@@ -14,12 +14,12 @@ import {
 import { featuredRulesets } from "@/src/cards/games";
 import { validateRulesDefinition } from "@/src/cards/engine/validation";
 
-const launchGames = launchTiers.launch as Array<{
+const launchGames = launchTiers.launch as {
   id: string;
   name: string;
   category: string;
   why: string;
-}>;
+}[];
 
 export default function CollectionBlueprintScreen() {
   return (
