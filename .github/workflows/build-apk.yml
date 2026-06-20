@@ -1,0 +1,50 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup EAS
+        run: npm install -g eas-cli
+
+      - name: Authenticate with EAS
+        run: eas login --non-interactive
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+
+      - name: Build APK with EAS
+        run: |
+          cd frontend
+          eas build --platform android --wait --non-interactive
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+
+      - name: Upload APK to GitHub Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: frontend/*.apk
+          if-no-files-found: warn
+
+      - name: Create Release
+        if: always()
+        uses: softprops/action-gh-release@v1
+        with:
+          files: frontend/*.apk
+          tag_name: build-${{ github.run_number }}
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
