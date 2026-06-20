@@ -19,7 +19,8 @@ interface Callbacks {
   onSelect: (ghostId: GhostId) => void;
   getSelectedGhostId: () => GhostId;
   enabled?: boolean;
- }
+}
+
 interface ButtonState {
   dpadUp: boolean;
   dpadDown: boolean;
@@ -79,7 +80,7 @@ export function useGamepad(cb: Callbacks) {
 
           const now = performance.now();
           if (dir && now - lastDirectionTimeRef.current > DEBOUNCE_MS) {
-            queuedDirectionRef.current = dir;
+            cbRef.current.onDirection(cbRef.current.getSelectedGhostId(), dir);
             lastDirectionTimeRef.current = now;
           }
 
