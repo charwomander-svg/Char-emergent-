@@ -47,10 +47,6 @@ import {
   bossIsLunging,
   BOSS_REWARDS,
 } from "./boss";
-const InputRef = useRef<{
-  ghostId: GhostId;
-  dir: Direction;
-} | null>(null);
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -762,7 +758,7 @@ export function useGhostMaze(opts?: {
           }
         } else {
           status = "levelLost";
-          message = "PELLET GUY WINS!\He ate all the pellets!";
+          message = "PELLET GUY WINS!\nHe ate all the pellets!";
           getSoundEngine().levelLose();
         }
       } else {
@@ -782,7 +778,7 @@ export function useGhostMaze(opts?: {
             }
           } else {
             status = "levelLost";
-            message = "PELLET GUY WINS!\He ate all your ghosts!";
+            message = "PELLET GUY WINS!\nHe ate all your ghosts!";
             getSoundEngine().levelLose();
           }
         }

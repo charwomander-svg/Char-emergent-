@@ -64,7 +64,7 @@ export default function LeaderboardScreen() {
     getSoundEngine().uiClick();
     try {
       const seed = dailySeed ?? (await fetchDailySeed().then((s) => ({ date: s.seed_date, seed: s.seed })));
-      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.date}`);
+      router.push(`/game?mode=daily&seed=${seed!.seed}&seedDate=${seed!.date}`);
     } catch (e) {
       setErr("Failed to fetch daily seed");
     }

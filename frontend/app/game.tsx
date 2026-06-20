@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   PanResponder,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -13,8 +14,12 @@ import { useGhostMaze } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
+import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 
 export default function GameScreen() {
+  const { width, height } = useWindowDimensions();
+  const cellSize = Math.floor(Math.min(width / MAZE_COLS, (height * 0.75) / MAZE_ROWS));
+
   const {
     state,
     setGhostDirection,
@@ -100,7 +105,16 @@ export default function GameScreen() {
 
       {/* Game area */}
       <View style={styles.gameArea} {...panResponder.panHandlers}>
-        <MazeRenderer state={state} />
+        <MazeRenderer
+            maze={state.maze}
+            ghosts={state.ghosts}
+            pelletGuy={state.pelletGuy}
+            cellSize={cellSize}
+            selectedGhostId={state.selectedGhostId}
+            ready={state.status === "ready"}
+            level={state.level}
+            boss={state.boss}
+          />
       </View>
 
     </SafeAreaView>
