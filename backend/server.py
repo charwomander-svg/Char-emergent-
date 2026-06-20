@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone, date
 
 from payments import get_router as get_payments_router, init_stripe
+from ultimate_card_collection import router as card_collection_router
 
 
 ROOT_DIR = Path(__file__).parent
@@ -164,6 +165,7 @@ async def leaderboard(
 
 
 app.include_router(api_router)
+app.include_router(card_collection_router, prefix="/api")
 
 # Stripe payments router (Coin pack purchases)
 init_stripe()

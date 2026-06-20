@@ -160,6 +160,19 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.charactersBtn, { borderColor: "#8ec5ff" }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/collection");
+          }}
+          testID="collection-btn"
+        >
+          <Text style={[styles.charactersBtnText, { color: "#8ec5ff" }]}>
+            🃏 CARD COLLECTION BLUEPRINT
+          </Text>
+        </TouchableOpacity>
+
         {/* How to play */}
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
