@@ -21,10 +21,6 @@ function isRedSuit(suit: Suit): boolean {
   return suit === "diamonds" || suit === "hearts";
 }
 
-function isFoundationZone(zoneId: string): zoneId is (typeof foundationZones)[number] {
-  return foundationZones.includes(zoneId as (typeof foundationZones)[number]);
-}
-
 function isTableauZone(zoneId: string): zoneId is (typeof tableauZones)[number] {
   return tableauZones.includes(zoneId as (typeof tableauZones)[number]);
 }
@@ -228,7 +224,6 @@ function applyAction(snapshot: GameSnapshot, action: CardAction): GameSnapshot {
   if (action.type === "draw" && action.source === "waste") {
     const stockCards = snapshot.zones.waste.cards
       .slice()
-      .reverse()
       .map((card) => ({ ...card, faceUp: false }));
 
     return {
