@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
+import type { BossState } from "@/src/game/boss";
+import { bossVisualScale, bossAuraColor, bossIsLunging } from "@/src/game/boss";
 import { COLORS, SPEED } from "@/src/game/constants";
+
 interface Props {
   maze: CellType[][];
   ghosts: Ghost[];
@@ -12,20 +15,6 @@ interface Props {
   level: number;
   boss?: BossState | null;
 }
-
-export const MazeRenderer: React.FC<Props> = React.memo(({
-  maze,
-  ghosts,
-  pelletGuy,
-  cellSize,
-  selectedGhostId,
-  ready,
-  level,
-  boss
-}) => {
-  
-  // 💡 ADD THIS GUARD CLAUSE TO PREVENT THE CRASH
-  if (!maze || !maze.length || !maze[0]) {
 
 // Smooth position hook — interpolates grid coords to pixel coords with
 // Animated.Value. Falls back to snap for non-adjacent jumps (respawn).
@@ -584,6 +573,7 @@ export default function MazeRenderer({
   level,
   boss,
 }: Props) {
+  if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
   const height = maze.length * cellSize;
   const scale = speedScale(level);
