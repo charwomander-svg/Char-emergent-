@@ -21,6 +21,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Set up Java
@@ -37,14 +38,14 @@ jobs:
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "No keystore secret found. Building unsigned release APK."
           else
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            echo "$KEYSTORE_BASE64" | base64 --decode > frontend/android/app/upload-keystore.jks
           fi
 
       - name: Make Gradle wrapper executable
-        run: chmod +x android/gradlew
+        run: chmod +x frontend/android/gradlew
 
       - name: Build release APK
-        working-directory: android
+        working-directory: frontend/android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -55,4 +56,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: frontend/android/app/build/outputs/apk/release/*.apk
