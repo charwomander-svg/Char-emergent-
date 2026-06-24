@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -30,7 +29,6 @@ export default function CheckoutSuccess() {
     "Confirming your purchase with Stripe…",
   );
   const [coinsAdded, setCoinsAdded] = useState<number | null>(null);
-  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -45,7 +43,6 @@ export default function CheckoutSuccess() {
 
     async function poll(attempt: number) {
       if (cancelled) return;
-      setAttempts(attempt);
       try {
         const status = await getCheckoutStatus(sessionId);
         if (cancelled) return;
@@ -138,7 +135,7 @@ export default function CheckoutSuccess() {
         </View>
 
         {phase === "pending" && (
-          <Text style={styles.hint}>Don't close this page.</Text>
+          <Text style={styles.hint}>Don’t close this page.</Text>
         )}
       </View>
     </SafeAreaView>
