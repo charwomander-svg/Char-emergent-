@@ -63,9 +63,17 @@ export default function LeaderboardScreen() {
   const playDailyChallenge = async () => {
     getSoundEngine().uiClick();
     try {
-      const seed = dailySeed ?? (await fetchDailySeed().then((s) => ({ date: s.seed_date, seed: s.seed })));
-      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.date}`);
-    } catch (e) {
+      let resolvedDailySeed: { date: string; seed: number };
+      if (dailySeed) {
+        resolvedDailySeed = dailySeed;
+      } else {
+        const fetched = await fetchDailySeed();
+        resolvedDailySeed = { date: fetched.seed_date, seed: fetched.seed };
+      }
+      router.push(
+        `/game?mode=daily&seed=${resolvedDailySeed.seed}&seedDate=${resolvedDailySeed.date}`,
+      );
+    } catch {
       setErr("Failed to fetch daily seed");
     }
   };
