@@ -1,5 +1,5 @@
 // Main game state hook - manages the entire game logic
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CellType,
   Direction,
@@ -47,10 +47,6 @@ import {
   bossIsLunging,
   BOSS_REWARDS,
 } from "./boss";
-const InputRef = useRef<{
-  ghostId: GhostId;
-  dir: Direction;
-} | null>(null);
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
