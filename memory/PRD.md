@@ -108,3 +108,37 @@ Daily challenge, leaderboard, score submission, ghost-house stagger, particle ef
 - 3D parallax / camera animations
 - Achievements & badges
 - Per-friend rivalry tracking (head-to-head W/L vs. specific seeds)
+
+## Release Scope Lock (v6.1)
+
+### In-scope for release
+1. **HUD v1**: score, level, lives, catches/combo, pellets remaining, active power-up effects, pause/state messages, and boss HP+phase cue.
+2. **Multi-ghost arming**: top-row ghost buttons toggle independently; swipe commands apply to all armed ghosts; quick "ALL" and "RESET" actions.
+3. **Payments hardening**: keep Stripe Checkout flow, add restore/sync balance UX, add checkout status retry UX.
+4. **Speedrun mode**: dedicated game mode + timer + best-run local persistence + backend submission field + leaderboard tab sorted by fastest time.
+5. **Boss readability polish**: explicit HUD phase and HP signal.
+6. **Pellet Guy progression curve**: tiered AI profile from intro -> nightmare to smooth deeper-level scaling.
+7. **Music controls**: settings-aware menu/game music start/stop handling.
+
+### Out-of-scope for this release
+- Native embedded Stripe SDK (to be wired when production SDK package path is provided).
+- New authored music tracks (hooks present; final assets pending).
+- Major combat/mechanics redesign beyond balancing knobs.
+
+## Acceptance Criteria (Release Gate)
+
+- HUD is legible on mobile and web, and reflects live game state accurately.
+- Any combination of ghost arm buttons can be active at once; direction input affects all active ghosts.
+- Shop can recover wallet state from backend and user can manually retry checkout confirmation.
+- Speedrun entries can be submitted and appear on speedrun leaderboard ordered by shortest run time.
+- Boss encounters visibly communicate HP/phase in HUD.
+- Pellet Guy AI difficulty increases across level tiers without abrupt jumps.
+- Music obeys sound/music settings and stops/starts correctly during menu/game transitions.
+
+## HUD QA Cases
+
+1. **State accuracy**: score, lives, catches, combo, pellets, and level update correctly as gameplay events happen.
+2. **Boss HUD**: on level 5+, boss bar appears with correct HP decrement and phase label.
+3. **Effect labels**: timed effects show countdowns and expire cleanly.
+4. **Pause visibility**: pause overlay appears immediately and resume removes it.
+5. **Responsiveness**: HUD remains readable at narrow mobile widths and larger web widths.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,12 @@ import { COLORS } from "@/src/game/constants";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";
 import { getSoundEngine } from "@/src/game/sounds";
-import { fetchPacks, createCheckoutSession, type CoinPack } from "@/src/game/payments";
+import {
+  fetchPacks,
+  createCheckoutSession,
+  getPlayerBalance,
+  type CoinPack,
+} from "@/src/game/payments";
 import { getPlayerId } from "@/src/game/playerId";
 
 function getWebOrigin(): string {
@@ -31,11 +36,12 @@ function getWebOrigin(): string {
 
 export default function Shop() {
   const router = useRouter();
-  const { coins, inventory, buyPowerUp } = useEconomy();
+  const { coins, inventory, buyPowerUp, syncServerBalance } = useEconomy();
 
   const [packs, setPacks] = useState<CoinPack[]>([]);
   const [loadingPacks, setLoadingPacks] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string>("");
 
   // Load coin packs from backend on mount
   useEffect(() => {
@@ -56,6 +62,25 @@ export default function Shop() {
       cancelled = true;
     };
   }, []);
+
+  const restoreBalance = useCallback(async () => {
+    try {
+      const playerId = await getPlayerId();
+      const serverBalance = await getPlayerBalance(playerId);
+      const delta = syncServerBalance(serverBalance);
+      if (delta > 0) {
+        setSyncMessage(`Synced +${delta.toLocaleString()} coins from your account.`);
+      } else {
+        setSyncMessage("Balance already up to date.");
+      }
+    } catch {
+      setSyncMessage("Could not sync your balance right now.");
+    }
+  }, [syncServerBalance]);
+
+  useEffect(() => {
+    restoreBalance();
+  }, [restoreBalance]);
 
   const onBuyPower = (id: keyof typeof POWER_UPS) => {
     getSoundEngine().uiClick();
@@ -166,6 +191,10 @@ export default function Shop() {
         <Text style={styles.legalText}>
           Secure checkout by Stripe. Payments are processed in test mode in this preview.
         </Text>
+        <TouchableOpacity style={styles.restoreBtn} onPress={restoreBalance} testID="restore-balance-btn">
+          <Text style={styles.restoreBtnText}>↻ RESTORE / SYNC BALANCE</Text>
+        </TouchableOpacity>
+        {!!syncMessage && <Text style={styles.syncText}>{syncMessage}</Text>}
 
         {/* Power-up grid */}
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>POWER-UPS</Text>
@@ -284,6 +313,18 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: "#000", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   legalText: { color: "#666688", fontSize: 10, marginTop: 12, fontStyle: "italic", textAlign: "center" },
+  restoreBtn: {
+    marginTop: 10,
+    alignSelf: "center",
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#121224",
+  },
+  restoreBtnText: { color: "#FFB897", fontSize: 11, letterSpacing: 1, fontWeight: "bold" },
+  syncText: { color: "#8ad28f", fontSize: 11, marginTop: 8, textAlign: "center" },
   row: {
     flexDirection: "row",
     alignItems: "center",

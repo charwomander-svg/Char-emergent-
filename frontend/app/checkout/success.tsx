@@ -29,6 +29,7 @@ export default function CheckoutSuccess() {
     "Confirming your purchase with Stripe…",
   );
   const [coinsAdded, setCoinsAdded] = useState<number | null>(null);
+  const [pollToken, setPollToken] = useState(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -96,7 +97,7 @@ export default function CheckoutSuccess() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [sessionId, grantCoins]);
+  }, [sessionId, grantCoins, pollToken]);
 
   const goShop = () => router.replace("/shop");
   const goHome = () => router.replace("/");
@@ -125,6 +126,19 @@ export default function CheckoutSuccess() {
           {phase !== "pending" && (
             <TouchableOpacity style={styles.btn} onPress={goShop} testID="back-to-shop">
               <Text style={styles.btnText}>BACK TO SHOP</Text>
+            </TouchableOpacity>
+          )}
+          {phase !== "pending" && (
+            <TouchableOpacity
+              style={[styles.btn, styles.btnSecondary]}
+              onPress={() => {
+                setPhase("pending");
+                setMessage("Retrying payment confirmation…");
+                setPollToken((x) => x + 1);
+              }}
+              testID="retry-checkout-status"
+            >
+              <Text style={styles.btnText}>RETRY STATUS CHECK</Text>
             </TouchableOpacity>
           )}
           {phase !== "pending" && (

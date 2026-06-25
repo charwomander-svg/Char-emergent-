@@ -78,12 +78,26 @@ export function useEconomy() {
     [persist],
   );
 
+  const syncServerBalance = useCallback(
+    (serverCoins: number) => {
+      const cur = econRef.current;
+      if (!cur) return 0;
+      const nextCoins = Math.max(cur.coins, Math.max(0, Math.floor(serverCoins)));
+      if (nextCoins === cur.coins) return 0;
+      const delta = nextCoins - cur.coins;
+      persist({ ...cur, coins: nextCoins });
+      return delta;
+    },
+    [persist],
+  );
+
   return {
     economy,
     earnCoins,
     grantCoins,
     buyPowerUp,
     useInventory,
+    syncServerBalance,
     inventory: economy?.inventory ?? {},
     coins: economy?.coins ?? 0,
   };

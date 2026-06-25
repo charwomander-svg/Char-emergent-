@@ -7,8 +7,7 @@
 // to keep useGhostMaze.ts focused on the core arcade loop.
 // ============================================================================
 
-import type { CellType, GhostId } from "./types";
-import { isWalkable } from "./maze";
+import type { CellType } from "./types";
 
 export const BOSS_LEVEL_INTERVAL = 5;
 
