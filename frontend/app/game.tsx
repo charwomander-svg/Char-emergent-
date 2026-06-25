@@ -1,161 +1,333 @@
-import React, { useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  PanResponder,
-  useWindowDimensions,
-} from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
+const BINGO_COLUMNS = ["B", "I", "N", "G", "O"] as const;
+const COLUMN_RANGES = [
+  [1, 15],
+  [16, 30],
+  [31, 45],
+  [46, 60],
+  [61, 75],
+] as const;
 
-import { useGhostMaze } from "@/src/game/useGhostMaze";
-import MazeRenderer from "@/src/game/MazeRenderer";
-import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
-import type { Direction, GhostId } from "@/src/game/types";
-import { useGamepad } from "@/src/game/useGamepad";
+type BingoCell = { value: number; marked: boolean };
+type BingoBoard = BingoCell[][];
+
+function createColumn(start: number, end: number): number[] {
+  const values: number[] = [];
+  for (let n = start; n <= end; n += 1) values.push(n);
+  for (let i = values.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [values[i], values[j]] = [values[j], values[i]];
+  }
+  return values.slice(0, 5);
+}
+
+function createBoard(): BingoBoard {
+  const columns = COLUMN_RANGES.map(([start, end]) => createColumn(start, end));
+  const board: BingoBoard = Array.from({ length: 5 }, (_, row) =>
+    Array.from({ length: 5 }, (_, column) => ({
+      value: columns[column][row],
+      marked: false,
+    })),
+  );
+  board[2][2] = { value: 0, marked: true };
+  return board;
+}
+
+function hasBingo(board: BingoBoard): boolean {
+  for (let i = 0; i < 5; i += 1) {
+    const rowWin = board[i].every((cell) => cell.marked);
+    const colWin = board.every((row) => row[i].marked);
+    if (rowWin || colWin) return true;
+  }
+  const diagLeft = [0, 1, 2, 3, 4].every((i) => board[i][i].marked);
+  const diagRight = [0, 1, 2, 3, 4].every((i) => board[i][4 - i].marked);
+  return diagLeft || diagRight;
+}
+
+function drawNumber(pool: number[]): { number: number | null; nextPool: number[] } {
+  if (pool.length === 0) return { number: null, nextPool: [] };
+  const index = Math.floor(Math.random() * pool.length);
+  const number = pool[index];
+  const nextPool = pool.filter((_, i) => i !== index);
+  return { number, nextPool };
+}
 
 export default function GameScreen() {
-  const {
-    state,
-    setGhostDirection,
-    selectGhost,
-  } = useGhostMaze();
-  const { width, height } = useWindowDimensions();
-  const cellSize = Math.max(
-    12,
-    Math.floor(Math.min(width / MAZE_COLS, (height - 80) / MAZE_ROWS)),
+  const [board, setBoard] = useState<BingoBoard>(() => createBoard());
+  const [remainingNumbers, setRemainingNumbers] = useState<number[]>(
+    Array.from({ length: 75 }, (_, i) => i + 1),
   );
+  const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
 
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  const bingo = useMemo(() => hasBingo(board), [board]);
+  const latestCall = calledNumbers[0] ?? null;
 
-  // -----------------------------
-  // GAMEPAD (optional)
-  // -----------------------------
-  useGamepad({
-    onDirection: (id, dir) => {
-      setGhostDirection(id, dir);
-    },
-    onSelect: (id) => {
-      selectGhost(id);
-    },
-    getSelectedGhostId: () => stateRef.current.selectedGhostId,
-  });
+  const onDraw = () => {
+    const { number, nextPool } = drawNumber(remainingNumbers);
+    if (number == null) return;
+    setRemainingNumbers(nextPool);
+    setCalledNumbers((previous) => [number, ...previous]);
+    setBoard((previous) =>
+      previous.map((row) =>
+        row.map((cell) =>
+          cell.value === number
+            ? {
+                ...cell,
+                marked: true,
+              }
+            : cell,
+        ),
+      ),
+    );
+  };
 
-  // -----------------------------
-  // SWIPE INPUT
-  // -----------------------------
-  const SWIPE_THRESHOLD = 25;
+  const onToggleCell = (rowIndex: number, columnIndex: number) => {
+    if (rowIndex === 2 && columnIndex === 2) return;
+    setBoard((previous) =>
+      previous.map((row, r) =>
+        row.map((cell, c) => {
+          if (r !== rowIndex || c !== columnIndex) return cell;
+          return { ...cell, marked: !cell.marked };
+        }),
+      ),
+    );
+  };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+  const onReset = () => {
+    setBoard(createBoard());
+    setRemainingNumbers(Array.from({ length: 75 }, (_, i) => i + 1));
+    setCalledNumbers([]);
+  };
 
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
-
-      onPanResponderRelease: (_, g) => {
-        const dx = g.dx;
-        const dy = g.dy;
-
-        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
-          return;
-        }
-
-        let dir: Direction;
-
-        if (Math.abs(dx) > Math.abs(dy)) {
-          dir = dx > 0 ? "right" : "left";
-        } else {
-          dir = dy > 0 ? "down" : "up";
-        }
-
-        try {
-          Haptics.selectionAsync();
-        } catch {}
-
-        setGhostDirection(stateRef.current.selectedGhostId, dir);
-      },
-    })
-  ).current;
-
-  // -----------------------------
-  // RENDER
-  // -----------------------------
   return (
     <SafeAreaView style={styles.container}>
-      
-      {/* Ghost selector strip */}
-      <View style={styles.ghostStrip}>
-        {([0, 1, 2, 3] as GhostId[]).map((id) => (
-          <TouchableOpacity
-            key={id}
-            onPress={() => selectGhost(id)}
-            style={[
-              styles.ghostTab,
-              state.selectedGhostId === id && styles.ghostTabActive,
-            ]}
-          >
-            <Text style={styles.ghostTabText}>
-              {["Blinky", "Pinky", "Inky", "Clyde"][id]}
-            </Text>
-          </TouchableOpacity>
+      <Text style={styles.title}>BINGO QUEST</Text>
+      <Text style={styles.subtitle}>
+        Draw numbers, mark your card, and complete a line to win.
+      </Text>
+
+      <View style={styles.hudRow}>
+        <View style={styles.hudPill}>
+          <Text style={styles.hudLabel}>Latest Call</Text>
+          <Text style={styles.hudValue}>
+            {latestCall ? `${BINGO_COLUMNS[Math.floor((latestCall - 1) / 15)]}-${latestCall}` : "--"}
+          </Text>
+        </View>
+        <View style={styles.hudPill}>
+          <Text style={styles.hudLabel}>Remaining</Text>
+          <Text style={styles.hudValue}>{remainingNumbers.length}</Text>
+        </View>
+      </View>
+
+      <View style={styles.boardHeader}>
+        {BINGO_COLUMNS.map((column) => (
+          <Text key={column} style={styles.boardHeaderText}>
+            {column}
+          </Text>
         ))}
       </View>
 
-      {/* Game area */}
-      <View style={styles.gameArea} {...panResponder.panHandlers}>
-        <MazeRenderer
-          maze={state.maze}
-          ghosts={state.ghosts}
-          pelletGuy={state.pelletGuy}
-          cellSize={cellSize}
-          selectedGhostId={state.selectedGhostId}
-          ready={state.status === "ready"}
-          level={state.level}
-          boss={state.boss}
-        />
+      <View style={styles.board}>
+        {board.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.boardRow}>
+            {row.map((cell, columnIndex) => (
+              <TouchableOpacity
+                key={`${rowIndex}-${columnIndex}`}
+                onPress={() => onToggleCell(rowIndex, columnIndex)}
+                style={[
+                  styles.cell,
+                  cell.marked && styles.cellMarked,
+                  rowIndex === 2 && columnIndex === 2 && styles.cellFree,
+                ]}
+              >
+                <Text style={[styles.cellText, cell.marked && styles.cellTextMarked]}>
+                  {rowIndex === 2 && columnIndex === 2 ? "FREE" : cell.value}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
       </View>
 
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.drawBtn} onPress={onDraw} disabled={remainingNumbers.length === 0}>
+          <Text style={styles.drawBtnText}>
+            {remainingNumbers.length === 0 ? "ALL NUMBERS DRAWN" : "DRAW NUMBER"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={onReset}>
+          <Text style={styles.resetBtnText}>NEW CARD</Text>
+        </TouchableOpacity>
+      </View>
+
+      {bingo && <Text style={styles.bingoText}>BINGO! Quest cleared.</Text>}
+
+      <ScrollView style={styles.callsWrap} contentContainerStyle={styles.callsContent}>
+        <Text style={styles.callsTitle}>Called Numbers</Text>
+        <Text style={styles.callsText}>
+          {calledNumbers.length === 0 ? "None yet." : calledNumbers.join(" • ")}
+        </Text>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// -----------------------------
-// STYLES
-// -----------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a12",
+    backgroundColor: "#090d1a",
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-
-  gameArea: {
-    flex: 1,
+  title: {
+    color: "#fdd835",
+    fontSize: 36,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: 2,
   },
-
-  ghostStrip: {
+  subtitle: {
+    color: "#e8eaf6",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 14,
+    fontSize: 13,
+  },
+  hudRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 8,
-    backgroundColor: "#0f0f1a",
+    gap: 10,
+    marginBottom: 12,
   },
-
-  ghostTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: "#1a1a2a",
+  hudPill: {
+    flex: 1,
+    backgroundColor: "#1b223b",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
   },
-
-  ghostTabActive: {
-    backgroundColor: "#2a2a44",
+  hudLabel: {
+    color: "#a7b4d8",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-
-  ghostTabText: {
-    color: "white",
+  hudValue: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  boardHeader: {
+    flexDirection: "row",
+    marginBottom: 6,
+  },
+  boardHeaderText: {
+    flex: 1,
+    textAlign: "center",
+    color: "#fdd835",
+    fontWeight: "900",
+    fontSize: 19,
+  },
+  board: {
+    backgroundColor: "#11182f",
+    borderRadius: 14,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#243458",
+  },
+  boardRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 6,
+  },
+  cell: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 10,
+    backgroundColor: "#223055",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#2e4475",
+  },
+  cellMarked: {
+    backgroundColor: "#4caf50",
+    borderColor: "#8bc34a",
+  },
+  cellFree: {
+    backgroundColor: "#ff7043",
+    borderColor: "#ffccbc",
+  },
+  cellText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  cellTextMarked: {
+    color: "#ffffff",
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  drawBtn: {
+    flex: 2,
+    borderRadius: 12,
+    backgroundColor: "#fdd835",
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  drawBtnText: {
+    color: "#0b1022",
+    fontWeight: "900",
+    fontSize: 13,
+    letterSpacing: 0.8,
+  },
+  resetBtn: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: "#37474f",
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  resetBtnText: {
+    color: "#ffffff",
+    fontWeight: "800",
     fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  bingoText: {
+    marginTop: 12,
+    textAlign: "center",
+    color: "#66ff8c",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  callsWrap: {
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: "#11182f",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#243458",
+  },
+  callsContent: {
+    padding: 12,
+  },
+  callsTitle: {
+    color: "#a7b4d8",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  callsText: {
+    color: "#ffffff",
+    fontSize: 13,
+    lineHeight: 20,
   },
 });

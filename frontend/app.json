@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Ghost Maze",
-    "slug": "ghost-maze",
+    "name": "Bingo Quest",
+    "slug": "bingo-quest",
     "version": "1.0.0",
     "web": {
       "bundler": "metro",

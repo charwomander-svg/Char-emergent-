@@ -40,15 +40,15 @@ export default function MainMenu() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Title */}
         <View style={styles.titleWrap}>
-          <Text style={styles.titleShadow}>GHOST</Text>
-          <Text style={styles.title}>GHOST</Text>
+          <Text style={styles.titleShadow}>BINGO</Text>
+          <Text style={styles.title}>BINGO</Text>
         </View>
         <View style={styles.titleWrap}>
-          <Text style={[styles.titleShadow, { color: "#FF00FF" }]}>MAZE</Text>
-          <Text style={[styles.title, { color: "#FFFF00" }]}>MAZE</Text>
+          <Text style={[styles.titleShadow, { color: "#FF00FF" }]}>QUEST</Text>
+          <Text style={[styles.title, { color: "#FFFF00" }]}>QUEST</Text>
         </View>
 
-        <Text style={styles.subtitle}>Reverse Maze Chase</Text>
+        <Text style={styles.subtitle}>Arcade number-calling showdown</Text>
 
         {/* Ghost preview row */}
         <View style={styles.ghostRow} testID="ghost-preview-row">
@@ -85,7 +85,7 @@ export default function MainMenu() {
           }}
           testID="play-btn"
         >
-          <Text style={styles.playBtnText}>▶ START GAME</Text>
+          <Text style={styles.playBtnText}>▶ START QUEST</Text>
         </TouchableOpacity>
 
         {/* Levels Button */}
@@ -164,17 +164,16 @@ export default function MainMenu() {
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
-            • Control ALL 4 ghosts to corner Pellet Guy{"\n"}
-            • Tap a ghost&apos;s D-pad to set its direction{"\n"}
-            • Ghosts keep moving until you change direction{"\n"}
-            • Catch Pellet Guy 3 times to win the level{"\n"}
-            • Multi-ghost catches = combo bonus points{"\n"}
-            • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
-            • Watch out for super pellets — he&apos;ll eat you!
+             • Tap START QUEST to launch your Bingo card{"\n"}
+             • Draw numbers and auto-mark matching tiles{"\n"}
+             • Tap a tile anytime to toggle your own mark{"\n"}
+             • The center tile is a free space{"\n"}
+             • Complete any row, column, or diagonal to win{"\n"}
+             • Use NEW CARD to reshuffle the next quest
           </Text>
         </View>
 
-        <Text style={styles.footer}>v1.0 · MVP</Text>
+        <Text style={styles.footer}>Bingo Quest · v1.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
