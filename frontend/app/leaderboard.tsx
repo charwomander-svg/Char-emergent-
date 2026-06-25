@@ -14,7 +14,7 @@ import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
 import { fetchLeaderboard, fetchDailySeed, ScoreEntry } from "@/src/game/api";
 
-type Tab = "classic" | "daily";
+type Tab = "classic" | "daily" | "speedrun";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -78,6 +78,19 @@ export default function LeaderboardScreen() {
     }
   };
 
+  const playSpeedrun = () => {
+    getSoundEngine().uiClick();
+    router.push("/game?mode=speedrun");
+  };
+
+  const formatRunMs = (ms?: number | null): string => {
+    if (!ms || ms <= 0) return "—";
+    const sec = Math.floor(ms / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
   return (
     <SafeAreaView style={styles.container} testID="leaderboard-screen">
       <View style={styles.header}>
@@ -115,6 +128,15 @@ export default function LeaderboardScreen() {
             DAILY
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, tab === "speedrun" && styles.tabActive]}
+          onPress={() => switchTab("speedrun")}
+          testID="tab-speedrun"
+        >
+          <Text style={[styles.tabText, tab === "speedrun" && styles.tabTextActive]}>
+            SPEEDRUN
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {tab === "daily" && (
@@ -128,6 +150,18 @@ export default function LeaderboardScreen() {
             testID="play-daily-btn"
           >
             <Text style={styles.playDailyText}>▶ PLAY TODAY&apos;S MAZE</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {tab === "speedrun" && (
+        <View style={styles.dailyHeader}>
+          <Text style={styles.dailyDate}>Fastest run times rank first.</Text>
+          <TouchableOpacity
+            style={styles.playDailyBtn}
+            onPress={playSpeedrun}
+            testID="play-speedrun-btn"
+          >
+            <Text style={styles.playDailyText}>▶ START SPEEDRUN</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -178,7 +212,14 @@ export default function LeaderboardScreen() {
                   L{item.level} · {item.catches} catches · {item.theme_id}
                 </Text>
               </View>
-              <Text style={styles.scoreText}>{item.score}</Text>
+              {tab === "speedrun" ? (
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.scoreText}>{formatRunMs(item.run_time_ms)}</Text>
+                  <Text style={styles.rowMeta}>score {item.score}</Text>
+                </View>
+              ) : (
+                <Text style={styles.scoreText}>{item.score}</Text>
+              )}
             </View>
           )}
         />

@@ -12,6 +12,7 @@ import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
 import { fetchDailySeed } from "@/src/game/api";
 import { useEconomy } from "@/src/game/useEconomy";
+import { loadSettings } from "@/src/game/settings";
 
 export default function MainMenu() {
   const router = useRouter();
@@ -22,6 +23,18 @@ export default function MainMenu() {
     fetchDailySeed()
       .then((s) => setDailyDate(s.seed_date))
       .catch(() => setDailyDate(null));
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    loadSettings().then((s) => {
+      if (!mounted) return;
+      if (s.soundOn && s.musicOn) getSoundEngine().startMusic();
+    });
+    return () => {
+      mounted = false;
+      getSoundEngine().stopMusic();
+    };
   }, []);
 
   const startDaily = async () => {
@@ -136,6 +149,19 @@ export default function MainMenu() {
           {dailyDate && <Text style={styles.dailyDate}>{dailyDate}</Text>}
         </TouchableOpacity>
 
+        {/* Speedrun */}
+        <TouchableOpacity
+          style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/game?mode=speedrun");
+          }}
+          testID="speedrun-btn"
+        >
+          <Text style={[styles.dailyBtnText, { color: "#7FE8FF" }]}>⏱ SPEEDRUN MODE</Text>
+          <Text style={styles.dailyDate}>Best time wins • Ascending leaderboard</Text>
+        </TouchableOpacity>
+
         {/* Leaderboard */}
         <TouchableOpacity
           style={styles.charactersBtn}
@@ -168,6 +194,7 @@ export default function MainMenu() {
             • Tap a ghost&apos;s D-pad to set its direction{"\n"}
             • Ghosts keep moving until you change direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
+            • In SPEEDRUN, survive deeper levels with the fastest run time{"\n"}
             • Multi-ghost catches = combo bonus points{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
             • Watch out for super pellets — he&apos;ll eat you!

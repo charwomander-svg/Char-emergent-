@@ -46,6 +46,29 @@ export interface PgAiOpts {
   decoy?: { x: number; y: number } | null;
 }
 
+export interface PelletDifficultyProfile {
+  tier: "intro" | "standard" | "advanced" | "expert" | "nightmare";
+  senseRadius: number;
+  continueChance: number;
+  weightedRandom: boolean;
+}
+
+export function getPelletDifficultyProfile(level: number): PelletDifficultyProfile {
+  if (level <= 2) {
+    return { tier: "intro", senseRadius: 4, continueChance: 0.75, weightedRandom: true };
+  }
+  if (level <= 5) {
+    return { tier: "standard", senseRadius: 6, continueChance: 0.65, weightedRandom: true };
+  }
+  if (level <= 8) {
+    return { tier: "advanced", senseRadius: 8, continueChance: 0.55, weightedRandom: false };
+  }
+  if (level <= 12) {
+    return { tier: "expert", senseRadius: 10, continueChance: 0.45, weightedRandom: false };
+  }
+  return { tier: "nightmare", senseRadius: 12, continueChance: 0.35, weightedRandom: false };
+}
+
 export function choosePelletGuyDirection(
   maze: CellType[][],
   pg: PelletGuy,
@@ -62,11 +85,12 @@ export function choosePelletGuyDirection(
   if (candidates.length === 0) candidates = valid;
 
   const magnetActive = !!opts.magnetActive;
+  const profile = getPelletDifficultyProfile(level);
 
   // Level 1: random with straight preference, no AI threat awareness
   // ...unless magnet is active, in which case PG is yanked toward nearest ghost
   if (level <= 1 && !magnetActive) {
-    if (candidates.includes(pg.direction) && Math.random() < 0.7) {
+    if (candidates.includes(pg.direction) && Math.random() < profile.continueChance) {
       return pg.direction;
     }
     return candidates[Math.floor(Math.random() * candidates.length)];
@@ -74,7 +98,7 @@ export function choosePelletGuyDirection(
 
   // Threats: alive non-vulnerable ghosts within sense radius
   // Magnet treats ALL alive ghosts as attractors (even vulnerable, full map).
-  const senseRadius = magnetActive ? 9999 : level <= 3 ? 4 : 7;
+  const senseRadius = magnetActive ? 9999 : profile.senseRadius;
   const threats = ghosts.filter(
     (g) =>
       g.alive &&
@@ -88,7 +112,7 @@ export function choosePelletGuyDirection(
 
   if (threats.length === 0 && !decoy) {
     // No threats - prefer continuing straight, else pick from candidates
-    if (candidates.includes(pg.direction) && Math.random() < 0.6) {
+    if (candidates.includes(pg.direction) && Math.random() < profile.continueChance) {
       return pg.direction;
     }
     return candidates[Math.floor(Math.random() * candidates.length)];
@@ -123,7 +147,7 @@ export function choosePelletGuyDirection(
 
   scored.sort((a, b) => b.score - a.score);
 
-  if (level >= 4 || magnetActive) {
+  if (!profile.weightedRandom || magnetActive) {
     // Greedy evasion - always pick highest score (with tiny randomization for ties)
     const best = scored[0].score;
     const tied = scored.filter((s) => s.score === best);

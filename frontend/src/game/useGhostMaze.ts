@@ -37,6 +37,7 @@ import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
 import type { PowerUpId } from "./powerups";
 import { COIN_REWARD } from "./economy";
 import type { ActiveEffects } from "./types";
+import { loadSettings } from "./settings";
 import {
   isBossLevel,
   createBoss,
@@ -146,7 +147,7 @@ function speedScale(level: number): number {
 }
 
 export function useGhostMaze(opts?: {
-  mode?: "classic" | "daily" | "custom";
+  mode?: "classic" | "daily" | "custom" | "speedrun";
   dailySeed?: number;
   dailySeedDate?: string;
   startingLevel?: number;
@@ -154,7 +155,8 @@ export function useGhostMaze(opts?: {
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
-  const modeRef = useRef<"classic" | "daily" | "custom">(opts?.mode ?? "classic");
+  const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun">(opts?.mode ?? "classic");
+  const musicEnabledRef = useRef<boolean>(true);
   const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
     opts?.dailySeed != null
       ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
@@ -185,6 +187,12 @@ export function useGhostMaze(opts?: {
       });
     });
   }, [initialLevel]);
+
+  useEffect(() => {
+    loadSettings().then((s) => {
+      musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
+    });
+  }, []);
 
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
@@ -252,7 +260,7 @@ export function useGhostMaze(opts?: {
         return { ...prev, status: "paused" };
       }
       if (prev.status === "paused") {
-        getSoundEngine().startMusic();
+        if (musicEnabledRef.current) getSoundEngine().startMusic();
         return { ...prev, status: "playing" };
       }
       return prev;
@@ -270,7 +278,7 @@ export function useGhostMaze(opts?: {
         lastPelletGuyMoveRef.current = now;
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
-        getSoundEngine().startMusic();
+        if (musicEnabledRef.current) getSoundEngine().startMusic();
       }
       return;
     }
@@ -854,9 +862,10 @@ export function useGhostMaze(opts?: {
   }, [state.level, state.lives, state.score, startLevel]);
 
   const submitFinalScore = useCallback(
-    async (playerName: string) => {
+    async (playerName: string, runTimeMs?: number) => {
       const { submitScore } = await import("./api");
       const isDaily = modeRef.current === "daily" && dailyRef.current?.seedDate;
+      const isSpeedrun = modeRef.current === "speedrun";
       return submitScore({
         player_name: playerName,
         score: state.score,
@@ -864,8 +873,9 @@ export function useGhostMaze(opts?: {
         catches: state.catches,
         theme_id: themeIdRef.current,
         // Custom challenges score against classic leaderboard (no daily date)
-        mode: isDaily ? "daily" : "classic",
+        mode: isDaily ? "daily" : isSpeedrun ? "speedrun" : "classic",
         daily_seed_date: isDaily ? dailyRef.current?.seedDate : undefined,
+        run_time_ms: isSpeedrun ? Math.max(0, Math.floor(runTimeMs ?? 0)) : undefined,
       });
     },
     [state.score, state.level, state.catches],

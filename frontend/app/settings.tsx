@@ -22,6 +22,10 @@ export default function Settings() {
       getSoundEngine().setEnabled(Boolean(v));
       if (!v) getSoundEngine().stopMusic();
     }
+    if (k === "musicOn") {
+      if (v && settings.soundOn) getSoundEngine().startMusic();
+      if (!v) getSoundEngine().stopMusic();
+    }
   };
 
   const Row = ({

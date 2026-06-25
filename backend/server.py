@@ -80,8 +80,9 @@ class ScoreSubmission(BaseModel):
     level: int = Field(ge=1)
     catches: int = Field(ge=0)
     theme_id: str = "classic"
-    mode: Literal["classic", "daily"] = "classic"
+    mode: Literal["classic", "daily", "speedrun"] = "classic"
     daily_seed_date: Optional[str] = None  # required if mode==daily
+    run_time_ms: Optional[int] = Field(default=None, ge=0)
 
     @validator("player_name")
     def sanitize_name(cls, v: str) -> str:
@@ -101,6 +102,7 @@ class ScoreEntry(BaseModel):
     theme_id: str
     mode: str
     daily_seed_date: Optional[str] = None
+    run_time_ms: Optional[int] = None
     timestamp: datetime
 
 
@@ -136,6 +138,7 @@ async def submit_score(s: ScoreSubmission):
         theme_id=s.theme_id,
         mode=s.mode,
         daily_seed_date=s.daily_seed_date,
+        run_time_ms=s.run_time_ms,
         timestamp=datetime.now(timezone.utc),
     )
 
@@ -145,7 +148,7 @@ async def submit_score(s: ScoreSubmission):
 
 @api_router.get("/leaderboard", response_model=List[ScoreEntry])
 async def leaderboard(
-    mode: Literal["classic", "daily", "all"] = "classic",
+    mode: Literal["classic", "daily", "speedrun", "all"] = "classic",
     daily_seed_date: Optional[str] = None,
     limit: int = Query(default=20, ge=1, le=100),
 ):
@@ -155,11 +158,12 @@ async def leaderboard(
     if mode == "daily":
         query["daily_seed_date"] = daily_seed_date or utc_today_str()
 
-    rows = (
-        await db.scores.find(query, {"_id": 0})
-        .sort([("score", -1), ("timestamp", 1)])
-        .to_list(limit)
+    sort_spec = (
+        [("run_time_ms", 1), ("score", -1), ("timestamp", 1)]
+        if mode == "speedrun"
+        else [("score", -1), ("timestamp", 1)]
     )
+    rows = await db.scores.find(query, {"_id": 0}).sort(sort_spec).to_list(limit)
     return [ScoreEntry(**r) for r in rows]
 
 
