@@ -1,23 +1,42 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+
 import { COLORS } from "@/src/game/constants";
+import type { GhostId } from "@/src/game/types";
 import { getSoundEngine } from "@/src/game/sounds";
 import { fetchDailySeed } from "@/src/game/api";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
 
+const SPLASH_MS = 1800;
+const GHOST_IDS = [0, 1, 2, 3] as GhostId[];
+
+function buildGameUrl(path: string, ghosts: GhostId[]) {
+  const selected = ghosts.length ? ghosts : [0];
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}ghosts=${selected.join(",")}`;
+}
+
 export default function MainMenu() {
   const router = useRouter();
+  const [showSplash, setShowSplash] = useState(true);
   const [dailyDate, setDailyDate] = useState<string | null>(null);
+  const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const { coins } = useEconomy();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     fetchDailySeed()
@@ -37,21 +56,49 @@ export default function MainMenu() {
     };
   }, []);
 
+  const selectedGhosts = useMemo(
+    () => (armedGhosts.length ? armedGhosts : [0]),
+    [armedGhosts],
+  );
+
+  const toggleGhost = (id: GhostId) => {
+    setArmedGhosts((prev) =>
+      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id],
+    );
+  };
+
   const startDaily = async () => {
     getSoundEngine().uiClick();
     try {
       const seed = await fetchDailySeed();
-      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.seed_date}`);
+      router.push(
+        buildGameUrl(
+          `/game?mode=daily&seed=${seed.seed}&seedDate=${seed.seed_date}`,
+          selectedGhosts,
+        ),
+      );
     } catch {
-      // fall back to classic if backend offline
-      router.push("/game");
+      router.push(buildGameUrl("/game", selectedGhosts));
     }
   };
+
+  if (showSplash) {
+    return (
+      <SafeAreaView style={styles.splashContainer}>
+        <View style={styles.splashContent}>
+          <Image
+            source={require("../assets/images/company-logo.png")}
+            style={styles.splashLogo}
+            resizeMode="contain"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Title */}
         <View style={styles.titleWrap}>
           <Text style={styles.titleShadow}>GHOST</Text>
           <Text style={styles.title}>GHOST</Text>
@@ -63,45 +110,55 @@ export default function MainMenu() {
 
         <Text style={styles.subtitle}>Reverse Maze Chase</Text>
 
-        {/* Ghost preview row */}
-        <View style={styles.ghostRow} testID="ghost-preview-row">
-          {COLORS.ghosts.map((c, i) => (
-            <View key={i} style={styles.ghostPreviewWrap}>
-              <View style={[styles.ghostPreview, { backgroundColor: c }]}>
-                <View style={styles.ghostEye} />
-                <View style={[styles.ghostEye, { right: 4, left: undefined }]} />
-              </View>
-              <Text style={styles.ghostName}>{COLORS.ghostNames[i]}</Text>
-            </View>
-          ))}
+        <View style={styles.ghostControlsWrap}>
+          <Text style={styles.ghostControlsTitle}>GHOST TOGGLES</Text>
+          <View style={styles.ghostRow} testID="ghost-toggle-row">
+            {GHOST_IDS.map((id) => {
+              const active = selectedGhosts.includes(id);
+              return (
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => {
+                    getSoundEngine().uiClick();
+                    toggleGhost(id);
+                  }}
+                  style={[styles.ghostToggle, active && styles.ghostToggleActive]}
+                  testID={`menu-ghost-toggle-${id}`}
+                >
+                  <View style={[styles.ghostPreview, { backgroundColor: COLORS.ghosts[id] }]}>
+                    <View style={styles.ghostEye} />
+                    <View style={[styles.ghostEye, { right: 4, left: undefined }]} />
+                  </View>
+                  <Text style={styles.ghostName}>{COLORS.ghostNames[id]}</Text>
+                  <Text style={styles.ghostState}>{active ? "ON" : "OFF"}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
-        {/* Pellet Guy preview */}
         <View style={styles.targetWrap}>
           <Text style={styles.vsText}>VS</Text>
           <View style={styles.pelletGuyPreview} />
           <Text style={styles.targetLabel}>PELLET GUY</Text>
         </View>
 
-        {/* Coin balance */}
         <View style={styles.coinBadgeTop} testID="menu-coin-balance">
           <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
           <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
         </View>
 
-        {/* Play Button */}
         <TouchableOpacity
           style={styles.playBtn}
           onPress={() => {
             getSoundEngine().uiClick();
-            router.push("/game");
+            router.push(buildGameUrl("/game", selectedGhosts));
           }}
           testID="play-btn"
         >
           <Text style={styles.playBtnText}>▶ START GAME</Text>
         </TouchableOpacity>
 
-        {/* Levels Button */}
         <TouchableOpacity
           style={styles.charactersBtn}
           onPress={() => {
@@ -113,7 +170,6 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>🎯 LEVEL SELECT</Text>
         </TouchableOpacity>
 
-        {/* Shop Button */}
         <TouchableOpacity
           style={[styles.charactersBtn, { borderColor: "#FFD23F" }]}
           onPress={() => {
@@ -127,7 +183,6 @@ export default function MainMenu() {
           </Text>
         </TouchableOpacity>
 
-        {/* Characters Button */}
         <TouchableOpacity
           style={styles.charactersBtn}
           onPress={() => {
@@ -139,7 +194,6 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
         </TouchableOpacity>
 
-        {/* Daily Challenge */}
         <TouchableOpacity
           style={styles.dailyBtn}
           onPress={startDaily}
@@ -149,12 +203,11 @@ export default function MainMenu() {
           {dailyDate && <Text style={styles.dailyDate}>{dailyDate}</Text>}
         </TouchableOpacity>
 
-        {/* Speedrun */}
         <TouchableOpacity
           style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
           onPress={() => {
             getSoundEngine().uiClick();
-            router.push("/game?mode=speedrun");
+            router.push(buildGameUrl("/game?mode=speedrun", selectedGhosts));
           }}
           testID="speedrun-btn"
         >
@@ -162,7 +215,6 @@ export default function MainMenu() {
           <Text style={styles.dailyDate}>Best time wins • Ascending leaderboard</Text>
         </TouchableOpacity>
 
-        {/* Leaderboard */}
         <TouchableOpacity
           style={styles.charactersBtn}
           onPress={() => {
@@ -174,7 +226,6 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>🏆 LEADERBOARD</Text>
         </TouchableOpacity>
 
-        {/* Settings */}
         <TouchableOpacity
           style={styles.charactersBtn}
           onPress={() => {
@@ -186,13 +237,13 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
         </TouchableOpacity>
 
-        {/* How to play */}
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
             • Control ALL 4 ghosts to corner Pellet Guy{"\n"}
             • Tap a ghost&apos;s D-pad to set its direction{"\n"}
             • Ghosts keep moving until you change direction{"\n"}
+            • Use the ghost toggles to choose your starting squad{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
             • In SPEEDRUN, survive deeper levels with the fastest run time{"\n"}
             • Multi-ghost catches = combo bonus points{"\n"}
@@ -208,6 +259,22 @@ export default function MainMenu() {
 }
 
 const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  splashContent: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  splashLogo: {
+    width: "100%",
+    height: 360,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.uiBg,
@@ -244,16 +311,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2,
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 18,
+  },
+  ghostControlsWrap: {
+    width: "100%",
+    alignItems: "center",
+    marginVertical: 8,
+  },
+  ghostControlsTitle: {
+    color: "#7FE8FF",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 10,
   },
   ghostRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
     width: "100%",
-    marginVertical: 16,
   },
-  ghostPreviewWrap: {
+  ghostToggle: {
+    width: 74,
     alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#333355",
+    backgroundColor: "#1a1a2a",
+  },
+  ghostToggleActive: {
+    borderColor: "#8ea7ff",
+    backgroundColor: "#272743",
   },
   ghostPreview: {
     width: 44,
@@ -278,6 +368,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: "bold",
     letterSpacing: 0.5,
+  },
+  ghostState: {
+    color: "#FFB897",
+    fontSize: 9,
+    marginTop: 2,
+    fontWeight: "900",
+    letterSpacing: 1,
   },
   targetWrap: {
     alignItems: "center",
@@ -304,7 +401,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   playBtn: {
-    marginTop: 28,
+    marginTop: 24,
     backgroundColor: "#FFFF00",
     paddingHorizontal: 40,
     paddingVertical: 16,

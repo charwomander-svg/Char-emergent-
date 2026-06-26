@@ -30,12 +30,22 @@ function fmtMs(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function parseGhostSelection(value?: string): GhostId[] {
+  const ids = (value ?? "")
+    .split(",")
+    .map((part) => Number(part))
+    .filter((id): id is GhostId => Number.isInteger(id) && id >= 0 && id <= 3);
+
+  return ids.length > 0 ? Array.from(new Set(ids)) : [0];
+}
+
 export default function GameScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
     seed?: string;
     seedDate?: string;
     level?: string;
+    ghosts?: string;
   }>();
   const mode = params.mode === "daily" || params.mode === "custom" || params.mode === "speedrun"
     ? params.mode
@@ -64,7 +74,8 @@ export default function GameScreen() {
     12,
     Math.floor(Math.min(width / MAZE_COLS, (height - 250) / MAZE_ROWS)),
   );
-  const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
+  const initialGhosts = useMemo(() => parseGhostSelection(params.ghosts), [params.ghosts]);
+  const [armedGhosts, setArmedGhosts] = useState<GhostId[]>(initialGhosts);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [bestRunMs, setBestRunMs] = useState(0);
   const timerAccumulatedRef = useRef(0);
@@ -72,6 +83,10 @@ export default function GameScreen() {
   const submittedSpeedrunRef = useRef(false);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  useEffect(() => {
+    setArmedGhosts(initialGhosts);
+  }, [initialGhosts]);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
