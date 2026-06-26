@@ -17,6 +17,7 @@ import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
+import { POWER_UP_ORDER, POWER_UPS, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { getPelletDifficultyProfile } from "@/src/game/ai";
 
@@ -42,7 +43,7 @@ export default function GameScreen() {
     : "classic";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
-  const { earnCoins } = useEconomy();
+  const { earnCoins, inventory, useInventory: consumeInventory } = useEconomy();
   const {
     state,
     setGhostDirection,
@@ -52,6 +53,7 @@ export default function GameScreen() {
     retryLevel,
     startNewGame,
     submitFinalScore,
+    applyPowerUp,
   } = useGhostMaze({
     mode,
     dailySeed: Number.isFinite(seed) ? seed : undefined,
@@ -62,7 +64,7 @@ export default function GameScreen() {
   const { width, height } = useWindowDimensions();
   const cellSize = Math.max(
     12,
-    Math.floor(Math.min(width / MAZE_COLS, (height - 250) / MAZE_ROWS)),
+    Math.floor(Math.min(width / MAZE_COLS, (height - 420) / MAZE_ROWS)),
   );
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -177,22 +179,76 @@ export default function GameScreen() {
     return list;
   }, [state.effects]);
   const aiProfile = useMemo(() => getPelletDifficultyProfile(state.level), [state.level]);
+  const inventoryItems = useMemo(
+    () => POWER_UP_ORDER.map((id) => ({
+      id,
+      def: POWER_UPS[id],
+      count: inventory[id] ?? 0,
+    })),
+    [inventory],
+  );
+
+  const activatePowerUp = useCallback((id: PowerUpId) => {
+    const applied = applyPowerUp(id);
+    if (!applied) return;
+    consumeInventory(id);
+  }, [applyPowerUp, consumeInventory]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.hudTop} testID="hud-top">
-        <Text style={styles.hudValue}>MODE: {mode.toUpperCase()}</Text>
-        <Text style={styles.hudValue}>LEVEL: {state.level}</Text>
-        <Text style={styles.hudValue}>LIVES: {state.lives}</Text>
-        <Text style={styles.hudValue}>SCORE: {state.score}</Text>
+      <View style={styles.hudShell} testID="hud-top">
+        <View style={styles.heroCard}>
+          <Text style={styles.heroKicker}>{mode.toUpperCase()}</Text>
+          <Text style={styles.heroTitle}>LEVEL {state.level}</Text>
+        </View>
+        <View style={styles.statGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>LIVES</Text>
+            <Text style={[styles.statValue, { color: "#ff6b9a" }]}>{state.lives}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>SCORE</Text>
+            <Text style={[styles.statValue, { color: "#ffe26b" }]}>{state.score}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>COMBO</Text>
+            <Text style={[styles.statValue, { color: "#52c7ff" }]}>x{Math.max(1, state.comboCount)}</Text>
+          </View>
+        </View>
       </View>
-      <View style={styles.hudMid} testID="hud-mid">
-        <Text style={styles.hudSub}>CATCHES {state.catches}</Text>
-        <Text style={styles.hudSub}>COMBO x{Math.max(1, state.comboCount)}</Text>
-        <Text style={styles.hudSub}>PELLETS {state.pelletsRemaining}/{state.totalPellets}</Text>
-        <Text style={styles.hudSub}>AI {aiProfile.tier.toUpperCase()}</Text>
-        {mode === "speedrun" && <Text style={styles.hudSub}>TIME {fmtMs(elapsedMs)}</Text>}
-        {mode === "speedrun" && bestRunMs > 0 && <Text style={styles.hudSub}>BEST {fmtMs(bestRunMs)}</Text>}
+      <View style={styles.metricPanel} testID="hud-mid">
+        <View style={styles.metricItem}>
+          <Text style={styles.metricLabel}>PELLETS</Text>
+          <Text style={styles.metricValue}>{state.pelletsRemaining} / {state.totalPellets}</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricItem}>
+          <Text style={styles.metricLabel}>CATCHES</Text>
+          <Text style={styles.metricValue}>{state.catches}</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricItem}>
+          <Text style={styles.metricLabel}>AI INTRO</Text>
+          <Text style={[styles.metricValue, { color: "#bf6bff" }]}>{aiProfile.tier.toUpperCase()}</Text>
+        </View>
+        {mode === "speedrun" && (
+          <>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>TIME</Text>
+              <Text style={styles.metricValue}>{fmtMs(elapsedMs)}</Text>
+            </View>
+            {bestRunMs > 0 && (
+              <>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>BEST</Text>
+                  <Text style={styles.metricValue}>{fmtMs(bestRunMs)}</Text>
+                </View>
+              </>
+            )}
+          </>
+        )}
       </View>
       {state.boss && (
         <View style={styles.bossWrap} testID="boss-hud">
@@ -203,40 +259,88 @@ export default function GameScreen() {
           <Text style={styles.bossText}>HP {state.boss.hp}/{state.boss.maxHp}</Text>
         </View>
       )}
-      <View style={styles.effectsRow} testID="hud-effects">
-        <Text style={styles.effectsLabel}>EFFECTS:</Text>
-        <Text style={styles.effectsText}>{activeEffects.length ? activeEffects.join(" · ") : "none"}</Text>
+      <View style={styles.hudSection} testID="hud-effects">
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>ACTIVE</Text>
+          <Text style={styles.sectionNote}>{activeEffects.length ? "buffs live" : "empty slots"}</Text>
+        </View>
+        <View style={styles.activeBox}>
+          {activeEffects.length ? (
+            activeEffects.map((effect) => (
+              <View key={effect} style={styles.activeChip}>
+                <Text style={styles.activeChipText}>{effect}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyStateText}>(empty slots)</Text>
+          )}
+        </View>
+      </View>
+      <View style={styles.hudSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>INVENTORY</Text>
+          <Text style={styles.sectionNote}>tap to use</Text>
+        </View>
+        <View style={styles.inventoryRow}>
+          {inventoryItems.map(({ id, def, count }) => {
+            const playable = state.status === "playing" && count > 0;
+            return (
+              <TouchableOpacity
+                key={id}
+                onPress={() => activatePowerUp(id)}
+                style={[
+                  styles.inventoryTile,
+                  { borderColor: def.color },
+                  count === 0 && styles.inventoryTileDim,
+                ]}
+                disabled={!playable}
+                testID={`inventory-${id}`}
+              >
+                <Text style={styles.inventoryIcon}>{def.icon}</Text>
+                <Text style={[styles.inventoryCount, { color: count > 0 ? def.color : "#7d88a8" }]}>
+                  {count}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       <View style={styles.ghostStrip}>
-        {GHOST_IDS.map((id) => {
-          const active = armedGhosts.includes(id);
-          return (
-            <TouchableOpacity
-              key={id}
-              onPress={() => toggleGhost(id)}
-              onLongPress={() => syncSelection([id])}
-              style={[styles.ghostTab, active && styles.ghostTabActive]}
-              testID={`ghost-arm-${id}`}
-            >
-              <Text style={styles.ghostTabText}>{active ? "● " : "○ "}{GHOST_NAMES[id]}</Text>
-            </TouchableOpacity>
-          );
-        })}
-        <TouchableOpacity
-          onPress={() => syncSelection([0, 1, 2, 3])}
-          style={styles.ghostAction}
-          testID="ghost-arm-all"
-        >
-          <Text style={styles.ghostActionText}>ALL</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => syncSelection([state.selectedGhostId])}
-          style={styles.ghostAction}
-          testID="ghost-reset"
-        >
-          <Text style={styles.ghostActionText}>RESET</Text>
-        </TouchableOpacity>
+        <View style={styles.ghostStripHeader}>
+          <Text style={styles.sectionTitle}>SELECT</Text>
+          <Text style={styles.sectionNote}>ghost control</Text>
+        </View>
+        <View style={styles.ghostStripButtons}>
+          {GHOST_IDS.map((id) => {
+            const active = armedGhosts.includes(id);
+            return (
+              <TouchableOpacity
+                key={id}
+                onPress={() => toggleGhost(id)}
+                onLongPress={() => syncSelection([id])}
+                style={[styles.ghostTab, active && styles.ghostTabActive]}
+                testID={`ghost-arm-${id}`}
+              >
+                <Text style={styles.ghostTabText}>{active ? "● " : "○ "}{GHOST_NAMES[id]}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            onPress={() => syncSelection([0, 1, 2, 3])}
+            style={styles.ghostAction}
+            testID="ghost-arm-all"
+          >
+            <Text style={styles.ghostActionText}>ALL</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => syncSelection([state.selectedGhostId])}
+            style={styles.ghostAction}
+            testID="ghost-reset"
+          >
+            <Text style={styles.ghostActionText}>RESET</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.gameArea} {...panResponder.panHandlers}>
@@ -288,27 +392,120 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  hudTop: {
+  hudShell: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: "#0b0e1f",
+  },
+  heroCard: {
+    flex: 1.2,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "#111738",
+    borderWidth: 1,
+    borderColor: "#2bb7ff",
+    shadowColor: "#2bb7ff",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+  },
+  heroKicker: { color: "#ffd84d", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
+  heroTitle: { color: "#f2f6ff", fontSize: 30, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  statGrid: { flex: 1.6, flexDirection: "row", gap: 8 },
+  statCard: {
+    flex: 1,
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    backgroundColor: "#12192f",
+    borderWidth: 1,
+    borderColor: "#22406f",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statLabel: { color: "#d8e0f7", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  statValue: { fontSize: 26, fontWeight: "900", marginTop: 4 },
+  metricPanel: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#4d2f88",
+    backgroundColor: "#151225",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexWrap: "wrap",
+  },
+  metricItem: { minWidth: 80 },
+  metricLabel: { color: "#a8b3d6", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  metricValue: { color: "#f8fbff", fontSize: 17, fontWeight: "900", marginTop: 2 },
+  metricDivider: { width: 1, height: 36, backgroundColor: "#30406e", marginHorizontal: 10 },
+  hudSection: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#22406f",
+    backgroundColor: "#0f1428",
+    padding: 12,
+  },
+  sectionHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  sectionTitle: { color: "#39a6ff", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
+  sectionNote: { color: "#a3b4d6", fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  activeBox: {
+    minHeight: 50,
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#24345e",
+    backgroundColor: "#08111e",
+    padding: 10,
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
     gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "#0f0f1a",
-    borderBottomWidth: 1,
-    borderBottomColor: "#262640",
+    alignItems: "center",
   },
-  hudMid: {
+  activeChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#7f59ff",
+    backgroundColor: "#1a1234",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activeChipText: { color: "#d8c8ff", fontSize: 11, fontWeight: "800" },
+  emptyStateText: { color: "#7d88a8", fontSize: 12, fontWeight: "700" },
+  inventoryRow: {
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#24345e",
+    backgroundColor: "#08111e",
+    padding: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#121226",
+    alignItems: "center",
   },
-  hudValue: { color: "#FFFF00", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  hudSub: { color: "#FFB897", fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  inventoryTile: {
+    minWidth: 56,
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    backgroundColor: "#12172d",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  inventoryTileDim: { opacity: 0.45 },
+  inventoryIcon: { fontSize: 20 },
+  inventoryCount: { fontSize: 12, fontWeight: "900", marginTop: 4 },
   bossWrap: {
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -321,24 +518,22 @@ const styles = StyleSheet.create({
   bossText: { color: "#ffd2dc", fontWeight: "900", letterSpacing: 1, fontSize: 11 },
   bossBarOuter: { marginTop: 5, marginBottom: 4, height: 8, backgroundColor: "#3b0d19", borderRadius: 6 },
   bossBarInner: { height: 8, backgroundColor: "#ff305e", borderRadius: 6 },
-  effectsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "#111827",
-  },
-  effectsLabel: { color: "#7fb4ff", fontSize: 10, fontWeight: "900" },
-  effectsText: { color: "#d7e7ff", fontSize: 10, flexShrink: 1 },
   ghostStrip: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#22406f",
+    backgroundColor: "#0f1428",
+    padding: 12,
+  },
+  ghostStripHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  ghostStripButtons: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    backgroundColor: "#0f0f1a",
+    marginTop: 10,
   },
   ghostTab: {
     paddingVertical: 6,
