@@ -20,7 +20,7 @@ import { loadSettings } from "@/src/game/settings";
 const SPLASH_MS = 1800;
 const GHOST_IDS = [0, 1, 2, 3] as GhostId[];
 
-function buildGameUrl(path: string, ghosts: GhostId[]) {
+function buildGameUrl(path: string, ghosts: ReadonlyArray<number>) {
   const selected = ghosts.length ? ghosts : [0];
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}ghosts=${selected.join(",")}`;
