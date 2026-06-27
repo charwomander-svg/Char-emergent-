@@ -17,12 +17,10 @@ import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
-import { POWER_UP_ORDER, POWER_UPS, type PowerUpId } from "@/src/game/powerups";
+import { POWER_UPS, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
-import { getPelletDifficultyProfile } from "@/src/game/ai";
 
-const GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"] as const;
-const GHOST_IDS = [0, 1, 2, 3] as GhostId[];
+const QUICK_SLOT_IDS: PowerUpId[] = ["speedBoost", "freeze", "teleport", "shield"];
 
 function fmtMs(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -64,7 +62,7 @@ export default function GameScreen() {
   const { width, height } = useWindowDimensions();
   const cellSize = Math.max(
     12,
-    Math.floor(Math.min(width / MAZE_COLS, (height - 420) / MAZE_ROWS)),
+    Math.floor(Math.min(width / MAZE_COLS, (height - 120) / MAZE_ROWS)),
   );
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -122,11 +120,17 @@ export default function GameScreen() {
     setArmedGhosts(next);
   }, [selectGhost]);
 
-  const toggleGhost = useCallback((id: GhostId) => {
+  const toggleGhostArm = useCallback((ghostId: GhostId) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    selectGhost(ghostId);
     setArmedGhosts((prev) => {
-      const next = prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id];
-      if (next.length > 0) selectGhost(next[0]);
-      return next;
+      if (prev.includes(ghostId)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((id) => id !== ghostId);
+      }
+      return [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
     });
   }, [selectGhost]);
 
@@ -169,18 +173,53 @@ export default function GameScreen() {
 
   const activeEffects = useMemo(() => {
     const now = performance.now();
-    const list: string[] = [];
-    if (state.effects.speedBoostUntil > now) list.push(`Speed ${Math.ceil((state.effects.speedBoostUntil - now) / 1000)}s`);
-    if (state.effects.freezeUntil > now) list.push(`Freeze ${Math.ceil((state.effects.freezeUntil - now) / 1000)}s`);
-    if (state.effects.magnetUntil > now) list.push(`Magnet ${Math.ceil((state.effects.magnetUntil - now) / 1000)}s`);
-    if (state.effects.revealUntil > now) list.push(`Reveal ${Math.ceil((state.effects.revealUntil - now) / 1000)}s`);
-    if (state.effects.shieldGhostId != null) list.push(`Shield G${state.effects.shieldGhostId + 1}`);
-    if (state.effects.fastRespawn) list.push("Fast Respawn");
+    const list: { key: string; label: string; color: string }[] = [];
+    if (state.effects.speedBoostUntil > now) {
+      list.push({
+        key: "speed",
+        label: `SPD ${Math.ceil((state.effects.speedBoostUntil - now) / 1000)}s`,
+        color: "#ffd84d",
+      });
+    }
+    if (state.effects.freezeUntil > now) {
+      list.push({
+        key: "freeze",
+        label: `FRZ ${Math.ceil((state.effects.freezeUntil - now) / 1000)}s`,
+        color: "#5bc0eb",
+      });
+    }
+    if (state.effects.magnetUntil > now) {
+      list.push({
+        key: "magnet",
+        label: `MAG ${Math.ceil((state.effects.magnetUntil - now) / 1000)}s`,
+        color: "#ff477e",
+      });
+    }
+    if (state.effects.revealUntil > now) {
+      list.push({
+        key: "reveal",
+        label: `REV ${Math.ceil((state.effects.revealUntil - now) / 1000)}s`,
+        color: "#00ffff",
+      });
+    }
+    if (state.effects.shieldGhostId != null) {
+      list.push({
+        key: "shield",
+        label: `SH G${state.effects.shieldGhostId + 1}`,
+        color: "#9bc53d",
+      });
+    }
+    if (state.effects.fastRespawn) {
+      list.push({
+        key: "fastRespawn",
+        label: "FAST",
+        color: "#ff9f1c",
+      });
+    }
     return list;
   }, [state.effects]);
-  const aiProfile = useMemo(() => getPelletDifficultyProfile(state.level), [state.level]);
   const inventoryItems = useMemo(
-    () => POWER_UP_ORDER.map((id) => ({
+    () => QUICK_SLOT_IDS.map((id) => ({
       id,
       def: POWER_UPS[id],
       count: inventory[id] ?? 0,
@@ -202,6 +241,14 @@ export default function GameScreen() {
           : state.status === "levelLost"
             ? "LOST"
             : "GAME OVER";
+  const ghostToggleItems = useMemo(
+    () => state.ghosts.map((ghost) => ({
+      ghost,
+      armed: armedGhosts.includes(ghost.id),
+      selected: state.selectedGhostId === ghost.id,
+    })),
+    [armedGhosts, state.ghosts, state.selectedGhostId],
+  );
 
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
@@ -209,26 +256,18 @@ export default function GameScreen() {
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory]);
 
+  const bossHpPct = state.boss ? Math.max(0, (state.boss.hp / state.boss.maxHp) * 100) : 0;
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.hudShell} testID="hud-top">
-        <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>{mode.toUpperCase()}</Text>
-          <Text style={styles.heroTitle}>LEVEL {state.level}</Text>
-          <View style={styles.heroMeta}>
-            <View style={styles.modePill}>
-              <Text style={styles.pillLabel}>MODE</Text>
-              <Text style={styles.pillValue}>{mode.toUpperCase()}</Text>
-            </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.pillLabel}>STATUS</Text>
-              <Text style={styles.pillValue}>{statusLabel}</Text>
-            </View>
+      <View style={styles.gameArea} {...panResponder.panHandlers}>
+        <View style={styles.topHud} testID="hud-top">
+          <View style={styles.topStat}>
+            <Text style={styles.topLabel}>SCORE</Text>
+            <Text style={styles.topValue}>{state.score}</Text>
           </View>
-        </View>
-        <View style={styles.statGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>LIVES</Text>
+          <View style={styles.topStat}>
+            <Text style={styles.topLabel}>LIVES</Text>
             <View style={styles.lifeDots}>
               {lifeDots.map((filled, index) => (
                 <View
@@ -240,146 +279,17 @@ export default function GameScreen() {
                 />
               ))}
             </View>
-            <Text style={styles.statFootnote}>x{state.lives}</Text>
+            <Text style={styles.lifeCount}>x{state.lives}</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>SCORE</Text>
-            <Text style={[styles.statValue, { color: "#ffe26b" }]}>{state.score}</Text>
+          <View style={styles.topStat}>
+            <Text style={styles.topLabel}>COMBO</Text>
+            <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>COMBO</Text>
-            <Text style={[styles.statValue, { color: "#52c7ff" }]}>x{Math.max(1, state.comboCount)}</Text>
+          <View style={styles.topStat}>
+            <Text style={styles.topLabel}>LEVEL</Text>
+            <Text style={styles.topValue}>{state.level}</Text>
           </View>
         </View>
-      </View>
-      <View style={styles.metricPanel} testID="hud-mid">
-        <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>PELLETS</Text>
-          <Text style={styles.metricValue}>{state.pelletsRemaining} / {state.totalPellets}</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>CATCHES</Text>
-          <Text style={styles.metricValue}>{state.catches}</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>AI INTRO</Text>
-          <Text style={[styles.metricValue, { color: "#bf6bff" }]}>{aiProfile.tier.toUpperCase()}</Text>
-        </View>
-        {mode === "speedrun" && (
-          <>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>TIME</Text>
-              <Text style={styles.metricValue}>{fmtMs(elapsedMs)}</Text>
-            </View>
-            {bestRunMs > 0 && (
-              <>
-                <View style={styles.metricDivider} />
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>BEST</Text>
-                  <Text style={styles.metricValue}>{fmtMs(bestRunMs)}</Text>
-                </View>
-              </>
-            )}
-          </>
-        )}
-      </View>
-      {state.boss && (
-        <View style={styles.bossWrap} testID="boss-hud">
-          <Text style={styles.bossText}>BOSS {state.boss.title}</Text>
-          <View style={styles.bossBarOuter}>
-            <View style={[styles.bossBarInner, { width: `${(state.boss.hp / state.boss.maxHp) * 100}%` }]} />
-          </View>
-          <Text style={styles.bossText}>HP {state.boss.hp}/{state.boss.maxHp}</Text>
-        </View>
-      )}
-      <View style={styles.hudSection} testID="hud-effects">
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ACTIVE</Text>
-          <Text style={styles.sectionNote}>{activeEffects.length ? "buffs live" : "empty slots"}</Text>
-        </View>
-        <View style={styles.activeBox}>
-          {activeEffects.length ? (
-            activeEffects.map((effect) => (
-              <View key={effect} style={styles.activeChip}>
-                <Text style={styles.activeChipText}>{effect}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptyStateText}>(empty slots)</Text>
-          )}
-        </View>
-      </View>
-      <View style={styles.hudSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>INVENTORY</Text>
-          <Text style={styles.sectionNote}>tap to use</Text>
-        </View>
-        <View style={styles.inventoryRow}>
-          {inventoryItems.map(({ id, def, count }) => {
-            const playable = state.status === "playing" && count > 0;
-            return (
-              <TouchableOpacity
-                key={id}
-                onPress={() => activatePowerUp(id)}
-                style={[
-                  styles.inventoryTile,
-                  { borderColor: def.color },
-                  count === 0 && styles.inventoryTileDim,
-                ]}
-                disabled={!playable}
-                testID={`inventory-${id}`}
-              >
-                <Text style={styles.inventoryIcon}>{def.icon}</Text>
-                <Text style={[styles.inventoryCount, { color: count > 0 ? def.color : "#7d88a8" }]}>
-                  {count}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.ghostStrip}>
-        <View style={styles.ghostStripHeader}>
-          <Text style={styles.sectionTitle}>SELECT</Text>
-          <Text style={styles.sectionNote}>ghost control</Text>
-        </View>
-        <View style={styles.ghostStripButtons}>
-          {GHOST_IDS.map((id) => {
-            const active = armedGhosts.includes(id);
-            return (
-              <TouchableOpacity
-                key={id}
-                onPress={() => toggleGhost(id)}
-                onLongPress={() => syncSelection([id])}
-                style={[styles.ghostTab, active && styles.ghostTabActive]}
-                testID={`ghost-arm-${id}`}
-              >
-                <Text style={styles.ghostTabText}>{active ? "● " : "○ "}{GHOST_NAMES[id]}</Text>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity
-            onPress={() => syncSelection([0, 1, 2, 3])}
-            style={styles.ghostAction}
-            testID="ghost-arm-all"
-          >
-            <Text style={styles.ghostActionText}>ALL</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => syncSelection([state.selectedGhostId])}
-            style={styles.ghostAction}
-            testID="ghost-reset"
-          >
-            <Text style={styles.ghostActionText}>RESET</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.gameArea} {...panResponder.panHandlers}>
         <MazeRenderer
           maze={state.maze}
           ghosts={state.ghosts}
@@ -390,31 +300,114 @@ export default function GameScreen() {
           level={state.level}
           boss={state.boss}
         />
-      </View>
-
-      <View style={styles.bottomBar}>
-        <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
-          <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
-        </TouchableOpacity>
-        {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
-          <View style={styles.stateActions}>
-            {state.status === "levelWon" && (
-              <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
-                <Text style={styles.stateBtnText}>NEXT LEVEL</Text>
-              </TouchableOpacity>
+        <View style={styles.footerHud} testID="hud-bottom">
+          <View style={styles.statusLine}>
+            <Text style={styles.statusLabel}>PELLETS</Text>
+            <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
+            <View style={styles.statusPill}>
+              <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
+              <Text style={styles.statusPillSub}>{statusLabel}</Text>
+            </View>
+            {mode === "speedrun" && (
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>TIME {fmtMs(elapsedMs)}</Text>
+                {bestRunMs > 0 && <Text style={styles.statusPillSub}>BEST {fmtMs(bestRunMs)}</Text>}
+              </View>
             )}
-            {state.status === "levelLost" && (
-              <TouchableOpacity onPress={retryLevel} style={styles.stateBtn} testID="retry-level-btn">
-                <Text style={styles.stateBtnText}>RETRY LEVEL</Text>
-              </TouchableOpacity>
+            {state.boss && (
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>BOSS {state.boss.hp}/{state.boss.maxHp}</Text>
+                <View style={styles.bossMiniBarOuter}>
+                  <View style={[styles.bossMiniBarInner, { width: `${bossHpPct}%` }]} />
+                </View>
+              </View>
             )}
-            {state.status === "gameOver" && (
-              <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
-                <Text style={styles.stateBtnText}>NEW GAME</Text>
-              </TouchableOpacity>
+            {activeEffects.length > 0 && (
+              <View style={styles.effectRow}>
+                {activeEffects.map((effect) => (
+                  <View key={effect.key} style={[styles.effectChip, { borderColor: effect.color }]}>
+                    <Text style={[styles.effectChipText, { color: effect.color }]}>{effect.label}</Text>
+                  </View>
+                ))}
+              </View>
             )}
           </View>
-        )}
+          <View style={styles.ghostTogglePanel} testID="ghost-toggles">
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelLabel}>GHOST TOGGLES</Text>
+              <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+            </View>
+            <View style={styles.ghostToggleRow}>
+              {ghostToggleItems.map(({ ghost, armed, selected }) => (
+                <TouchableOpacity
+                  key={ghost.id}
+                  onPress={() => toggleGhostArm(ghost.id)}
+                  style={[
+                    styles.ghostToggle,
+                    { borderColor: ghost.color },
+                    armed && styles.ghostToggleArmed,
+                    selected && styles.ghostToggleSelected,
+                  ]}
+                  testID={`ghost-toggle-${ghost.id}`}
+                >
+                  <Text style={[styles.ghostToggleIndex, { color: armed ? ghost.color : "#7d88a8" }]}>
+                    G{ghost.id + 1}
+                  </Text>
+                  <Text style={[styles.ghostToggleName, { color: selected ? "#f7fbff" : "#9aa6ca" }]}>
+                    {ghost.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <View style={styles.slotRow} testID="hud-items">
+            {inventoryItems.map(({ id, def, count }) => {
+              const playable = state.status === "playing" && count > 0;
+              return (
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => activatePowerUp(id)}
+                  style={[
+                    styles.slot,
+                    { borderColor: def.color },
+                    count === 0 && styles.slotDim,
+                  ]}
+                  disabled={!playable}
+                  testID={`inventory-${id}`}
+                >
+                  <Text style={styles.slotIcon}>{def.icon}</Text>
+                  <Text style={[styles.slotCount, { color: count > 0 ? def.color : "#7d88a8" }]}>
+                    {count}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.controlRow}>
+            <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
+              <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
+            </TouchableOpacity>
+            {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
+              <View style={styles.stateActions}>
+                {state.status === "levelWon" && (
+                  <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
+                    <Text style={styles.stateBtnText}>NEXT LEVEL</Text>
+                  </TouchableOpacity>
+                )}
+                {state.status === "levelLost" && (
+                  <TouchableOpacity onPress={retryLevel} style={styles.stateBtn} testID="retry-level-btn">
+                    <Text style={styles.stateBtnText}>RETRY LEVEL</Text>
+                  </TouchableOpacity>
+                )}
+                {state.status === "gameOver" && (
+                  <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
+                    <Text style={styles.stateBtnText}>NEW GAME</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
       </View>
 
       {(state.message || state.status === "paused") && (
@@ -428,217 +421,142 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  hudShell: {
+  gameArea: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 50, paddingBottom: 70 },
+  topHud: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    zIndex: 5,
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: "#0b0e1f",
+    gap: 6,
   },
-  heroCard: {
-    flex: 1.2,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: "#111738",
-    borderWidth: 1,
-    borderColor: "#2bb7ff",
-    shadowColor: "#2bb7ff",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-  },
-  heroKicker: { color: "#ffd84d", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
-  heroTitle: { color: "#f2f6ff", fontSize: 30, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
-  heroMeta: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
-    flexWrap: "wrap",
-  },
-  modePill: {
+  topStat: {
     flex: 1,
-    minWidth: 88,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#255b91",
-    backgroundColor: "#0a1730",
-    paddingHorizontal: 10,
+    minWidth: 0,
+    borderRadius: 10,
     paddingVertical: 8,
-  },
-  statusPill: {
-    flex: 1,
-    minWidth: 88,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    backgroundColor: "#101426dd",
     borderWidth: 1,
-    borderColor: "#3a2a75",
-    backgroundColor: "#120d25",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderColor: "#2b3357",
   },
-  pillLabel: { color: "#95a9d7", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
-  pillValue: { color: "#f7fbff", fontSize: 13, fontWeight: "900", marginTop: 2 },
-  statGrid: { flex: 1.6, flexDirection: "row", gap: 8 },
-  statCard: {
-    flex: 1,
-    borderRadius: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    backgroundColor: "#12192f",
-    borderWidth: 1,
-    borderColor: "#22406f",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statLabel: { color: "#d8e0f7", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  statValue: { fontSize: 26, fontWeight: "900", marginTop: 4 },
-  statFootnote: { color: "#ff8ea9", fontSize: 11, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
-  lifeDots: { flexDirection: "row", gap: 5, marginTop: 8, alignItems: "center" },
+  topLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  topValue: { color: "#f7fbff", fontSize: 18, fontWeight: "900", marginTop: 2 },
+  lifeDots: { flexDirection: "row", gap: 4, marginTop: 6, alignItems: "center" },
   lifeDot: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#ff6b9a",
   },
   lifeDotFilled: { backgroundColor: "#ff6b9a" },
   lifeDotEmpty: { backgroundColor: "transparent" },
-  metricPanel: {
-    marginHorizontal: 10,
-    marginBottom: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#4d2f88",
-    backgroundColor: "#151225",
+  lifeCount: { color: "#ff8ea9", fontSize: 10, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
+  footerHud: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+    zIndex: 5,
+    gap: 6,
+  },
+  statusLine: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     flexWrap: "wrap",
-  },
-  metricItem: { minWidth: 80 },
-  metricLabel: { color: "#a8b3d6", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  metricValue: { color: "#f8fbff", fontSize: 17, fontWeight: "900", marginTop: 2 },
-  metricDivider: { width: 1, height: 36, backgroundColor: "#30406e", marginHorizontal: 10 },
-  hudSection: {
-    marginHorizontal: 10,
-    marginBottom: 8,
-    borderRadius: 18,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#101426dd",
     borderWidth: 1,
-    borderColor: "#22406f",
-    backgroundColor: "#0f1428",
-    padding: 12,
+    borderColor: "#2b3357",
   },
-  sectionHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  sectionTitle: { color: "#39a6ff", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
-  sectionNote: { color: "#a3b4d6", fontSize: 10, fontWeight: "800", letterSpacing: 1 },
-  activeBox: {
-    minHeight: 50,
-    marginTop: 10,
-    borderRadius: 14,
+  statusLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  statusValue: { color: "#f7fbff", fontSize: 14, fontWeight: "900", marginRight: 6 },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: "#171d31",
     borderWidth: 1,
-    borderColor: "#24345e",
-    backgroundColor: "#08111e",
-    padding: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    alignItems: "center",
+    borderColor: "#303a60",
   },
-  activeChip: {
+  statusPillText: { color: "#f1f4ff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  statusPillSub: { color: "#9aa6ca", fontSize: 9, fontWeight: "800", marginTop: 2 },
+  bossMiniBarOuter: {
+    marginTop: 4,
+    height: 4,
+    width: 92,
+    borderRadius: 999,
+    backgroundColor: "#2f1220",
+    overflow: "hidden",
+  },
+  bossMiniBarInner: { height: 4, backgroundColor: "#ff305e", borderRadius: 999 },
+  effectRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  effectChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#7f59ff",
-    backgroundColor: "#1a1234",
+    backgroundColor: "#171d31",
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  effectChipText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  ghostTogglePanel: {
+    gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  activeChipText: { color: "#d8c8ff", fontSize: 11, fontWeight: "800" },
-  emptyStateText: { color: "#7d88a8", fontSize: 12, fontWeight: "700" },
-  inventoryRow: {
-    marginTop: 10,
-    borderRadius: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#101426dd",
     borderWidth: 1,
-    borderColor: "#24345e",
-    backgroundColor: "#08111e",
-    padding: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    alignItems: "center",
+    borderColor: "#2b3357",
   },
-  inventoryTile: {
-    minWidth: 56,
-    minHeight: 56,
-    borderRadius: 14,
+  panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleRow: { flexDirection: "row", gap: 6 },
+  ghostToggle: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 10,
     borderWidth: 1.5,
     backgroundColor: "#12172d",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  inventoryTileDim: { opacity: 0.45 },
-  inventoryIcon: { fontSize: 20 },
-  inventoryCount: { fontSize: 12, fontWeight: "900", marginTop: 4 },
-  bossWrap: {
-    paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#240b15",
-    borderTopWidth: 1,
-    borderTopColor: "#80334d",
-    borderBottomWidth: 1,
-    borderBottomColor: "#80334d",
+    opacity: 0.6,
   },
-  bossText: { color: "#ffd2dc", fontWeight: "900", letterSpacing: 1, fontSize: 11 },
-  bossBarOuter: { marginTop: 5, marginBottom: 4, height: 8, backgroundColor: "#3b0d19", borderRadius: 6 },
-  bossBarInner: { height: 8, backgroundColor: "#ff305e", borderRadius: 6 },
-  ghostStrip: {
-    marginHorizontal: 10,
-    marginBottom: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#22406f",
-    backgroundColor: "#0f1428",
-    padding: 12,
+  ghostToggleArmed: {
+    backgroundColor: "#18213d",
+    opacity: 1,
   },
-  ghostStripHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  ghostStripButtons: {
+  ghostToggleSelected: {
+    borderWidth: 2,
+    transform: [{ translateY: -1 }],
+  },
+  ghostToggleIndex: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
+  slotRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     gap: 6,
-    marginTop: 10,
   },
-  ghostTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#333355",
-    backgroundColor: "#1a1a2a",
+  slot: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    backgroundColor: "#12172d",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  ghostTabActive: { backgroundColor: "#2a2a44", borderColor: "#8ea7ff" },
-  ghostTabText: { color: "white", fontSize: 12, fontWeight: "700" },
-  ghostAction: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#5e5e7f",
-    backgroundColor: "#212133",
-  },
-  ghostActionText: { color: "#FFB897", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  gameArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  bottomBar: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "#0f0f1a",
-    borderTopWidth: 1,
-    borderTopColor: "#262640",
-  },
+  slotDim: { opacity: 0.4 },
+  slotIcon: { fontSize: 18, lineHeight: 18 },
+  slotCount: { fontSize: 10, fontWeight: "900", marginTop: 3 },
+  controlRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   pauseBtn: {
-    alignSelf: "center",
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
@@ -647,7 +565,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1d1d2f",
   },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
-  stateActions: { marginTop: 8, alignItems: "center" },
+  stateActions: { flexDirection: "row", gap: 8 },
   stateBtn: {
     borderWidth: 1,
     borderColor: "#FFD23F",
