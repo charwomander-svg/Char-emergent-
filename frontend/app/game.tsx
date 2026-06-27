@@ -120,6 +120,20 @@ export default function GameScreen() {
     setArmedGhosts(next);
   }, [selectGhost]);
 
+  const toggleGhostArm = useCallback((ghostId: GhostId) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    selectGhost(ghostId);
+    setArmedGhosts((prev) => {
+      if (prev.includes(ghostId)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((id) => id !== ghostId);
+      }
+      return [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
+    });
+  }, [selectGhost]);
+
   const applyDirectionToArmed = useCallback((dir: Direction) => {
     const targets = armedGhosts.length > 0 ? armedGhosts : [stateRef.current.selectedGhostId];
     targets.forEach((id) => setGhostDirection(id, dir));
@@ -212,6 +226,14 @@ export default function GameScreen() {
     })),
     [inventory],
   );
+  const ghostToggleItems = useMemo(
+    () => state.ghosts.map((ghost) => ({
+      ghost,
+      armed: armedGhosts.includes(ghost.id),
+      selected: state.selectedGhostId === ghost.id,
+    })),
+    [armedGhosts, state.ghosts, state.selectedGhostId],
+  );
 
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
@@ -279,6 +301,34 @@ export default function GameScreen() {
                 ))}
               </View>
             )}
+          </View>
+          <View style={styles.ghostTogglePanel} testID="ghost-toggles">
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelLabel}>GHOST TOGGLES</Text>
+              <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+            </View>
+            <View style={styles.ghostToggleRow}>
+              {ghostToggleItems.map(({ ghost, armed, selected }) => (
+                <TouchableOpacity
+                  key={ghost.id}
+                  onPress={() => toggleGhostArm(ghost.id)}
+                  style={[
+                    styles.ghostToggle,
+                    { borderColor: ghost.color },
+                    armed && styles.ghostToggleArmed,
+                    selected && styles.ghostToggleSelected,
+                  ]}
+                  testID={`ghost-toggle-${ghost.id}`}
+                >
+                  <Text style={[styles.ghostToggleIndex, { color: armed ? ghost.color : "#7d88a8" }]}>
+                    G{ghost.id + 1}
+                  </Text>
+                  <Text style={[styles.ghostToggleName, { color: selected ? "#f7fbff" : "#9aa6ca" }]}>
+                    {ghost.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
           <View style={styles.slotRow} testID="hud-items">
             {inventoryItems.map(({ id, def, count }) => {
@@ -413,6 +463,40 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   effectChipText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  ghostTogglePanel: {
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#101426dd",
+    borderWidth: 1,
+    borderColor: "#2b3357",
+  },
+  panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleRow: { flexDirection: "row", gap: 6 },
+  ghostToggle: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    backgroundColor: "#12172d",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    opacity: 0.6,
+  },
+  ghostToggleArmed: {
+    backgroundColor: "#18213d",
+    opacity: 1,
+  },
+  ghostToggleSelected: {
+    borderWidth: 2,
+    transform: [{ translateY: -1 }],
+  },
+  ghostToggleIndex: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
   slotRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
