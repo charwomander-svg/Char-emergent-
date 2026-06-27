@@ -187,6 +187,21 @@ export default function GameScreen() {
     })),
     [inventory],
   );
+  const lifeDots = useMemo(
+    () => Array.from({ length: 3 }, (_, index) => index < state.lives),
+    [state.lives],
+  );
+  const statusLabel = state.status === "playing"
+    ? "LIVE"
+    : state.status === "paused"
+      ? "PAUSED"
+      : state.status === "ready"
+        ? "READY"
+        : state.status === "levelWon"
+          ? "CLEAR"
+          : state.status === "levelLost"
+            ? "LOST"
+            : "GAME OVER";
 
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
@@ -200,11 +215,32 @@ export default function GameScreen() {
         <View style={styles.heroCard}>
           <Text style={styles.heroKicker}>{mode.toUpperCase()}</Text>
           <Text style={styles.heroTitle}>LEVEL {state.level}</Text>
+          <View style={styles.heroMeta}>
+            <View style={styles.modePill}>
+              <Text style={styles.pillLabel}>MODE</Text>
+              <Text style={styles.pillValue}>{mode.toUpperCase()}</Text>
+            </View>
+            <View style={styles.statusPill}>
+              <Text style={styles.pillLabel}>STATUS</Text>
+              <Text style={styles.pillValue}>{statusLabel}</Text>
+            </View>
+          </View>
         </View>
         <View style={styles.statGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>LIVES</Text>
-            <Text style={[styles.statValue, { color: "#ff6b9a" }]}>{state.lives}</Text>
+            <View style={styles.lifeDots}>
+              {lifeDots.map((filled, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.lifeDot,
+                    filled ? styles.lifeDotFilled : styles.lifeDotEmpty,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.statFootnote}>x{state.lives}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>SCORE</Text>
@@ -414,6 +450,34 @@ const styles = StyleSheet.create({
   },
   heroKicker: { color: "#ffd84d", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
   heroTitle: { color: "#f2f6ff", fontSize: 30, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  heroMeta: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  modePill: {
+    flex: 1,
+    minWidth: 88,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#255b91",
+    backgroundColor: "#0a1730",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  statusPill: {
+    flex: 1,
+    minWidth: 88,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#3a2a75",
+    backgroundColor: "#120d25",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  pillLabel: { color: "#95a9d7", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  pillValue: { color: "#f7fbff", fontSize: 13, fontWeight: "900", marginTop: 2 },
   statGrid: { flex: 1.6, flexDirection: "row", gap: 8 },
   statCard: {
     flex: 1,
@@ -428,6 +492,17 @@ const styles = StyleSheet.create({
   },
   statLabel: { color: "#d8e0f7", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   statValue: { fontSize: 26, fontWeight: "900", marginTop: 4 },
+  statFootnote: { color: "#ff8ea9", fontSize: 11, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
+  lifeDots: { flexDirection: "row", gap: 5, marginTop: 8, alignItems: "center" },
+  lifeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#ff6b9a",
+  },
+  lifeDotFilled: { backgroundColor: "#ff6b9a" },
+  lifeDotEmpty: { backgroundColor: "transparent" },
   metricPanel: {
     marginHorizontal: 10,
     marginBottom: 8,
@@ -588,6 +663,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: "44%",
     alignItems: "center",
+    paddingHorizontal: 16,
   },
   messageText: {
     color: "#fff",
@@ -595,9 +671,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 2,
     textAlign: "center",
-    backgroundColor: "#000000aa",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: "#060816f0",
+    borderWidth: 1,
+    borderColor: "#6b7cff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
 });
