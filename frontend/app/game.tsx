@@ -226,6 +226,21 @@ export default function GameScreen() {
     })),
     [inventory],
   );
+  const lifeDots = useMemo(
+    () => Array.from({ length: 3 }, (_, index) => index < state.lives),
+    [state.lives],
+  );
+  const statusLabel = state.status === "playing"
+    ? "LIVE"
+    : state.status === "paused"
+      ? "PAUSED"
+      : state.status === "ready"
+        ? "READY"
+        : state.status === "levelWon"
+          ? "CLEAR"
+          : state.status === "levelLost"
+            ? "LOST"
+            : "GAME OVER";
   const ghostToggleItems = useMemo(
     () => state.ghosts.map((ghost) => ({
       ghost,
@@ -253,7 +268,18 @@ export default function GameScreen() {
           </View>
           <View style={styles.topStat}>
             <Text style={styles.topLabel}>LIVES</Text>
-            <Text style={styles.topValue}>{state.lives}</Text>
+            <View style={styles.lifeDots}>
+              {lifeDots.map((filled, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.lifeDot,
+                    filled ? styles.lifeDotFilled : styles.lifeDotEmpty,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.lifeCount}>x{state.lives}</Text>
           </View>
           <View style={styles.topStat}>
             <Text style={styles.topLabel}>COMBO</Text>
@@ -278,6 +304,10 @@ export default function GameScreen() {
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
+            <View style={styles.statusPill}>
+              <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
+              <Text style={styles.statusPillSub}>{statusLabel}</Text>
+            </View>
             {mode === "speedrun" && (
               <View style={styles.statusPill}>
                 <Text style={styles.statusPillText}>TIME {fmtMs(elapsedMs)}</Text>
@@ -413,6 +443,17 @@ const styles = StyleSheet.create({
   },
   topLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   topValue: { color: "#f7fbff", fontSize: 18, fontWeight: "900", marginTop: 2 },
+  lifeDots: { flexDirection: "row", gap: 4, marginTop: 6, alignItems: "center" },
+  lifeDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#ff6b9a",
+  },
+  lifeDotFilled: { backgroundColor: "#ff6b9a" },
+  lifeDotEmpty: { backgroundColor: "transparent" },
+  lifeCount: { color: "#ff8ea9", fontSize: 10, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
   footerHud: {
     position: "absolute",
     left: 8,
@@ -540,6 +581,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: "44%",
     alignItems: "center",
+    paddingHorizontal: 16,
   },
   messageText: {
     color: "#fff",
@@ -547,9 +589,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 2,
     textAlign: "center",
-    backgroundColor: "#000000aa",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: "#060816f0",
+    borderWidth: 1,
+    borderColor: "#6b7cff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
 });
