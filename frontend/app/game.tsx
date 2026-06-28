@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   PanResponder,
-  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
@@ -59,11 +58,8 @@ export default function GameScreen() {
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
     onCoinsEarned: (n) => earnCoins(n),
   });
-  const { width, height } = useWindowDimensions();
-  const cellSize = Math.max(
-    12,
-    Math.floor(Math.min(width / MAZE_COLS, (height - 120) / MAZE_ROWS)),
-  );
+  const [mazeArea, setMazeArea] = useState({ w: 300, h: 400 });
+  const cellSize = Math.max(12, Math.floor(Math.min(mazeArea.w / MAZE_COLS, mazeArea.h / MAZE_ROWS)));
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [bestRunMs, setBestRunMs] = useState(0);
@@ -294,16 +290,21 @@ export default function GameScreen() {
             <Text style={styles.topValue}>{state.level}</Text>
           </View>
         </View>
-        <MazeRenderer
-          maze={state.maze}
-          ghosts={state.ghosts}
-          pelletGuy={state.pelletGuy}
-          cellSize={cellSize}
-          selectedGhostId={state.selectedGhostId}
-          ready={state.status === "ready"}
-          level={state.level}
-          boss={state.boss}
-        />
+        <View
+          style={styles.mazeContainer}
+          onLayout={(e) => setMazeArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        >
+          <MazeRenderer
+            maze={state.maze}
+            ghosts={state.ghosts}
+            pelletGuy={state.pelletGuy}
+            cellSize={cellSize}
+            selectedGhostId={state.selectedGhostId}
+            ready={state.status === "ready"}
+            level={state.level}
+            boss={state.boss}
+          />
+        </View>
         <View style={styles.footerHud} testID="hud-bottom">
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
@@ -374,9 +375,6 @@ export default function GameScreen() {
                   <Text style={[styles.ghostToggleIndex, { color: armed ? ghost.color : "#7d88a8" }]}>
                     G{ghost.id + 1}
                   </Text>
-                  <Text style={[styles.ghostToggleName, { color: selected ? "#f7fbff" : "#9aa6ca" }]}>
-                    {ghost.name}
-                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -442,54 +440,48 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  gameArea: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 50, paddingBottom: 70 },
+  gameArea: { flex: 1, flexDirection: "column" },
   topHud: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    right: 8,
-    zIndex: 5,
     flexDirection: "row",
-    gap: 6,
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   topStat: {
     flex: 1,
     minWidth: 0,
     borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     backgroundColor: "#101426dd",
     borderWidth: 1,
     borderColor: "#2b3357",
   },
-  topLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  topValue: { color: "#f7fbff", fontSize: 18, fontWeight: "900", marginTop: 2 },
-  lifeDots: { flexDirection: "row", gap: 4, marginTop: 6, alignItems: "center" },
+  topLabel: { color: "#95a2c8", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  topValue: { color: "#f7fbff", fontSize: 13, fontWeight: "900" },
+  lifeDots: { flexDirection: "row", gap: 3, marginTop: 3, alignItems: "center" },
   lifeDot: {
-    width: 9,
-    height: 9,
+    width: 7,
+    height: 7,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#ff6b9a",
   },
   lifeDotFilled: { backgroundColor: "#ff6b9a" },
   lifeDotEmpty: { backgroundColor: "transparent" },
-  lifeCount: { color: "#ff8ea9", fontSize: 10, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
+  lifeCount: { color: "#ff8ea9", fontSize: 9, fontWeight: "900", marginTop: 2, letterSpacing: 1 },
   footerHud: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    bottom: 8,
-    zIndex: 5,
-    gap: 6,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
   },
   statusLine: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 12,
     backgroundColor: "#101426dd",
     borderWidth: 1,
@@ -526,9 +518,9 @@ const styles = StyleSheet.create({
   },
   effectChipText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   ghostTogglePanel: {
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: "#101426dd",
     borderWidth: 1,
@@ -544,10 +536,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     backgroundColor: "#12172d",
   },
-  panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
-  panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  ghostToggleRow: { flexDirection: "row", gap: 6 },
+  panelActionText: { color: "#c8d0f0", fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
+  panelLabel: { color: "#95a2c8", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  panelValue: { color: "#f7fbff", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleRow: { flexDirection: "row", gap: 4 },
   ghostToggle: {
     flex: 1,
     minWidth: 0,
@@ -556,7 +548,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#12172d",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
+    paddingVertical: 4,
     opacity: 0.6,
   },
   ghostToggleArmed: {
@@ -567,16 +559,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     transform: [{ translateY: -1 }],
   },
-  ghostToggleIndex: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
+  ghostToggleIndex: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
   slotRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 6,
   },
   slot: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1.5,
     backgroundColor: "#12172d",
@@ -584,28 +575,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   slotDim: { opacity: 0.4 },
-  slotIcon: { fontSize: 18, lineHeight: 18 },
-  slotCount: { fontSize: 10, fontWeight: "900", marginTop: 3 },
+  slotIcon: { fontSize: 16, lineHeight: 16 },
+  slotCount: { fontSize: 9, fontWeight: "900", marginTop: 3 },
   controlRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   pauseBtn: {
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: "#1d1d2f",
   },
-  pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
+  pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1, fontSize: 11 },
   stateActions: { flexDirection: "row", gap: 8 },
   stateBtn: {
     borderWidth: 1,
     borderColor: "#FFD23F",
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: "#1a1a2a",
   },
-  stateBtnText: { color: "#FFD23F", fontWeight: "900", letterSpacing: 1 },
+  stateBtnText: { color: "#FFD23F", fontWeight: "900", letterSpacing: 1, fontSize: 11 },
+  mazeContainer: { flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   messageOverlay: {
     position: "absolute",
     left: 0,
