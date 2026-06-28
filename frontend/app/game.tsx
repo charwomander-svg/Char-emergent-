@@ -286,6 +286,10 @@ export default function GameScreen() {
             <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
           </View>
           <View style={styles.topStat}>
+            <Text style={styles.topLabel}>CTCH</Text>
+            <Text style={styles.topValue}>{state.catches}</Text>
+          </View>
+          <View style={styles.topStat}>
             <Text style={styles.topLabel}>LEVEL</Text>
             <Text style={styles.topValue}>{state.level}</Text>
           </View>
@@ -317,6 +321,7 @@ export default function GameScreen() {
             {state.boss && (
               <View style={styles.statusPill}>
                 <Text style={styles.statusPillText}>BOSS {state.boss.hp}/{state.boss.maxHp}</Text>
+                <Text style={styles.statusPillSub}>{state.boss.title}</Text>
                 <View style={styles.bossMiniBarOuter}>
                   <View style={[styles.bossMiniBarInner, { width: `${bossHpPct}%` }]} />
                 </View>
@@ -335,7 +340,23 @@ export default function GameScreen() {
           <View style={styles.ghostTogglePanel} testID="ghost-toggles">
             <View style={styles.panelHeader}>
               <Text style={styles.panelLabel}>GHOST TOGGLES</Text>
-              <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+              <View style={styles.panelHeaderActions}>
+                <TouchableOpacity
+                  onPress={() => { setArmedGhosts([0, 1, 2, 3]); selectGhost(0); }}
+                  style={styles.panelActionBtn}
+                  testID="ghost-arm-all"
+                >
+                  <Text style={styles.panelActionText}>ALL</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { setArmedGhosts([0]); selectGhost(0); }}
+                  style={styles.panelActionBtn}
+                  testID="ghost-arm-reset"
+                >
+                  <Text style={styles.panelActionText}>RESET</Text>
+                </TouchableOpacity>
+                <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+              </View>
             </View>
             <View style={styles.ghostToggleRow}>
               {ghostToggleItems.map(({ ghost, armed, selected }) => (
@@ -514,6 +535,16 @@ const styles = StyleSheet.create({
     borderColor: "#2b3357",
   },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  panelHeaderActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  panelActionBtn: {
+    borderWidth: 1,
+    borderColor: "#4a5580",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    backgroundColor: "#12172d",
+  },
+  panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   ghostToggleRow: { flexDirection: "row", gap: 6 },
