@@ -29,6 +29,7 @@ const SFX_SOURCES: Record<SfxKey, number> = {
 };
 
 const MUSIC_SOURCE = require("@/assets/sounds/blinkys_revenge.mp3");
+const BOSS_MUSIC_SOURCE = require("@/assets/sounds/panic_protocol_ghost_king.mp3");
 
 interface SoundEngine {
   enabled: boolean;
@@ -43,12 +44,13 @@ interface SoundEngine {
   levelWin: () => void;
   levelLose: () => void;
   uiClick: () => void;
-  startMusic: () => void;
+  startMusic: (boss?: boolean) => void;
   stopMusic: () => void;
 }
 
-// --- Music player (MP3 loop, all platforms) ---
+// --- Music players (MP3 loop, all platforms) ---
 let musicPlayer: AudioPlayer | null = null;
+let bossMusicPlayer: AudioPlayer | null = null;
 
 function getMusicPlayer(): AudioPlayer | null {
   if (musicPlayer) return musicPlayer;
@@ -60,6 +62,23 @@ function getMusicPlayer(): AudioPlayer | null {
   } catch {
     return null;
   }
+}
+
+function getBossMusicPlayer(): AudioPlayer | null {
+  if (bossMusicPlayer) return bossMusicPlayer;
+  try {
+    bossMusicPlayer = createAudioPlayer(BOSS_MUSIC_SOURCE);
+    bossMusicPlayer.loop = true;
+    bossMusicPlayer.volume = 0.5;
+    return bossMusicPlayer;
+  } catch {
+    return null;
+  }
+}
+
+function stopAllMusic() {
+  try { if (musicPlayer?.playing) musicPlayer.pause(); } catch {}
+  try { if (bossMusicPlayer?.playing) bossMusicPlayer.pause(); } catch {}
 }
 
 // --- expo-audio: pool of players per SFX so rapid retriggers don't cut off ---
@@ -122,18 +141,17 @@ export function createSoundEngine(): SoundEngine {
     levelWin: () => safePlay("win"),
     levelLose: () => safePlay("lose"),
     uiClick: () => safePlay("uiClick"),
-    startMusic() {
+    startMusic(boss = false) {
       if (!enabled) return;
       try {
-        const p = getMusicPlayer();
+        stopAllMusic();
+        const p = boss ? getBossMusicPlayer() : getMusicPlayer();
         if (!p) return;
         if (!p.playing) p.play();
       } catch {}
     },
     stopMusic() {
-      try {
-        if (musicPlayer?.playing) musicPlayer.pause();
-      } catch {}
+      try { stopAllMusic(); } catch {}
     },
   };
 }
