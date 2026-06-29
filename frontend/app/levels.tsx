@@ -5,10 +5,12 @@ import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { loadProgress, ProgressData } from "@/src/game/progress";
 import { getSoundEngine } from "@/src/game/sounds";
+import { SPEEDRUN_SEEDS } from "@/src/game/speedrun";
 
 export default function Levels() {
   const router = useRouter();
   const [progress, setProgress] = useState<ProgressData | null>(null);
+  const [speedrunMode, setSpeedrunMode] = useState(false);
 
   useEffect(() => {
     loadProgress().then(setProgress);
@@ -19,9 +21,14 @@ export default function Levels() {
   const levels = Array.from({ length: maxShown }, (_, i) => i + 1);
 
   const playLevel = (lv: number) => {
-    if (lv > highest) return;
+    if (lv > highest && !speedrunMode) return;
     getSoundEngine().uiClick();
-    router.push(`/game?mode=classic&level=${lv}`);
+    if (speedrunMode) {
+      const seed = SPEEDRUN_SEEDS[lv - 1] ?? SPEEDRUN_SEEDS[0];
+      router.push(`/game?mode=speedrun&level=${lv}&seed=${seed}`);
+    } else {
+      router.push(`/game?mode=classic&level=${lv}`);
+    }
   };
 
   return (
@@ -33,11 +40,28 @@ export default function Levels() {
         <Text style={styles.title}>LEVELS</Text>
         <View style={{ width: 60 }} />
       </View>
-      <Text style={styles.subtitle}>Reached Level {highest}</Text>
+
+      {/* Speedrun toggle */}
+      <TouchableOpacity
+        style={[styles.speedrunToggle, speedrunMode && styles.speedrunToggleActive]}
+        onPress={() => { getSoundEngine().uiClick(); setSpeedrunMode((v) => !v); }}
+        testID="speedrun-toggle"
+      >
+        <Text style={[styles.speedrunToggleText, speedrunMode && styles.speedrunToggleTextActive]}>
+          ⏱ SPEEDRUN MODE {speedrunMode ? "ON" : "OFF"}
+        </Text>
+        {speedrunMode && (
+          <Text style={styles.speedrunSubtext}>Static seeds · All levels unlocked · Frame timer</Text>
+        )}
+      </TouchableOpacity>
+
+      <Text style={styles.subtitle}>
+        {speedrunMode ? "SPEEDRUN — All levels open" : `Reached Level ${highest}`}
+      </Text>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.grid}>
           {levels.map((lv) => {
-            const locked = lv > highest;
+            const locked = lv > highest && !speedrunMode;
             const isBoss = lv % 5 === 0;
             return (
               <TouchableOpacity
@@ -46,6 +70,7 @@ export default function Levels() {
                   styles.cell,
                   isBoss && styles.bossCell,
                   locked && styles.lockedCell,
+                  speedrunMode && styles.speedrunCell,
                 ]}
                 onPress={() => playLevel(lv)}
                 disabled={locked}
@@ -57,6 +82,7 @@ export default function Levels() {
                   <>
                     <Text style={styles.cellNum}>{lv}</Text>
                     {isBoss && <Text style={styles.bossTag}>BOSS</Text>}
+                    {speedrunMode && <Text style={styles.srTag}>SR</Text>}
                   </>
                 )}
               </TouchableOpacity>
@@ -83,6 +109,29 @@ const styles = StyleSheet.create({
   },
   back: { color: "#FFFF00", fontWeight: "bold", fontSize: 14, letterSpacing: 1 },
   title: { color: "#FFFF00", fontWeight: "900", fontSize: 22, letterSpacing: 3 },
+  speedrunToggle: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#444466",
+    backgroundColor: COLORS.uiPanel,
+    alignItems: "center",
+  },
+  speedrunToggleActive: {
+    borderColor: "#7FE8FF",
+    backgroundColor: "#0d1a2e",
+  },
+  speedrunToggleText: {
+    color: "#888899",
+    fontWeight: "bold",
+    fontSize: 13,
+    letterSpacing: 2,
+  },
+  speedrunToggleTextActive: { color: "#7FE8FF" },
+  speedrunSubtext: { color: "#7FE8FF", opacity: 0.7, fontSize: 10, marginTop: 2, letterSpacing: 1 },
   subtitle: { color: "#FFB897", textAlign: "center", paddingVertical: 10, fontSize: 12, letterSpacing: 1 },
   scroll: { padding: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", gap: 10 },
@@ -98,8 +147,10 @@ const styles = StyleSheet.create({
   },
   bossCell: { borderColor: "#FF1744", backgroundColor: "#22000a" },
   lockedCell: { borderColor: "#222244", opacity: 0.5 },
+  speedrunCell: { borderColor: "#7FE8FF" },
   cellNum: { color: "#FFFFFF", fontWeight: "900", fontSize: 22, letterSpacing: 1 },
   lockedIcon: { fontSize: 20 },
   bossTag: { color: "#FF1744", fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  srTag: { color: "#7FE8FF", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   hint: { color: "#666688", fontSize: 11, marginTop: 16, fontStyle: "italic", textAlign: "center" },
 });

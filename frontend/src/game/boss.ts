@@ -174,8 +174,9 @@ export function bossIsLunging(boss: BossState | null, now: number): boolean {
 }
 
 export const BOSS_REWARDS = {
-  perPhaseHitCoins: 50,        // each successful catch
-  finalDefeatCoins: 500,       // bonus on top of perPhase × maxHp
+  perPhaseHitCoins: 50,        // each successful catch during the fight
+  firstKillCoins: 150,         // bonus on first-time defeat of this boss level
+  repeatKillCoins: 50,         // bonus on subsequent defeats (farm protection)
   finalDefeatScore: 2000,      // score added on top of normal catch score
 } as const;
 

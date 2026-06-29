@@ -10,6 +10,8 @@ export interface SettingsData {
   soundOn: boolean;
   musicOn: boolean;
   reducedMotion: boolean;
+  sfxVolume: number;
+  musicVolume: number;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -18,6 +20,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
   soundOn: true,
   musicOn: true,
   reducedMotion: false,
+  sfxVolume: 0.6,
+  musicVolume: 0.45,
 };
 
 export async function loadSettings(): Promise<SettingsData> {

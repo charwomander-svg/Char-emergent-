@@ -13,7 +13,7 @@ export const COLORS = {
   pelletGuy: "#FFFF00",
   pelletGuyMouth: "#000000",
   ghosts: ["#FF0000", "#FFB8FF", "#00FFFF", "#FFB852"], // red, pink, cyan, orange
-  ghostNames: ["Blinky", "Pinky", "Inky", "Clyde"],
+  ghostNames: ["Spook", "Shriek", "Creep", "Wail"],
   ghostEyes: "#FFFFFF",
   ghostPupil: "#0000FF",
   ghostVulnerable: "#2121DE",

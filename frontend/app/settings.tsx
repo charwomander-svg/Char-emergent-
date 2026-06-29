@@ -1,10 +1,65 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, PanResponder, GestureResponderEvent, LayoutChangeEvent } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
 import { getSoundEngine } from "@/src/game/sounds";
+
+// ---- Simple drag slider ----
+function VolumeSlider({ value, onChange, color = "#FFD23F" }: { value: number; onChange: (v: number) => void; color?: string }) {
+  const trackWidth = useRef(200);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e: GestureResponderEvent) => {
+        const x = e.nativeEvent.locationX;
+        onChange(Math.max(0, Math.min(1, x / trackWidth.current)));
+      },
+      onPanResponderMove: (e: GestureResponderEvent) => {
+        const x = e.nativeEvent.locationX;
+        onChange(Math.max(0, Math.min(1, x / trackWidth.current)));
+      },
+    })
+  ).current;
+
+  return (
+    <View
+      style={sliderStyles.track}
+      onLayout={(e: LayoutChangeEvent) => { trackWidth.current = e.nativeEvent.layout.width; }}
+      {...panResponder.panHandlers}
+    >
+      <View style={[sliderStyles.fill, { width: `${value * 100}%` as any, backgroundColor: color }]} />
+      <View style={[sliderStyles.thumb, { left: `${value * 100}%` as any, borderColor: color }]} />
+    </View>
+  );
+}
+
+const sliderStyles = StyleSheet.create({
+  track: {
+    height: 20,
+    backgroundColor: "#111133",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#333355",
+    position: "relative",
+    marginTop: 8,
+    overflow: "visible",
+  },
+  fill: { position: "absolute", top: 0, left: 0, bottom: 0, borderRadius: 10 },
+  thumb: {
+    position: "absolute",
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    top: -1,
+    marginLeft: -10,
+  },
+});
+// ----------------------------
 
 export default function Settings() {
   const router = useRouter();
@@ -26,6 +81,8 @@ export default function Settings() {
       if (v && settings.soundOn) getSoundEngine().startMusic();
       if (!v) getSoundEngine().stopMusic();
     }
+    if (k === "sfxVolume") getSoundEngine().setSfxVolume(Number(v));
+    if (k === "musicVolume") getSoundEngine().setMusicVolume(Number(v));
   };
 
   const Row = ({
@@ -73,6 +130,11 @@ export default function Settings() {
           onChange={(v) => update("soundOn", v)}
           testID="toggle-sound"
         />
+        <View style={styles.sliderRow} testID="slider-sfx">
+          <Text style={styles.rowLabel}>SFX Volume</Text>
+          <Text style={styles.sliderValue}>{Math.round(settings.sfxVolume * 100)}%</Text>
+          <VolumeSlider value={settings.sfxVolume} onChange={(v) => update("sfxVolume", v)} color="#FFD23F" />
+        </View>
         <Row
           label="Background Music"
           desc="Chiptune loop while playing"
@@ -80,6 +142,11 @@ export default function Settings() {
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
         />
+        <View style={styles.sliderRow} testID="slider-music">
+          <Text style={styles.rowLabel}>Music Volume</Text>
+          <Text style={styles.sliderValue}>{Math.round(settings.musicVolume * 100)}%</Text>
+          <VolumeSlider value={settings.musicVolume} onChange={(v) => update("musicVolume", v)} color="#7FE8FF" />
+        </View>
         <Row
           label="Haptics"
           desc="Subtle vibrations on swipes and catches"
@@ -134,4 +201,14 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: "#FFFFFF", fontWeight: "bold", fontSize: 15 },
   rowDesc: { color: "#CCCCDD", fontSize: 11, marginTop: 2 },
+  sliderRow: {
+    backgroundColor: COLORS.uiPanel,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+  },
+  sliderValue: { color: "#CCCCDD", fontSize: 11, marginTop: 2 },
 });
