@@ -722,14 +722,16 @@ export function useGhostMaze(opts?: {
 
               if (defeated) {
                 // Boss defeated! Treat as level win with extra bonus.
+                // First kill = player hasn't beaten this level before (highestLevel not yet past it).
+                const isFirstBossKill = (progressRef.current?.highestLevel ?? 1) <= prev.level;
                 score += BOSS_REWARDS.finalDefeatScore;
                 const pctRemaining = Math.round(
                   (pelletsRemaining / Math.max(1, prev.totalPellets)) * 100,
                 );
                 status = "levelWon";
-                message = `⭐ BOSS DEFEATED! ⭐\n+${BOSS_REWARDS.finalDefeatScore} BOSS BONUS\n+${BOSS_REWARDS.finalDefeatCoins} 🪙`;
+                message = `⭐ BOSS DEFEATED! ⭐\n+${BOSS_REWARDS.finalDefeatScore} BOSS BONUS\n+${isFirstBossKill ? BOSS_REWARDS.firstKillCoins : BOSS_REWARDS.repeatKillCoins} 🪙`;
                 getSoundEngine().levelWin();
-                onCoinsEarnedRef.current?.(BOSS_REWARDS.finalDefeatCoins, "levelClear");
+                onCoinsEarnedRef.current?.(isFirstBossKill ? BOSS_REWARDS.firstKillCoins : BOSS_REWARDS.repeatKillCoins, "levelClear");
 
                 // Persist progress for boss clears
                 if (progressRef.current) {
