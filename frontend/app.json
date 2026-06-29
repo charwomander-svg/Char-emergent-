@@ -5,9 +5,15 @@
     "version": "1.0.0",
     "icon": "./assets/images/icon.png",
     "splash": {
-      "image": "./assets/images/splash-image.png",
+      "image": "./assets/images/charware_splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#000010"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000010"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -20,7 +26,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5787827f-262b-4bfe-99fa-155b43855268"
+        "projectId": "69685359-2e2c-42d9-be37-fbddfcd81004"
       }
     },
     "owner": "chardcore"
