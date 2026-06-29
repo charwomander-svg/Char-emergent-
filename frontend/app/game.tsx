@@ -16,10 +16,10 @@ import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
-import { POWER_UPS, type PowerUpId } from "@/src/game/powerups";
+import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 
-const QUICK_SLOT_IDS: PowerUpId[] = ["speedBoost", "freeze", "teleport", "shield"];
+const QUICK_SLOT_IDS: PowerUpId[] = POWER_UP_ORDER;
 
 function fmtMs(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -282,7 +282,7 @@ export default function GameScreen() {
             <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
           </View>
           <View style={styles.topStat}>
-            <Text style={styles.topLabel}>CTCH</Text>
+            <Text style={styles.topLabel}>Catch</Text>
             <Text style={styles.topValue}>{state.catches}</Text>
           </View>
           <View style={styles.topStat}>
@@ -562,6 +562,7 @@ const styles = StyleSheet.create({
   ghostToggleIndex: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
   slotRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "flex-end",
     gap: 6,
   },
