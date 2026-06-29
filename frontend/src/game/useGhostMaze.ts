@@ -31,7 +31,7 @@ import {
   SCORE_SPIKED_GHOST_PENALTY,
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
-import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
+import { applyDirection, choosePelletGuyDirection, chooseGhostHuntDirection, getValidDirections, opposite } from "./ai";
 import { getSoundEngine } from "./sounds";
 import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
 import type { PowerUpId } from "./powerups";
@@ -204,6 +204,9 @@ export function useGhostMaze(opts?: {
   stateRef.current = state;
   // Ghost-house exit stagger
   const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
+  // Per-ghost direction queues — up to 3 pending directions each.
+  // The head drives nextDirection in state; items are consumed as the ghost turns.
+  const ghostDirQueuesRef = useRef<Direction[][]>([[], [], [], []]);
 
   const startLevel = useCallback((level: number, lives: number, score: number) => {
     const fresh = buildInitialState(
@@ -217,6 +220,7 @@ export function useGhostMaze(opts?: {
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
     ghostReleaseAtRef.current = [0, 0, 0, 0];
+    ghostDirQueuesRef.current = [[], [], [], []];
     setState(fresh);
   }, []);
 
@@ -224,23 +228,28 @@ export function useGhostMaze(opts?: {
     startLevel(1, STARTING_LIVES, 0);
   }, [startLevel]);
 
-  // Set ghost direction (queued for next intersection)
+  // Set ghost direction — appended to per-ghost queue (max 3).
+  // Head of queue drives nextDirection; ghosts consume one item when they turn.
   const setGhostDirection = useCallback(
     (ghostId: GhostId, dir: Direction) => {
+      const q = ghostDirQueuesRef.current[ghostId];
+      if (q.length < 3) {
+        q.push(dir);
+      } else {
+        // Queue full — drop oldest so latest player intent wins
+        q.shift();
+        q.push(dir);
+      }
       setState((prev) => {
         if (prev.status !== "playing") return prev;
         const ghost = prev.ghosts[ghostId];
         if (!ghost.alive) return prev;
-        // Try to apply immediately if possible (instant reverse / change)
-        const next = applyDirection(ghost.x, ghost.y, dir);
+        const headDir = q[0] ?? dir;
+        const next = applyDirection(ghost.x, ghost.y, headDir);
         const canApply = isWalkable(prev.maze, next.x, next.y, false);
         const ghosts = prev.ghosts.map((g, i) =>
           i === ghostId
-            ? {
-                ...g,
-                nextDirection: dir,
-                direction: canApply ? dir : g.direction,
-              }
+            ? { ...g, nextDirection: headDir, direction: canApply ? headDir : g.direction }
             : g,
         );
         return { ...prev, ghosts, selectedGhostId: ghostId };
@@ -260,7 +269,7 @@ export function useGhostMaze(opts?: {
         return { ...prev, status: "paused" };
       }
       if (prev.status === "paused") {
-        if (musicEnabledRef.current) getSoundEngine().startMusic();
+        if (musicEnabledRef.current) getSoundEngine().startMusic(isBossLevel(prev.level));
         return { ...prev, status: "playing" };
       }
       return prev;
@@ -278,7 +287,7 @@ export function useGhostMaze(opts?: {
         lastPelletGuyMoveRef.current = now;
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
-        if (musicEnabledRef.current) getSoundEngine().startMusic();
+        if (musicEnabledRef.current) getSoundEngine().startMusic(isBossLevel(prev.level));
       }
       return;
     }
@@ -341,6 +350,9 @@ export function useGhostMaze(opts?: {
       lastGhostMoveRef.current[i] = now;
 
       // try queued direction first
+      const q = ghostDirQueuesRef.current[i];
+      const isIdle = q.length === 0;
+
       let dir = ghost.nextDirection;
       let next = applyDirection(ghost.x, ghost.y, dir);
       if (!isWalkable(prev.maze, next.x, next.y, false)) {
@@ -348,25 +360,52 @@ export function useGhostMaze(opts?: {
         next = applyDirection(ghost.x, ghost.y, dir);
       }
       if (!isWalkable(prev.maze, next.x, next.y, false)) {
-        // Both queued and current direction blocked - pick any valid direction
-        // (so ghost doesn't sit forever if user-set direction hits a wall)
-        const validDirs = (["up", "down", "left", "right"] as Direction[]).filter(
-          (d) => {
-            const n = applyDirection(ghost.x, ghost.y, d);
-            return isWalkable(prev.maze, n.x, n.y, false);
-          },
-        );
-        if (validDirs.length === 0) continue; // truly stuck
-        // Prefer non-reverse if possible
-        const reverse = opposite(ghost.direction);
-        const nonReverse = validDirs.filter((d) => d !== reverse);
-        const choice = (nonReverse.length > 0 ? nonReverse : validDirs)[
-          Math.floor(Math.random() * (nonReverse.length > 0 ? nonReverse.length : validDirs.length))
-        ];
-        dir = choice;
+        // Both queued and current direction blocked — hunt PG or fall back to random
+        const pgNow = prev.pelletGuy;
+        dir = pgNow.alive
+          ? chooseGhostHuntDirection(prev.maze, ghost, pgNow, prev.level)
+          : (() => {
+              const validDirs = getValidDirections(prev.maze, ghost.x, ghost.y, false);
+              if (validDirs.length === 0) return ghost.direction;
+              const rev = opposite(ghost.direction);
+              const nonRev = validDirs.filter((d) => d !== rev);
+              const pool = nonRev.length > 0 ? nonRev : validDirs;
+              return pool[Math.floor(Math.random() * pool.length)];
+            })();
         next = applyDirection(ghost.x, ghost.y, dir);
+        if (!isWalkable(prev.maze, next.x, next.y, false)) continue;
       }
-      newGhosts[i] = { ...ghost, x: next.x, y: next.y, direction: dir };
+
+      // Idle AI: at intersections with no user-queued direction, hunt PG
+      const pgNow = prev.pelletGuy;
+      if (isIdle && pgNow.alive) {
+        const validDirs = getValidDirections(prev.maze, ghost.x, ghost.y, false);
+        const nonRevOpts = validDirs.filter((d) => d !== opposite(ghost.direction));
+        if (nonRevOpts.length >= 2) {
+          const huntDir = chooseGhostHuntDirection(prev.maze, ghost, pgNow, prev.level);
+          const huntNext = applyDirection(ghost.x, ghost.y, huntDir);
+          if (isWalkable(prev.maze, huntNext.x, huntNext.y, false)) {
+            dir = huntDir;
+            next = huntNext;
+          }
+        }
+      }
+
+      // Consume queue item when ghost turns or was already going that direction
+      let nextQueueDir: Direction;
+      if (!isIdle) {
+        const consumed = dir !== ghost.direction || dir === q[0];
+        if (consumed) {
+          q.shift();
+          nextQueueDir = q.length > 0 ? q[0] : dir;
+        } else {
+          nextQueueDir = q[0];
+        }
+      } else {
+        nextQueueDir = dir;
+      }
+
+      newGhosts[i] = { ...ghost, x: next.x, y: next.y, direction: dir, nextDirection: nextQueueDir };
       mutated = true;
     }
 

@@ -1,8 +1,5 @@
-// Hybrid sound engine: bundled WAV files via expo-audio on all platforms,
-// with a Web Audio API music loop (chiptune bassline) since music as a
-// looping asset would be much larger than synthesized.
+// Hybrid sound engine: bundled WAV SFX + MP3 background music via expo-audio.
 
-import { Platform } from "react-native";
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
 
 type SfxKey =
@@ -31,6 +28,9 @@ const SFX_SOURCES: Record<SfxKey, number> = {
   uiClick: require("@/assets/sounds/ui_click.wav"),
 };
 
+const MUSIC_SOURCE = require("@/assets/sounds/blinkys_revenge.mp3");
+const BOSS_MUSIC_SOURCE = require("@/assets/sounds/panic_protocol_ghost_king.mp3");
+
 interface SoundEngine {
   enabled: boolean;
   setEnabled: (b: boolean) => void;
@@ -44,59 +44,41 @@ interface SoundEngine {
   levelWin: () => void;
   levelLose: () => void;
   uiClick: () => void;
-  startMusic: () => void;
+  startMusic: (boss?: boolean) => void;
   stopMusic: () => void;
 }
 
-// --- Music engine (Web Audio API, web only) ---
-function getAudioContext(): AudioContext | null {
-  if (Platform.OS !== "web") return null;
-  if (typeof window === "undefined") return null;
-  const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
-  if (!AC) return null;
-  if (!(window as any).__ghostMazeAudioCtx) {
-    try {
-      (window as any).__ghostMazeAudioCtx = new AC();
-    } catch {
-      return null;
-    }
+// --- Music players (MP3 loop, all platforms) ---
+let musicPlayer: AudioPlayer | null = null;
+let bossMusicPlayer: AudioPlayer | null = null;
+
+function getMusicPlayer(): AudioPlayer | null {
+  if (musicPlayer) return musicPlayer;
+  try {
+    musicPlayer = createAudioPlayer(MUSIC_SOURCE);
+    musicPlayer.loop = true;
+    musicPlayer.volume = 0.45;
+    return musicPlayer;
+  } catch {
+    return null;
   }
-  return (window as any).__ghostMazeAudioCtx as AudioContext;
 }
 
-function beep(
-  ctx: AudioContext,
-  freq: number,
-  duration: number,
-  wave: OscillatorType = "triangle",
-  volume = 0.035,
-) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = wave;
-  osc.frequency.setValueAtTime(freq, ctx.currentTime);
-  const t0 = ctx.currentTime;
-  gain.gain.setValueAtTime(0, t0);
-  gain.gain.linearRampToValueAtTime(volume, t0 + 0.006);
-  gain.gain.setValueAtTime(volume, t0 + (duration - 40) / 1000);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration / 1000);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(t0);
-  osc.stop(t0 + duration / 1000 + 0.02);
+function getBossMusicPlayer(): AudioPlayer | null {
+  if (bossMusicPlayer) return bossMusicPlayer;
+  try {
+    bossMusicPlayer = createAudioPlayer(BOSS_MUSIC_SOURCE);
+    bossMusicPlayer.loop = true;
+    bossMusicPlayer.volume = 0.5;
+    return bossMusicPlayer;
+  } catch {
+    return null;
+  }
 }
 
-let musicIntervalId: any = null;
-let musicStep = 0;
-function playMusicStep(ctx: AudioContext) {
-  const A2 = 110, C3 = 130.81, E3 = 164.81, G3 = 196, A3 = 220;
-  const bass = [A2, A2, E3, A2, C3, A2, G3, A2];
-  const treble = [A3, 0, E3, 0, A3, 0, G3, 0];
-  const f = bass[musicStep % bass.length];
-  if (f > 0) beep(ctx, f, 180, "triangle", 0.035);
-  const t = treble[musicStep % treble.length];
-  if (t > 0) beep(ctx, t, 90, "square", 0.018);
-  musicStep++;
+function stopAllMusic() {
+  try { if (musicPlayer?.playing) musicPlayer.pause(); } catch {}
+  try { if (bossMusicPlayer?.playing) bossMusicPlayer.pause(); } catch {}
 }
 
 // --- expo-audio: pool of players per SFX so rapid retriggers don't cut off ---
@@ -147,10 +129,7 @@ export function createSoundEngine(): SoundEngine {
     setEnabled(b) {
       enabled = b;
       this.enabled = b;
-      if (!b && musicIntervalId) {
-        clearInterval(musicIntervalId);
-        musicIntervalId = null;
-      }
+      if (!b) this.stopMusic();
     },
     chomp: () => safePlay("chomp"),
     pellet: () => safePlay("pellet"),
@@ -162,26 +141,17 @@ export function createSoundEngine(): SoundEngine {
     levelWin: () => safePlay("win"),
     levelLose: () => safePlay("lose"),
     uiClick: () => safePlay("uiClick"),
-    startMusic() {
+    startMusic(boss = false) {
       if (!enabled) return;
-      if (musicIntervalId) return;
-      const ctx = getAudioContext();
-      if (!ctx) return; // native: music skipped (could add looping mp3 asset later)
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-      musicStep = 0;
-      musicIntervalId = setInterval(() => {
-        try {
-          playMusicStep(ctx);
-        } catch {}
-      }, 220);
+      try {
+        stopAllMusic();
+        const p = boss ? getBossMusicPlayer() : getMusicPlayer();
+        if (!p) return;
+        if (!p.playing) p.play();
+      } catch {}
     },
     stopMusic() {
-      if (musicIntervalId) {
-        clearInterval(musicIntervalId);
-        musicIntervalId = null;
-      }
+      try { stopAllMusic(); } catch {}
     },
   };
 }
