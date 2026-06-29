@@ -145,6 +145,9 @@ export default function GameScreen() {
     getSelectedGhostId: () => stateRef.current.selectedGhostId,
   });
 
+  const applyDirectionToArmedRef = useRef(applyDirectionToArmed);
+  applyDirectionToArmedRef.current = applyDirectionToArmed;
+
   const SWIPE_THRESHOLD = 25;
   const panResponder = useRef(
     PanResponder.create({
@@ -162,7 +165,7 @@ export default function GameScreen() {
         try {
           Haptics.selectionAsync();
         } catch {}
-        applyDirectionToArmed(dir);
+        applyDirectionToArmedRef.current(dir);
       },
     })
   ).current;
