@@ -594,9 +594,8 @@ const styles = StyleSheet.create({
   ghostToggleIndex: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
   slotRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "flex-end",
-    gap: 6,
+    gap: 4,
   },
   slot: {
     width: 40,
