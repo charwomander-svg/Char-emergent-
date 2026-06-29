@@ -1,34 +1,72 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { View, Text, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { useFullscreen } from "@/src/utils/useFullscreen";
 
-// Keep the native splash visible from cold start until icon fonts register.
-// Required because @expo/vector-icons' componentDidMount fallback fires
-// Font.loadAsync against a broken vendor path if any <Icon> mounts before
-// the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
+
+// Try to load the Charware studio logo; fall back gracefully if not yet placed.
+let charwareLogo: number | null = null;
+try {
+  charwareLogo = require("@/assets/images/charware_splash.png");
+} catch {}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
+  const [showSplash, setShowSplash] = useState(true);
 
-  // App-wide fullscreen / immersive mode. On web we auto-enter on the first
-  // user gesture (browsers require one); on native we hide the status bar
-  // and Android nav bar immediately on mount. This reclaims the ~80px of
-  // browser chrome that was making the UI feel cramped on phones.
   useFullscreen({ autoEnter: true });
 
   useEffect(() => {
     if (loaded || error) {
       SplashScreen.hideAsync();
+      // Show studio splash for 2.2 s after fonts load
+      const t = setTimeout(() => setShowSplash(false), 2200);
+      return () => clearTimeout(t);
     }
   }, [loaded, error]);
 
-  // If the CDN is unreachable we fall through on error rather than wedging
-  // the app — icons will tofu, but the app still boots.
   if (!loaded && !error) return null;
+
+  if (showSplash) {
+    return (
+      <View style={splash.container}>
+        {charwareLogo ? (
+          <Image source={charwareLogo} style={splash.logo} resizeMode="contain" />
+        ) : (
+          <>
+            <Text style={splash.title}>CHARWARE</Text>
+            <Text style={splash.sub}>STUDIOS</Text>
+          </>
+        )}
+      </View>
+    );
+  }
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
+
+const splash = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000010",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logo: { width: 260, height: 260 },
+  title: {
+    color: "#FFFF00",
+    fontSize: 36,
+    fontWeight: "900",
+    letterSpacing: 6,
+  },
+  sub: {
+    color: "#CCCCCC",
+    fontSize: 14,
+    letterSpacing: 8,
+    marginTop: 4,
+  },
+});

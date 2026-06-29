@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   PanResponder,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
@@ -22,10 +23,11 @@ import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 const QUICK_SLOT_IDS: PowerUpId[] = POWER_UP_ORDER;
 
 function fmtMs(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const totalMs = Math.max(0, Math.floor(ms));
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const centis = Math.floor((totalMs % 1000) / 10);
+  return `${m}:${String(s).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
 }
 
 export default function GameScreen() {
@@ -63,6 +65,7 @@ export default function GameScreen() {
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [bestRunMs, setBestRunMs] = useState(0);
+  const [newPbMs, setNewPbMs] = useState<number | null>(null);
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
@@ -91,14 +94,17 @@ export default function GameScreen() {
       submittedSpeedrunRef.current = true;
       const finalMs = computeTimerMs();
       setElapsedMs(finalMs);
-      saveBestRunMs(finalMs).then(setBestRunMs);
+      saveBestRunMs(finalMs).then((savedBest) => {
+        setBestRunMs(savedBest);
+        if (savedBest === finalMs) setNewPbMs(finalMs);
+      });
       submitFinalScore("SPEEDRUN", finalMs).catch(() => {});
     }
   }, [mode, state.status, computeTimerMs, submitFinalScore]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
-    const id = setInterval(() => setElapsedMs(computeTimerMs()), 200);
+    const id = setInterval(() => setElapsedMs(computeTimerMs()), 50);
     return () => clearInterval(id);
   }, [mode, computeTimerMs]);
 
@@ -285,7 +291,7 @@ export default function GameScreen() {
             <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
           </View>
           <View style={styles.topStat}>
-            <Text style={styles.topLabel}>Catch</Text>
+            <Text style={styles.topLabel}>CATCH</Text>
             <Text style={styles.topValue}>{state.catches}</Text>
           </View>
           <View style={styles.topStat}>
@@ -437,6 +443,29 @@ export default function GameScreen() {
           <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : state.message}</Text>
         </View>
       )}
+
+      {/* PB Screenshot Modal */}
+      <Modal
+        visible={newPbMs !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNewPbMs(null)}
+      >
+        <View style={styles.pbModalOverlay}>
+          <View style={styles.pbModalCard}>
+            <Text style={styles.pbModalEmoji}>🏆</Text>
+            <Text style={styles.pbModalTitle}>NEW PERSONAL BEST!</Text>
+            <Text style={styles.pbModalTime}>{fmtMs(newPbMs ?? 0)}</Text>
+            <Text style={styles.pbModalHint}>Screenshot this for speedrun.com</Text>
+            <TouchableOpacity
+              style={styles.pbModalBtn}
+              onPress={() => setNewPbMs(null)}
+            >
+              <Text style={styles.pbModalBtnText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -623,4 +652,50 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
   },
+  pbModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pbModalCard: {
+    backgroundColor: "#0d0d2b",
+    borderWidth: 3,
+    borderColor: "#FFD23F",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    width: 300,
+  },
+  pbModalEmoji: { fontSize: 48, marginBottom: 8 },
+  pbModalTitle: {
+    color: "#FFD23F",
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 2,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  pbModalTime: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 42,
+    letterSpacing: 4,
+    fontVariant: ["tabular-nums"],
+    marginBottom: 12,
+  },
+  pbModalHint: {
+    color: "#FFB897",
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  pbModalBtn: {
+    backgroundColor: "#FFD23F",
+    paddingHorizontal: 32,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  pbModalBtnText: { color: "#000", fontWeight: "900", fontSize: 14, letterSpacing: 2 },
 });

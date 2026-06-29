@@ -10,20 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
-import { fetchDailySeed } from "@/src/game/api";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
 
 export default function MainMenu() {
   const router = useRouter();
-  const [dailyDate, setDailyDate] = useState<string | null>(null);
   const { coins } = useEconomy();
-
-  useEffect(() => {
-    fetchDailySeed()
-      .then((s) => setDailyDate(s.seed_date))
-      .catch(() => setDailyDate(null));
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -36,17 +28,6 @@ export default function MainMenu() {
       getSoundEngine().stopMusic();
     };
   }, []);
-
-  const startDaily = async () => {
-    getSoundEngine().uiClick();
-    try {
-      const seed = await fetchDailySeed();
-      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.seed_date}`);
-    } catch {
-      // fall back to classic if backend offline
-      router.push("/game");
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -139,29 +120,6 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
         </TouchableOpacity>
 
-        {/* Daily Challenge */}
-        <TouchableOpacity
-          style={styles.dailyBtn}
-          onPress={startDaily}
-          testID="daily-btn"
-        >
-          <Text style={styles.dailyBtnText}>📅 DAILY CHALLENGE</Text>
-          {dailyDate && <Text style={styles.dailyDate}>{dailyDate}</Text>}
-        </TouchableOpacity>
-
-        {/* Speedrun */}
-        <TouchableOpacity
-          style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/game?mode=speedrun");
-          }}
-          testID="speedrun-btn"
-        >
-          <Text style={[styles.dailyBtnText, { color: "#7FE8FF" }]}>⏱ SPEEDRUN MODE</Text>
-          <Text style={styles.dailyDate}>Best time wins • Ascending leaderboard</Text>
-        </TouchableOpacity>
-
         {/* Leaderboard */}
         <TouchableOpacity
           style={styles.charactersBtn}
@@ -191,13 +149,15 @@ export default function MainMenu() {
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
             • Control ALL 4 ghosts to corner Pellet Guy{"\n"}
-            • Tap a ghost&apos;s D-pad to set its direction{"\n"}
-            • Ghosts keep moving until you change direction{"\n"}
+            • Swipe anywhere on screen to set the current direction{"\n"}
+            • Swipe ahead of time — moves are queued and applied at the next valid turn{"\n"}
+            • Tap a ghost button to arm/disarm it; armed ghosts all move together{"\n"}
+            • Ghosts keep moving until they hit a wall or you queue a new direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
-            • In SPEEDRUN, survive deeper levels with the fastest run time{"\n"}
             • Multi-ghost catches = combo bonus points{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
-            • Watch out for super pellets — he&apos;ll eat you!
+            • Watch out for super pellets — he&apos;ll eat you!{"\n"}
+            • SPEEDRUN: race through levels as fast as possible with static seeds
           </Text>
         </View>
 

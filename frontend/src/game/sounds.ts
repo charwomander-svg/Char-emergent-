@@ -34,6 +34,8 @@ const BOSS_MUSIC_SOURCE = require("@/assets/sounds/panic_protocol_ghost_king.mp3
 interface SoundEngine {
   enabled: boolean;
   setEnabled: (b: boolean) => void;
+  setSfxVolume: (v: number) => void;
+  setMusicVolume: (v: number) => void;
   chomp: () => void;
   pellet: () => void;
   superPellet: () => void;
@@ -117,6 +119,9 @@ function playSfx(key: SfxKey) {
 
 export function createSoundEngine(): SoundEngine {
   let enabled = true;
+  let currentSfxVolume = 0.6;
+  let currentMusicVolume = 0.45;
+
   const safePlay = (key: SfxKey) => {
     if (!enabled) return;
     try {
@@ -130,6 +135,19 @@ export function createSoundEngine(): SoundEngine {
       enabled = b;
       this.enabled = b;
       if (!b) this.stopMusic();
+    },
+    setSfxVolume(v) {
+      currentSfxVolume = Math.max(0, Math.min(1, v));
+      // Apply to all existing pool players
+      for (const key of Object.keys(pools) as SfxKey[]) {
+        const p = pools[key];
+        if (p) p.players.forEach((pl) => { try { pl.volume = currentSfxVolume; } catch {} });
+      }
+    },
+    setMusicVolume(v) {
+      currentMusicVolume = Math.max(0, Math.min(1, v));
+      try { if (musicPlayer) musicPlayer.volume = currentMusicVolume; } catch {}
+      try { if (bossMusicPlayer) bossMusicPlayer.volume = currentMusicVolume; } catch {}
     },
     chomp: () => safePlay("chomp"),
     pellet: () => safePlay("pellet"),
@@ -147,6 +165,7 @@ export function createSoundEngine(): SoundEngine {
         stopAllMusic();
         const p = boss ? getBossMusicPlayer() : getMusicPlayer();
         if (!p) return;
+        p.volume = currentMusicVolume;
         if (!p.playing) p.play();
       } catch {}
     },
