@@ -62,9 +62,13 @@ export default function GameScreen() {
     onCoinsEarned: (n) => earnCoins(n),
   });
   const { width, height } = useWindowDimensions();
+  const [mazeAreaSize, setMazeAreaSize] = useState({ width: 0, height: 0 });
   const cellSize = Math.max(
     12,
-    Math.floor(Math.min(width / MAZE_COLS, (height - 120) / MAZE_ROWS)),
+    Math.floor(Math.min(
+      (mazeAreaSize.width > 0 ? mazeAreaSize.width : width) / MAZE_COLS,
+      (mazeAreaSize.height > 0 ? mazeAreaSize.height : height) / MAZE_ROWS,
+    )),
   );
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -263,7 +267,7 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.gameArea} {...panResponder.panHandlers}>
+      <View style={styles.gameWrapper} {...panResponder.panHandlers}>
         <View style={styles.topHud} testID="hud-top">
           <View style={styles.topStat}>
             <Text style={styles.topLabel}>SCORE</Text>
@@ -297,16 +301,26 @@ export default function GameScreen() {
             <Text style={styles.topValue}>{state.level}</Text>
           </View>
         </View>
-        <MazeRenderer
-          maze={state.maze}
-          ghosts={state.ghosts}
-          pelletGuy={state.pelletGuy}
-          cellSize={cellSize}
-          selectedGhostId={state.selectedGhostId}
-          ready={state.status === "ready"}
-          level={state.level}
-          bonusGame={state.bonusGame}
-        />
+        <View
+          style={styles.mazeArea}
+          onLayout={(e) =>
+            setMazeAreaSize({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            })
+          }
+        >
+          <MazeRenderer
+            maze={state.maze}
+            ghosts={state.ghosts}
+            pelletGuy={state.pelletGuy}
+            cellSize={cellSize}
+            selectedGhostId={state.selectedGhostId}
+            ready={state.status === "ready"}
+            level={state.level}
+            bonusGame={state.bonusGame}
+          />
+        </View>
         <View style={styles.footerHud} testID="hud-bottom">
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
@@ -456,15 +470,14 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  gameArea: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 50, paddingBottom: 70 },
+  gameWrapper: { flex: 1, flexDirection: "column" },
+  mazeArea: { flex: 1, alignItems: "center", justifyContent: "center" },
   topHud: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    right: 8,
-    zIndex: 5,
     flexDirection: "row",
     gap: 6,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   topStat: {
     flex: 1,
@@ -490,11 +503,9 @@ const styles = StyleSheet.create({
   lifeDotEmpty: { backgroundColor: "transparent" },
   lifeCount: { color: "#ff8ea9", fontSize: 10, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
   footerHud: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    bottom: 8,
-    zIndex: 5,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 4,
     gap: 6,
   },
   statusLine: {
