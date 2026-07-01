@@ -69,9 +69,6 @@ export default function CharactersScreen() {
         <Text style={styles.statLine}>
           TOTAL CATCHES: <Text style={styles.statVal}>{progress.totalCatches}</Text>
         </Text>
-        <Text style={styles.statLine}>
-          PERFECT CLEARS: <Text style={styles.statVal}>{progress.perfectClears}</Text>
-        </Text>
       </View>
 
       <ScrollView

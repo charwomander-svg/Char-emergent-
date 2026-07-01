@@ -1,5 +1,5 @@
 // Character unlock progression
-// Stores total catches, highest level, perfect clears in local storage.
+// Stores total catches, highest level, and high score in local storage.
 // Themes unlock at certain milestones.
 
 import { storage } from "@/src/utils/storage";
@@ -9,7 +9,7 @@ const KEY = "ghostMaze.progress.v1";
 export interface ProgressData {
   highestLevel: number; // highest level reached
   totalCatches: number; // cumulative catches across all games
-  perfectClears: number; // levels cleared with 100% pellets remaining
+  perfectClears?: number; // legacy field — kept for migration compatibility, no longer tracked
   selectedThemeId: string;
   unlockedThemes: string[]; // theme IDs unlocked
   highScore: number;
@@ -18,7 +18,7 @@ export interface ProgressData {
 const DEFAULT_PROGRESS: ProgressData = {
   highestLevel: 1,
   totalCatches: 0,
-  perfectClears: 0,
+  perfectClears: 0, // legacy — no longer incremented
   selectedThemeId: "classic",
   unlockedThemes: ["classic"],
   highScore: 0,
@@ -97,8 +97,8 @@ export const THEMES: Theme[] = [
     unlockedAt: (p) => p.highestLevel >= 7,
   },
   {
-    id: "candy",
-    name: "Candy Crush",
+    id: "sweet-chaos",
+    name: "Sweet Chaos",
     ghostColors: ["#FF6F61", "#FFB347", "#77DD77", "#84A9C0"],
     pelletGuyColor: "#FFD8E2",
     pelletColor: "#FF69B4",
@@ -114,8 +114,8 @@ export const THEMES: Theme[] = [
     pelletGuyColor: "#000000",
     pelletColor: "#FF1744",
     hidden: true,
-    unlockHint: "??? (Achieve a perfect clear)",
-    unlockedAt: (p) => p.perfectClears >= 1,
+    unlockHint: "??? (Reach Level 25)",
+    unlockedAt: (p) => p.highestLevel >= 25,
   },
   {
     id: "rainbow",

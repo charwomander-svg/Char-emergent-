@@ -719,7 +719,6 @@ export function useGhostMaze(opts?: {
                 const p = { ...progressRef.current };
                 p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
                 p.totalCatches = p.totalCatches + CATCH_TO_WIN;
-                if (pctRemaining === 100) p.perfectClears = p.perfectClears + 1;
                 p.highScore = Math.max(p.highScore, score);
                 // Auto-unlock theme entries by re-scanning
                 progressRef.current = p;
