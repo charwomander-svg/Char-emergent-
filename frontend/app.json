@@ -1,12 +1,22 @@
 {
   "expo": {
     "name": "Ghost Maze",
-    "slug": "ghost-maze",
+    "slug": "frontend",
     "version": "1.0.0",
     "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-image.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "splash": {
+        "image": "./assets/images/splash-image.png",
+        "resizeMode": "contain",
         "backgroundColor": "#000000"
       }
     },
