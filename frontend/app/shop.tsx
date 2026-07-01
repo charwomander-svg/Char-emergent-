@@ -208,7 +208,7 @@ export default function Shop() {
 
         {/* Power-up grid */}
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>POWER-UPS</Text>
-        {POWER_UP_ORDER.map((id) => {
+        {POWER_UP_ORDER.filter((id) => id !== "fastRespawn" && id !== "reveal" && id !== "decoy").map((id) => {
           const def = POWER_UPS[id];
           const owned = inventory[id] ?? 0;
           const canAfford = coins >= def.cost;
