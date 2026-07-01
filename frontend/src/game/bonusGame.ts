@@ -27,6 +27,10 @@ export interface BonusItem {
   dir?: BonusDir;
   /** Next tick timestamp when this Pooka moves (digDugDash only). */
   nextMoveAt?: number;
+  /** digDugDash: number of pump hits received (pops at 2). */
+  pumpCount?: number;
+  /** digDugDash: timestamp after which pumpCount deflates back to 0. */
+  deflateAt?: number;
 }
 
 export interface BonusProjectile {
@@ -277,29 +281,34 @@ export function fireBonusAction(
   }
 
   if (bonus.type === "digDugDash") {
-    // Pop any uncollected Pooka on the same cell or in any adjacent cell.
+    const PUMP_TO_POP = 2;
+    const DEFLATE_DELAY_MS = 2000;
     let popped = 0;
+    let bonusPointsEarned = 0;
+    const config = BONUS_CONFIG[bonus.type];
+    const now = performance.now();
     const items = bonus.items.map((item) => {
       if (item.collected) return item;
       const adjacent =
         (item.x === ghostX && item.y === ghostY) ||
         (Math.abs(item.x - ghostX) + Math.abs(item.y - ghostY) === 1);
-      if (adjacent) {
+      if (!adjacent) return item;
+      const newCount = (item.pumpCount ?? 0) + 1;
+      if (newCount >= PUMP_TO_POP) {
         popped++;
-        return { ...item, collected: true };
+        bonusPointsEarned += config.scorePerItem;
+        return { ...item, collected: true, pumpCount: PUMP_TO_POP };
       }
-      return item;
+      return { ...item, pumpCount: newCount, deflateAt: now + DEFLATE_DELAY_MS };
     });
-    if (popped === 0) return bonus;
-    const config = BONUS_CONFIG[bonus.type];
+    if (popped === 0 && items === bonus.items) return bonus;
     const collectedItems = bonus.collectedItems + popped;
-    const bonusScore = bonus.bonusScore + popped * config.scorePerItem;
     const allCollected = collectedItems >= bonus.totalItems;
     return {
       ...bonus,
       items,
       collectedItems,
-      bonusScore,
+      bonusScore: bonus.bonusScore + bonusPointsEarned,
       complete: allCollected,
     };
   }
@@ -360,6 +369,17 @@ export function tickBonusGame(
         collectedNow++;
         bonusPointsEarned += config.scorePerItem;
         return { ...item, collected: true };
+      }
+      return item;
+    });
+  }
+
+  // --- Dig Dug: deflate Pookas that haven't been pumped recently ---
+  if (bonus.type === "digDugDash") {
+    items = items.map((item) => {
+      if (item.collected || !item.pumpCount || !item.deflateAt) return item;
+      if (now >= item.deflateAt) {
+        return { ...item, pumpCount: 0, deflateAt: undefined };
       }
       return item;
     });

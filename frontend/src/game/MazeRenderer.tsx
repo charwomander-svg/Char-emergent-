@@ -612,21 +612,33 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        {/* Bonus game items — flags, targets, or Pookas */}
+        {/* Bonus game items — enemy Pellet Guys (flags stay as emoji) */}
         {bonusGame &&
           bonusGame.items
             .filter((item) => !item.collected)
-            .map((item, idx) => (
-              <BonusItemSprite
-                key={idx}
-                x={item.x}
-                y={item.y}
-                size={cellSize}
-                emoji={BONUS_CONFIG[bonusGame.type].emoji}
-                moveDuration={pgDuration}
-                moving={bonusGame.type === "digDugDash"}
-              />
-            ))}
+            .map((item, idx) =>
+              bonusGame.type === "rallyRound" ? (
+                <BonusItemSprite
+                  key={idx}
+                  x={item.x}
+                  y={item.y}
+                  size={cellSize}
+                  emoji={BONUS_CONFIG.rallyRound.emoji}
+                  moveDuration={pgDuration}
+                  moving={false}
+                />
+              ) : (
+                <EnemyPelletGuySprite
+                  key={idx}
+                  x={item.x}
+                  y={item.y}
+                  dir={item.dir ?? "left"}
+                  size={cellSize}
+                  moveDuration={bonusGame.type === "digDugDash" ? pgDuration : ghostNormalDuration}
+                  pumpCount={item.pumpCount ?? 0}
+                />
+              )
+            )}
         {/* Galaga projectile */}
         {bonusGame?.projectile && (
           <BonusItemSprite
@@ -703,6 +715,89 @@ const BonusItemSprite = React.memo(function BonusItemSprite({
       ]}
     >
       <Text style={{ fontSize: size * 0.6, lineHeight: size }}>{emoji}</Text>
+    </Animated.View>
+  );
+});
+
+// Enemy Pellet Guy — same yellow chomping face as PelletGuy but tinted
+// progressively red as pump count increases (Dig Dug inflation effect).
+const EnemyPelletGuySprite = React.memo(function EnemyPelletGuySprite({
+  x,
+  y,
+  dir,
+  size,
+  moveDuration,
+  pumpCount,
+}: {
+  x: number;
+  y: number;
+  dir: string;
+  size: number;
+  moveDuration: number;
+  pumpCount: number;
+}) {
+  const { animX, animY } = useSmoothPosition(x, y, moveDuration, size);
+  const rotation = dir === "right" ? "0deg"
+    : dir === "down" ? "90deg"
+    : dir === "left" ? "180deg"
+    : "270deg";
+  const chomp = Math.floor(performance.now() / 150) % 2 === 0;
+  // Tint: normal=yellow, 1 pump=orange, 2 pumps=red (already popped)
+  const faceColor = pumpCount >= 1 ? "#ff8800" : COLORS.pelletGuy;
+  // Inflate scale: 1 pump = 1.15x
+  const inflateScale = 1 + pumpCount * 0.15;
+  return (
+    <Animated.View
+      style={[
+        styles.entity,
+        {
+          width: size,
+          height: size,
+          transform: [{ translateX: animX }, { translateY: animY }],
+          pointerEvents: "none",
+        },
+      ]}
+    >
+      <View
+        style={{
+          width: size * 0.85 * inflateScale,
+          height: size * 0.85 * inflateScale,
+          margin: size * 0.075,
+          borderRadius: (size * 0.425) * inflateScale,
+          backgroundColor: faceColor,
+          transform: [{ rotate: rotation }],
+          overflow: "hidden",
+        }}
+      >
+        {chomp && (
+          <>
+            <View
+              style={{
+                position: "absolute",
+                left: size * 0.425 * inflateScale,
+                top: 0,
+                width: size * 0.5 * inflateScale,
+                height: size * 0.425 * inflateScale,
+                backgroundColor: COLORS.background,
+                transform: [{ skewY: "-25deg" }],
+                transformOrigin: "left bottom",
+              } as any}
+            />
+            <View
+              style={{
+                position: "absolute",
+                left: size * 0.425 * inflateScale,
+                top: size * 0.425 * inflateScale,
+                width: size * 0.5 * inflateScale,
+                height: size * 0.425 * inflateScale,
+                backgroundColor: COLORS.background,
+                transform: [{ skewY: "25deg" }],
+                transformOrigin: "left top",
+              } as any}
+            />
+          </>
+        )}
+      </View>
     </Animated.View>
   );
 });
