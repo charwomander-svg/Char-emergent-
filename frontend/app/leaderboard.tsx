@@ -12,9 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
-import { fetchLeaderboard, fetchDailySeed, ScoreEntry } from "@/src/game/api";
+import { fetchLeaderboard, ScoreEntry } from "@/src/game/api";
 
-type Tab = "classic" | "daily" | "speedrun";
+type Tab = "classic" | "speedrun";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -22,16 +22,11 @@ export default function LeaderboardScreen() {
   const [scores, setScores] = useState<ScoreEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dailySeed, setDailySeed] = useState<{ date: string; seed: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
     try {
-      if (tab === "daily" && !dailySeed) {
-        const seed = await fetchDailySeed();
-        setDailySeed({ date: seed.seed_date, seed: seed.seed });
-      }
       const data = await fetchLeaderboard(tab, { limit: 50 });
       setScores(data);
     } catch (e: any) {
@@ -41,7 +36,7 @@ export default function LeaderboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tab, dailySeed]);
+  }, [tab]);
 
   useEffect(() => {
     setLoading(true);
@@ -60,27 +55,9 @@ export default function LeaderboardScreen() {
     setLoading(true);
   };
 
-  const playDailyChallenge = async () => {
-    getSoundEngine().uiClick();
-    try {
-      let resolvedDailySeed: { date: string; seed: number };
-      if (dailySeed) {
-        resolvedDailySeed = dailySeed;
-      } else {
-        const fetched = await fetchDailySeed();
-        resolvedDailySeed = { date: fetched.seed_date, seed: fetched.seed };
-      }
-      router.push(
-        `/game?mode=daily&seed=${resolvedDailySeed.seed}&seedDate=${resolvedDailySeed.date}`,
-      );
-    } catch {
-      setErr("Failed to fetch daily seed");
-    }
-  };
-
   const playSpeedrun = () => {
     getSoundEngine().uiClick();
-    router.push("/game?mode=speedrun");
+    router.push("/speedrun");
   };
 
   const formatRunMs = (ms?: number | null): string => {
@@ -120,15 +97,6 @@ export default function LeaderboardScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, tab === "daily" && styles.tabActive]}
-          onPress={() => switchTab("daily")}
-          testID="tab-daily"
-        >
-          <Text style={[styles.tabText, tab === "daily" && styles.tabTextActive]}>
-            DAILY
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.tab, tab === "speedrun" && styles.tabActive]}
           onPress={() => switchTab("speedrun")}
           testID="tab-speedrun"
@@ -138,21 +106,6 @@ export default function LeaderboardScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-
-      {tab === "daily" && (
-        <View style={styles.dailyHeader}>
-          <Text style={styles.dailyDate}>
-            {dailySeed?.date ?? "—"} · seed #{dailySeed?.seed ?? "—"}
-          </Text>
-          <TouchableOpacity
-            style={styles.playDailyBtn}
-            onPress={playDailyChallenge}
-            testID="play-daily-btn"
-          >
-            <Text style={styles.playDailyText}>▶ PLAY TODAY&apos;S MAZE</Text>
-          </TouchableOpacity>
-        </View>
-      )}
       {tab === "speedrun" && (
         <View style={styles.dailyHeader}>
           <Text style={styles.dailyDate}>Fastest run times rank first.</Text>
@@ -181,9 +134,7 @@ export default function LeaderboardScreen() {
       ) : scores.length === 0 ? (
         <View style={styles.loadingWrap}>
           <Text style={styles.emptyText}>
-            {tab === "daily"
-              ? "No scores yet for today.\nPlay the daily maze to claim #1!"
-              : "No scores yet. Be the first!"}
+            {"No scores yet. Be the first!"}
           </Text>
         </View>
       ) : (

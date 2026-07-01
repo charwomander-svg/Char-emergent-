@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -10,20 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
-import { fetchDailySeed } from "@/src/game/api";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
 
 export default function MainMenu() {
   const router = useRouter();
-  const [dailyDate, setDailyDate] = useState<string | null>(null);
   const { coins } = useEconomy();
-
-  useEffect(() => {
-    fetchDailySeed()
-      .then((s) => setDailyDate(s.seed_date))
-      .catch(() => setDailyDate(null));
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -36,17 +28,6 @@ export default function MainMenu() {
       getSoundEngine().stopMusic();
     };
   }, []);
-
-  const startDaily = async () => {
-    getSoundEngine().uiClick();
-    try {
-      const seed = await fetchDailySeed();
-      router.push(`/game?mode=daily&seed=${seed.seed}&seedDate=${seed.seed_date}`);
-    } catch {
-      // fall back to classic if backend offline
-      router.push("/game");
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -139,16 +120,6 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
         </TouchableOpacity>
 
-        {/* Daily Challenge */}
-        <TouchableOpacity
-          style={styles.dailyBtn}
-          onPress={startDaily}
-          testID="daily-btn"
-        >
-          <Text style={styles.dailyBtnText}>📅 DAILY CHALLENGE</Text>
-          {dailyDate && <Text style={styles.dailyDate}>{dailyDate}</Text>}
-        </TouchableOpacity>
-
         {/* Speedrun */}
         <TouchableOpacity
           style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
@@ -196,8 +167,8 @@ export default function MainMenu() {
             • Ghosts keep moving until you change direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
             • Multi-ghost catches = combo bonus points{"\n"}
-            • Every 5th level is a BONUS stage — Rally Round, Galaga Blitz, or Dig Dug Dash{"\n"}
-            • In SPEEDRUN, race for the fastest clear time across all levels{"\n"}
+            • Every 5th level is a BONUS stage — Speed Rally, Star Blitz, or Inflator{"\n"}
+            • In SPEEDRUN, pick any level and race for the fastest clear time{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
             • Watch out for super pellets — he&apos;ll eat you!
           </Text>

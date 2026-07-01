@@ -3,9 +3,9 @@
 // ----------------------------------------------------------------------------
 // Every 5 levels (5, 10, 15 …) triggers a carefree bonus stage instead of
 // a boss fight. Three types rotate in order:
-//   1. RALLY ROUND   (Rally-X)  — collect flags before time runs out
-//   2. GALAGA BLITZ  (Galaga)   — destroy target formations
-//   3. DIG DUG DASH  (Dig Dug)  — squash roaming Pookas
+//   1. SPEED RALLY  — collect flags before time runs out
+//   2. STAR BLITZ   — destroy target formations
+//   3. INFLATOR     — pump up and pop roaming enemies
 //
 // Bonus rounds have NO lives at risk. Pellet Guy is frozen. Ghosts are fully
 // player-controlled. A countdown timer drives tension; collecting items adds
@@ -60,7 +60,7 @@ export interface BonusGameState {
 
 export const BONUS_CONFIG = {
   rallyRound: {
-    label: "RALLY ROUND",
+    label: "SPEED RALLY",
     subtitle: "COLLECT ALL FLAGS!",
     durationMs: 30_000,
     itemCount: 12,
@@ -69,7 +69,7 @@ export const BONUS_CONFIG = {
     emoji: "🚩",
   },
   galagaBlitz: {
-    label: "GALAGA BLITZ",
+    label: "STAR BLITZ",
     subtitle: "DESTROY ALL TARGETS!",
     durationMs: 25_000,
     itemCount: 10,
@@ -78,7 +78,7 @@ export const BONUS_CONFIG = {
     emoji: "🎯",
   },
   digDugDash: {
-    label: "DIG DUG DASH",
+    label: "INFLATOR",
     subtitle: "SQUASH THE POOKAS!",
     durationMs: 20_000,
     itemCount: 6,

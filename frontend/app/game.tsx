@@ -36,7 +36,7 @@ export default function GameScreen() {
     seedDate?: string;
     level?: string;
   }>();
-  const mode = params.mode === "daily" || params.mode === "custom" || params.mode === "speedrun"
+  const mode = params.mode === "custom" || params.mode === "speedrun"
     ? params.mode
     : "classic";
   const seed = params.seed != null ? Number(params.seed) : undefined;
