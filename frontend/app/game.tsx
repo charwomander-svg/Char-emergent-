@@ -53,6 +53,7 @@ export default function GameScreen() {
     startNewGame,
     submitFinalScore,
     applyPowerUp,
+    bonusAction,
   } = useGhostMaze({
     mode,
     dailySeed: Number.isFinite(seed) ? seed : undefined,
@@ -411,6 +412,14 @@ export default function GameScreen() {
             <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
               <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
             </TouchableOpacity>
+            {state.bonusGame && !state.bonusGame.complete &&
+              (state.bonusGame.type === "galagaBlitz" || state.bonusGame.type === "digDugDash") && (
+              <TouchableOpacity onPress={bonusAction} style={styles.actionBtn} testID="bonus-action-btn">
+                <Text style={styles.pauseText}>
+                  {state.bonusGame.type === "galagaBlitz" ? "🔥 FIRE" : "💨 PUMP"}
+                </Text>
+              </TouchableOpacity>
+            )}
             {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
               <View style={styles.stateActions}>
                 {state.status === "levelWon" && (
@@ -599,6 +608,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: "#1d1d2f",
+  },
+  actionBtn: {
+    borderWidth: 2,
+    borderColor: "#ff4466",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: "#2a0010",
   },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8 },

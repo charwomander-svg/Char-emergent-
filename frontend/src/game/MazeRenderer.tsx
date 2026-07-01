@@ -627,6 +627,18 @@ export default function MazeRenderer({
                 moving={bonusGame.type === "digDugDash"}
               />
             ))}
+        {/* Galaga projectile */}
+        {bonusGame?.projectile && (
+          <BonusItemSprite
+            key="projectile"
+            x={bonusGame.projectile.x}
+            y={bonusGame.projectile.y}
+            size={cellSize}
+            emoji="⚡"
+            moveDuration={ghostNormalDuration}
+            moving={false}
+          />
+        )}
         {/* Pellet Guy — hidden during bonus rounds */}
         {!bonusGame && (
           <PelletGuySprite
