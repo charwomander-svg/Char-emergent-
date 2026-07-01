@@ -157,6 +157,18 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
         </TouchableOpacity>
 
+        {/* Credits */}
+        <TouchableOpacity
+          style={styles.charactersBtn}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/credits");
+          }}
+          testID="credits-btn"
+        >
+          <Text style={styles.charactersBtnText}>🎬 CREDITS</Text>
+        </TouchableOpacity>
+
         {/* How to play */}
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
