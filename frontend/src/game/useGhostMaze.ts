@@ -304,6 +304,9 @@ export function useGhostMaze(opts?: {
     // --- move ghosts ---
     const newGhosts = [...prev.ghosts];
     for (let i = 0; i < 4; i++) {
+      // During bonus rounds only the selected ghost moves.
+      if (prev.bonusGame && i !== prev.selectedGhostId) continue;
+
       const g = newGhosts[i];
       // handle respawn
       if (!g.alive) {
@@ -401,9 +404,11 @@ export function useGhostMaze(opts?: {
       // Pookas (digDugDash) move on their own timers inside tickBonusGame.
       // -----------------------------------------------------------------
       if (bonusGame && !bonusGame.complete) {
-        const ghostPos = newGhosts
-          .filter((g) => g.alive)
-          .map((g) => ({ x: g.x, y: g.y }));
+        // Only the selected ghost participates in bonus stages.
+        const activeGhost = newGhosts[prev.selectedGhostId];
+        const ghostPos = activeGhost?.alive
+          ? [{ x: activeGhost.x, y: activeGhost.y }]
+          : [];
         const { next, collectedNow, bonusPointsEarned } = tickBonusGame(
           bonusGame,
           maze,

@@ -636,7 +636,9 @@ export default function MazeRenderer({
             visualScale={1}
           />
         )}
-        {ghosts.map((g) => (
+        {ghosts
+          .filter((g) => !bonusGame || g.id === selectedGhostId)
+          .map((g) => (
           <GhostSprite
             key={g.id}
             ghost={g}
