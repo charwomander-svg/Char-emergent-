@@ -190,12 +190,14 @@ export default function MainMenu() {
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
-            • Control ALL 4 ghosts to corner Pellet Guy{"\n"}
-            • Tap a ghost&apos;s D-pad to set its direction{"\n"}
+            • Control ghosts to corner and catch Pellet Guy{"\n"}
+            • Swipe anywhere on screen to set the selected ghost's direction{"\n"}
+            • Tap a ghost's toggle button (footer) to switch which ghost you control{"\n"}
             • Ghosts keep moving until you change direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
-            • In SPEEDRUN, survive deeper levels with the fastest run time{"\n"}
             • Multi-ghost catches = combo bonus points{"\n"}
+            • Every 5th level is a BONUS stage — Rally Round, Galaga Blitz, or Dig Dug Dash{"\n"}
+            • In SPEEDRUN, race for the fastest clear time across all levels{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
             • Watch out for super pellets — he&apos;ll eat you!
           </Text>
