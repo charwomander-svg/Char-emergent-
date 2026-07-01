@@ -70,8 +70,8 @@ function createInitialGhosts(
     y: spawns[id].y,
     spawnX: spawns[id].x,
     spawnY: spawns[id].y,
-    direction: "up",
-    nextDirection: "up",
+    direction: (["left", "right", "up", "down"] as Direction[])[id],
+    nextDirection: (["left", "right", "up", "down"] as Direction[])[id],
     vulnerable: false,
     vulnerableUntil: 0,
     alive: true,
@@ -317,8 +317,8 @@ export function useGhostMaze(opts?: {
             alive: true,
             x: g.spawnX,
             y: g.spawnY,
-            direction: "up",
-            nextDirection: "up",
+            direction: (["left", "right", "up", "down"] as Direction[])[i],
+            nextDirection: (["left", "right", "up", "down"] as Direction[])[i],
             vulnerable: false,
             vulnerableUntil: 0,
           };
@@ -365,10 +365,18 @@ export function useGhostMaze(opts?: {
         // Prefer non-reverse if possible
         const reverse = opposite(ghost.direction);
         const nonReverse = validDirs.filter((d) => d !== reverse);
-        const choice = (nonReverse.length > 0 ? nonReverse : validDirs)[
-          Math.floor(Math.random() * (nonReverse.length > 0 ? nonReverse.length : validDirs.length))
-        ];
-        dir = choice;
+        const candidates = nonReverse.length > 0 ? nonReverse : validDirs;
+        // Chase PelletGuy: sort by Manhattan distance to PG, prefer closer
+        const pgX = prev.pelletGuy.x;
+        const pgY = prev.pelletGuy.y;
+        const scored = candidates.map((d) => {
+          const n = applyDirection(ghost.x, ghost.y, d);
+          return { d, dist: Math.abs(n.x - pgX) + Math.abs(n.y - pgY) };
+        });
+        scored.sort((a, b) => a.dist - b.dist);
+        // Pick best or second-best (slight randomness so ghosts don't all take exact same path)
+        const topK = scored.slice(0, Math.min(2, scored.length));
+        dir = topK[Math.floor(Math.random() * topK.length)].d;
         next = applyDirection(ghost.x, ghost.y, dir);
       }
       newGhosts[i] = { ...ghost, x: next.x, y: next.y, direction: dir };
