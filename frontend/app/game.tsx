@@ -292,7 +292,7 @@ export default function GameScreen() {
             <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
           </View>
           <View style={styles.topStat}>
-            <Text style={styles.topLabel}>CTCH</Text>
+            <Text style={styles.topLabel}>CATCH</Text>
             <Text style={styles.topValue}>{state.catches}</Text>
           </View>
           <View style={styles.topStat}>
