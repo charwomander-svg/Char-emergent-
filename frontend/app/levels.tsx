@@ -63,7 +63,7 @@ export default function Levels() {
             );
           })}
         </View>
-        <Text style={styles.hint}>Bonus stages every 5 levels — Rally Round, Galaga Blitz, and Dig Dug Dash.</Text>
+        <Text style={styles.hint}>Bonus stages every 5 levels — Speed Rally, Star Blitz, and Inflator.</Text>
       </ScrollView>
     </SafeAreaView>
   );
