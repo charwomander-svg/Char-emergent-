@@ -91,5 +91,4 @@ export const COIN_REWARD = {
   levelClear: 50,
   perPercentRemaining: 1,
   perfectBonus: 100,
-  bossDefeat: 500,
 } as const;
