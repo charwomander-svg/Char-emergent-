@@ -17,11 +17,10 @@ import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
-import { POWER_UPS, type PowerUpId } from "@/src/game/powerups";
+import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 
-const QUICK_SLOT_IDS: PowerUpId[] = ["speedBoost", "freeze", "teleport", "shield"];
 
 function fmtMs(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -225,7 +224,7 @@ export default function GameScreen() {
     return list;
   }, [state.effects]);
   const inventoryItems = useMemo(
-    () => QUICK_SLOT_IDS.map((id) => ({
+    () => POWER_UP_ORDER.map((id) => ({
       id,
       def: POWER_UPS[id],
       count: inventory[id] ?? 0,
@@ -596,7 +595,8 @@ const styles = StyleSheet.create({
   ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
   slotRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 6,
   },
   slot: {
