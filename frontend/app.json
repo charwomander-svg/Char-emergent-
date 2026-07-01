@@ -3,6 +3,16 @@
     "name": "Ghost Maze",
     "slug": "ghost-maze",
     "version": "1.0.0",
+    "icon": "./assets/images/icon.png",
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "ios": {
+      "icon": "./assets/images/icon.png"
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
