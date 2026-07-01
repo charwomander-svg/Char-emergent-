@@ -228,7 +228,7 @@ export default function GameScreen() {
     return list;
   }, [state.effects]);
   const inventoryItems = useMemo(
-    () => POWER_UP_ORDER.map((id) => ({
+    () => POWER_UP_ORDER.slice(0, 8).map((id) => ({
       id,
       def: POWER_UPS[id],
       count: inventory[id] ?? 0,
@@ -599,13 +599,11 @@ const styles = StyleSheet.create({
   ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
   slotRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
+    gap: 5,
   },
   slot: {
-    width: 48,
-    height: 48,
+    flex: 1,
+    height: 52,
     borderRadius: 10,
     borderWidth: 1.5,
     backgroundColor: "#12172d",

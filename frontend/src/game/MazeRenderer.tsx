@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
@@ -497,8 +497,13 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
     }
   })();
 
-  // Mouth toggle (chomp animation)
-  const chomp = Math.floor(performance.now() / 120) % 2 === 0;
+  // Steady 120 ms chomp toggle — driven by a timer so render-phase
+  // timing never causes random blinking.
+  const [chomp, setChomp] = useState(true);
+  useEffect(() => {
+    const id = setInterval(() => setChomp((c) => !c), 120);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <Animated.View
