@@ -13,7 +13,7 @@ import * as Haptics from "expo-haptics";
 
 import { useGhostMaze } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
-import { MAZE_COLS, MAZE_ROWS } from "@/src/game/constants";
+import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
@@ -412,7 +412,9 @@ export default function GameScreen() {
               <View style={styles.stateActions}>
                 {state.status === "levelWon" && (
                   <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
-                    <Text style={styles.stateBtnText}>NEXT LEVEL</Text>
+                    <Text style={styles.stateBtnText}>
+                      {state.level >= MAX_LEVELS ? "FINISH!" : "NEXT LEVEL"}
+                    </Text>
                   </TouchableOpacity>
                 )}
                 {state.status === "levelLost" && (

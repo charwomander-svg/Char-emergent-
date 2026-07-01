@@ -29,6 +29,7 @@ import {
   BARRICADE_DURATION_MS,
   SPIKE_PROBABILITY,
   SCORE_SPIKED_GHOST_PENALTY,
+  MAX_LEVELS,
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
@@ -142,8 +143,10 @@ function computeRespawnDelay(priorDeaths: number, fastRespawn = false): number {
 
 // Speed scaling per level
 function speedScale(level: number): number {
-  // 1.0 at level 1, decreasing toward ~0.55 by level 10 (faster)
-  return Math.max(0.55, 1 - (level - 1) * 0.05);
+  // Levels 1–10: steep ramp  (1.0 → 0.55)
+  // Levels 11–50: gentler ramp (0.55 → 0.31)
+  if (level <= 10) return Math.max(0.55, 1 - (level - 1) * 0.05);
+  return Math.max(0.31, 0.55 - (level - 10) * 0.006);
 }
 
 export function useGhostMaze(opts?: {
@@ -854,6 +857,22 @@ export function useGhostMaze(opts?: {
       }
     };
   }, [tick, applyInput]); const advanceLevel = useCallback(() => {
+    if (state.level >= MAX_LEVELS) {
+      // All 50 levels cleared — game complete!
+      setState((prev) => ({
+        ...prev,
+        status: "gameOver",
+        message: `🏆 YOU BEAT ALL ${MAX_LEVELS} LEVELS!\nFINAL SCORE: ${prev.score}`,
+      }));
+      if (progressRef.current) {
+        const p = { ...progressRef.current };
+        p.highScore = Math.max(p.highScore, state.score);
+        progressRef.current = p;
+        saveProgress(p);
+      }
+      getSoundEngine().levelWin();
+      return;
+    }
     startLevel(state.level + 1, state.lives, state.score);
   }, [state.level, state.lives, state.score, startLevel]);
 

@@ -66,7 +66,16 @@ export function getPelletDifficultyProfile(level: number): PelletDifficultyProfi
   if (level <= 12) {
     return { tier: "expert", senseRadius: 10, continueChance: 0.45, weightedRandom: false };
   }
-  return { tier: "nightmare", senseRadius: 12, continueChance: 0.35, weightedRandom: false };
+  // Nightmare tier (levels 13+): continue scaling through level 50.
+  // senseRadius: 12 → 15 (full-map awareness by ~level 43)
+  // continueChance: 0.35 → 0.18 (more unpredictable, harder to predict path)
+  const extra = Math.min(level - 13, 37); // 0 at lvl 13, 37 at lvl 50
+  return {
+    tier: "nightmare",
+    senseRadius: Math.min(15, 12 + Math.floor(extra / 13)),
+    continueChance: Math.max(0.18, 0.35 - extra * 0.0046),
+    weightedRandom: false,
+  };
 }
 
 export function choosePelletGuyDirection(

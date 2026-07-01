@@ -42,6 +42,9 @@ export const READY_DURATION_MS = 1500;
 export const CATCH_TO_WIN = 3;
 export const STARTING_LIVES = 3;
 
+// Total number of levels in the game. Clearing level 50 ends the game.
+export const MAX_LEVELS = 50;
+
 // Respawn cooldown scaling: each prior death on the current level adds this
 // multiplier of the base. Formula: base * (1 + prior_deaths * STEP), capped.
 //   1st death → 1.0× (1.5s)
