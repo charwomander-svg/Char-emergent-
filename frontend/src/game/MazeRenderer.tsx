@@ -447,6 +447,14 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
 
+  // Steady 120 ms chomp toggle — driven by a timer so render-phase
+  // timing never causes random blinking. Must be before any early return.
+  const [chomp, setChomp] = useState(true);
+  useEffect(() => {
+    const id = setInterval(() => setChomp((c) => !c), 120);
+    return () => clearInterval(id);
+  }, []);
+
   if (!pg.alive) {
     // explosion / star
     return (
@@ -497,13 +505,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
     }
   })();
 
-  // Steady 120 ms chomp toggle — driven by a timer so render-phase
-  // timing never causes random blinking.
-  const [chomp, setChomp] = useState(true);
-  useEffect(() => {
-    const id = setInterval(() => setChomp((c) => !c), 120);
-    return () => clearInterval(id);
-  }, []);
+
 
   return (
     <Animated.View
