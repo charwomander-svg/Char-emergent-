@@ -242,7 +242,7 @@ Navigate through 12 interconnected cavern screens to reach the deepest chamber a
 
 ```
 ┌─────────────────────────────────────┐
-│   PITFALL 3: THE KISTER CAVERNS    │
+│   PITFALL 3: THE LOSTER CAVERNS    │
 ├─────────────────────────────────────┤
 │ CONTROLS:                           │
 │  ← → : Move    ↑/FIRE: Jump        │

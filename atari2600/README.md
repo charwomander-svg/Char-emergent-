@@ -1,4 +1,4 @@
-# Pitfall 3: The Kister Caverns
+# Pitfall 3: The Loster Caverns
 
 **An Atari 2600 Homebrew Game**
 
@@ -8,7 +8,7 @@ A technical showcase demonstrating the advanced capabilities of the Atari 2600 t
 
 ## 🎮 About
 
-Pitfall 3: The Kister Caverns is a homebrew continuation of the legendary Pitfall series, built from scratch in 6502 assembly language. This game pushes the Atari 2600 to its limits, showcasing programming techniques that demonstrate why the VCS remains a fascinating platform for retro computing enthusiasts.
+Pitfall 3: The Loster Caverns is a homebrew continuation of the legendary Pitfall series, built from scratch in 6502 assembly language. This game pushes the Atari 2600 to its limits, showcasing programming techniques that demonstrate why the VCS remains a fascinating platform for retro computing enthusiasts.
 
 ## ✨ Features
 
@@ -96,7 +96,7 @@ make run
 - **Fire Button** - Jump (alternative)
 
 ### Objective
-Navigate through the Kister Caverns, collecting treasures while avoiding hazards and enemies. Reach the deepest chamber and defeat the final boss to win!
+Navigate through the Loster Caverns, collecting treasures while avoiding hazards and enemies. Reach the deepest chamber and defeat the final boss to win!
 
 ### Gameplay Tips
 - Time your jumps carefully over pits and lava

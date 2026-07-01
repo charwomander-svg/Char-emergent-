@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# build.sh - Build script for Pitfall 3: The Kister Caverns
+# build.sh - Build script for Pitfall 3: The Loster Caverns
 # ==============================================================================
 
 set -e  # Exit on error
@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "========================================"
-echo " Building Pitfall 3: The Kister Caverns"
+echo " Building Pitfall 3: The Loster Caverns"
 echo "========================================"
 echo ""
 

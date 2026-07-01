@@ -1,5 +1,5 @@
 # ==============================================================================
-# Pitfall 3: The Kister Caverns - Makefile
+# Pitfall 3: The Loster Caverns - Makefile
 # ==============================================================================
 
 # Assembler
@@ -36,7 +36,7 @@ $(ROM_FILE): $(MAIN_SRC) $(BUILD_DIR)
 info: $(ROM_FILE)
 	@echo ""
 	@echo "===================================="
-	@echo "  Pitfall 3: The Kister Caverns"
+	@echo "  Pitfall 3: The Loster Caverns"
 	@echo "===================================="
 	@ls -lh $(ROM_FILE) | awk '{print "  ROM Size: " $$5}'
 	@echo "  Format:   Atari 2600 (4K)"
@@ -64,7 +64,7 @@ rebuild: clean all
 
 # Help target
 help:
-	@echo "Pitfall 3: The Kister Caverns - Build System"
+	@echo "Pitfall 3: The Loster Caverns - Build System"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  make          - Build the ROM (default)"

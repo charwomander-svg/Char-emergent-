@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                   PITFALL 3: THE KISTER CAVERNS                              ║
+║                   PITFALL 3: THE LOSTER CAVERNS                              ║
 ║                   Atari 2600 Homebrew Game - Feature List                    ║
 ╔══════════════════════════════════════════════════════════════════════════════╗
 
@@ -170,5 +170,5 @@ This project demonstrates:
 All goals achieved! Ready for play testing and real hardware deployment.
 
 ═══════════════════════════════════════════════════════════════════════════════
-"Some treasures are worth the risk..." - Pitfall 3: The Kister Caverns
+"Some treasures are worth the risk..." - Pitfall 3: The Loster Caverns
 ═══════════════════════════════════════════════════════════════════════════════

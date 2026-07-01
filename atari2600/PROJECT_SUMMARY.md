@@ -1,4 +1,4 @@
-# Pitfall 3: The Kister Caverns - Project Summary
+# Pitfall 3: The Loster Caverns - Project Summary
 
 ## 📦 Deliverables
 

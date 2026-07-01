@@ -1,5 +1,5 @@
 ; ==============================================================================
-; PITFALL 3: THE KISTER CAVERNS
+; PITFALL 3: THE LOSTER CAVERNS
 ; An Atari 2600 Homebrew Game
 ; Showcasing Advanced Graphics and Audio Techniques
 ; ==============================================================================

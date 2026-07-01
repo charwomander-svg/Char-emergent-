@@ -471,4 +471,4 @@ Target: 60 FPS (NTSC)
 
 **Document Version**: 1.0  
 **Last Updated**: 2026  
-**For**: Pitfall 3: The Kister Caverns
+**For**: Pitfall 3: The Loster Caverns
