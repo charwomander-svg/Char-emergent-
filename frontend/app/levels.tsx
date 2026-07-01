@@ -15,7 +15,7 @@ export default function Levels() {
   }, []);
 
   const highest = progress?.highestLevel ?? 1;
-  const maxShown = Math.min(MAX_LEVELS, Math.max(20, highest + 4));
+  const maxShown = MAX_LEVELS;
   const levels = Array.from({ length: maxShown }, (_, i) => i + 1);
 
   const playLevel = (lv: number) => {
