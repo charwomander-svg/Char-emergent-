@@ -154,7 +154,7 @@ export default function MainMenu() {
           style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
           onPress={() => {
             getSoundEngine().uiClick();
-            router.push("/game?mode=speedrun");
+            router.push("/speedrun");
           }}
           testID="speedrun-btn"
         >

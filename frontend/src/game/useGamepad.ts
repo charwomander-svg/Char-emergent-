@@ -2,7 +2,7 @@
 // Polls connected gamepads at 60Hz and dispatches direction/ghost-select events.
 // Mapping (standard gamepad layout):
 //   D-pad up/down/left/right OR Left stick → directional input for selected ghost
-//   A/B/X/Y face buttons → select ghost 0/1/2/3 (Blinky/Pinky/Inky/Clyde)
+//   A/B/X/Y face buttons → select ghost 0/1/2/3 (Ember/Blush/Rime/Rust)
 //   LB/RB → cycle selected ghost prev/next
 //
 // Native (iOS/Android): Web Gamepad API not available. Hook gracefully no-ops.

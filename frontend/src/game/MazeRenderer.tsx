@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
@@ -447,13 +447,19 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
 
-  // Steady 120 ms chomp toggle — driven by a timer so render-phase
-  // timing never causes random blinking. Must be before any early return.
-  const [chomp, setChomp] = useState(true);
+  // Chomp animation runs on the native thread — completely decoupled from JS
+  // game-loop renders so it never blinks or stutters. Must be before early return.
+  const chompAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    const id = setInterval(() => setChomp((c) => !c), 120);
-    return () => clearInterval(id);
-  }, []);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chompAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+        Animated.timing(chompAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [chompAnim]);
 
   if (!pg.alive) {
     // explosion / star
@@ -537,34 +543,42 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           overflow: "hidden",
         }}
       >
-        {chomp && (
-          <>
-            <View
-              style={{
-                position: "absolute",
-                left: size * 0.425,
-                top: 0,
-                width: size * 0.5,
-                height: size * 0.425,
-                backgroundColor: COLORS.background,
-                transform: [{ skewY: "-25deg" }],
-                transformOrigin: "left bottom",
-              } as any}
-            />
-            <View
-              style={{
-                position: "absolute",
-                left: size * 0.425,
-                top: size * 0.425,
-                width: size * 0.5,
-                height: size * 0.425,
-                backgroundColor: COLORS.background,
-                transform: [{ skewY: "25deg" }],
-                transformOrigin: "left top",
-              } as any}
-            />
-          </>
-        )}
+        {/* Mouth — opacity animated on native thread */}
+        <Animated.View
+          style={{
+            opacity: chompAnim,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.425,
+              top: 0,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: COLORS.background,
+              transform: [{ skewY: "-25deg" }],
+              transformOrigin: "left bottom",
+            } as any}
+          />
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.425,
+              top: size * 0.425,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: COLORS.background,
+              transform: [{ skewY: "25deg" }],
+              transformOrigin: "left top",
+            } as any}
+          />
+        </Animated.View>
       </View>
     </Animated.View>
   );

@@ -112,7 +112,7 @@ export default function GameScreen() {
   }, [mode, computeTimerMs]);
 
   useEffect(() => {
-    if (state.status === "ready" && state.level === 1 && state.score === 0) {
+    if (state.status === "ready" && state.score === 0) {
       timerAccumulatedRef.current = 0;
       timerRunningFromRef.current = null;
       setElapsedMs(0);
