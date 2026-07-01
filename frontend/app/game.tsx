@@ -144,9 +144,13 @@ export default function GameScreen() {
     targets.forEach((id) => setGhostDirection(id, dir));
   }, [armedGhosts, setGhostDirection]);
 
+  // Keep a stable ref so the frozen panResponder closure always calls the latest version.
+  const applyDirectionToArmedRef = useRef(applyDirectionToArmed);
+  applyDirectionToArmedRef.current = applyDirectionToArmed;
+
   useGamepad({
     onDirection: (_id, dir) => {
-      applyDirectionToArmed(dir);
+      applyDirectionToArmedRef.current(dir);
     },
     onSelect: (id) => {
       syncSelection([id]);
@@ -171,7 +175,7 @@ export default function GameScreen() {
         try {
           Haptics.selectionAsync();
         } catch {}
-        applyDirectionToArmed(dir);
+        applyDirectionToArmedRef.current(dir);
       },
     })
   ).current;
