@@ -1,0 +1,172 @@
+--- Symbol List (sorted by symbol)
+0.NoEnemy                f105              (R )
+0.NoGold                 f11a              (R )
+0.NoPlayer               f0e6              (R )
+AUDC0                    0015              (R )
+AUDC1                    0016              (R )
+AUDF0                    0017              (R )
+AUDF1                    0018              (R )
+AUDV0                    0019              (R )
+AUDV1                    001a              (R )
+BGColor                  00d1              (R )
+CheckCollisions          f1f7              (R )
+ClearRAM                 f009              (R )
+CoarseLoop               f15e              (R )
+ColorCycle               00d0              (R )
+COLUBK                   0009              (R )
+COLUP0                   0006              (R )
+COLUP1                   0007              (R )
+COLUPF                   0008              (R )
+CTRLPF                   000a              (R )
+CurrentScreen            00c6              (R )
+CXBLPF                   0006                  
+CXCLR                    002c              (R )
+CXM0FB                   0004                  
+CXM0P                    0000                  
+CXM1FB                   0005                  
+CXM1P                    0001                  
+CXP0FB                   0002              (R )
+CXP1FB                   0003                  
+CXPPMM                   0007              (R )
+DivideLoop               f14e              (R )
+DrawEnemyLine            f0eb              (R )
+DrawGoldLine             f10a              (R )
+DrawKernel               f07b              (R )
+DrawPlayerLine           f0c5              (R )
+DrawScreen               f072              (R )
+ENABL                    001f                  
+ENAM0                    001d              (R )
+ENAM1                    001e                  
+ENEMY_HEIGHT             0008              (R )
+EnemyActive              00aa              (R )
+EnemyFrame               00b2                  
+EnemySprite              f288              (R )
+EnemyType                00a2                  
+EnemyX                   0092              (R )
+EnemyY                   009a              (R )
+FinePosSet               f169              (R )
+FrameCounter             0080              (R )
+GameLogic                f18d              (R )
+GoldActive               00c2              (R )
+GoldX                    00ba              (R )
+GoldY                    00be              (R )
+GRP0                     001b              (R )
+GRP1                     001c              (R )
+HMBL                     0024                  
+HMCLR                    002b                  
+HMM0                     0022              (R )
+HMM1                     0023                  
+HMOVE                    002a              (R )
+HMP0                     0020              (R )
+HMP1                     0021              (R )
+INPT0                    0008                  
+INPT1                    0009                  
+INPT2                    000a                  
+INPT3                    000b                  
+INPT4                    000c              (R )
+INPT5                    000d                  
+INTIM                    0284              (R )
+LavaColor                00c9                  
+LavaColors               f290              (R )
+LavaHeight               00c8              (R )
+Lives                    0089              (R )
+LoadScreen0              f253              (R )
+LoopCounter              0120                  
+MainLoop                 f031              (R )
+MAX_ENEMIES              0008              (R )
+MusicNote0               00ca              (R )
+MusicNote1               00cb              (R )
+MusicPhase               00cd              (R )
+MusicTable0              f294              (R )
+MusicTable1              f2a4              (R )
+MusicTempo               00cc              (R )
+NoEnemyMove              f1f6              (R )
+NoLava                   f0b8              (R )
+NoLavaRise               f1e6              (R )
+NoMusicUpdate            f23a              (R )
+NoPlayerEnemyCol         f201              (R )
+NoPlayerPFCollision      f1fb              (R )
+NoSFX                    f252              (R )
+NotJump                  f1b7              (R )
+NotLeft                  f1a7              (R )
+NotM0                    f18c              (R )
+NotP0                    f175              (R )
+NotP1                    f181              (R )
+NotRight                 f19a              (R )
+NUM_SCREENS              000c                  
+NUSIZ0                   0004                  
+NUSIZ1                   0005                  
+OnGround                 f1d8              (R )
+OSWait                   f12a              (R )
+OverScan                 f11f              (R )
+OVERSCAN_TIME            001e              (R )
+PF0                      000d              (R )
+PF0Data                  00d6                  
+PF1                      000e              (R )
+PF1Data                  00ee                  
+PF2                      000f              (R )
+PF2Data                  0106                  
+PFColor1                 00d2              (R )
+PFColor2                 00d3              (R )
+PLAYER_HEIGHT            0010              (R )
+PLAYER_X_START           0050              (R )
+PLAYER_Y_START           008c              (R )
+PlayerColors             f284              (R )
+PlayerDirection          0088              (R )
+PlayerFrame              0085                  
+PlayerOnGround           0087              (R )
+PlayerSprite             f274              (R )
+PlayerVelY               0086              (R )
+PlayerX                  0082              (R )
+PlayerXFine              0083                  
+PlayerY                  0084              (R )
+PositionSprites          f130              (R )
+RandomSeed               0081                  
+REFP0                    000b                  
+REFP1                    000c                  
+RESBL                    0014                  
+Reset                    f000              (R )
+RESM0                    0012              (R )
+RESM1                    0013                  
+RESMP0                   0028                  
+RESMP1                   0029                  
+RESP0                    0010              (R )
+RESP1                    0011              (R )
+RSYNC                    0003                  
+ScanlineCount            0121              (R )
+Score                    008a                  
+ScoreDisplay             008c                  
+Screen0Data              f2ac                  
+SCREEN_HEIGHT            00c0              (R )
+ScreenTransition         00c7                  
+SetHorizPos              f14a              (R )
+SetPFColor               f095              (R )
+SFXCounter               00ce              (R )
+SFXType                  00cf              (R )
+SpriteColor0             00d4                  
+SpriteColor1             00d5                  
+StillAirborne            f1d8              (R )
+SWACNT                   0281                  
+SWBCNT                   0283                  
+SWCHA                    0280              (R )
+SWCHB                    0282                  
+T1024T                   0297                  
+Temp                     011e              (R )
+Temp2                    011f              (R )
+TIM1T                    0294                  
+TIM64T                   0296              (R )
+TIM8T                    0295                  
+TIMINT                   0285                  
+UpdateEnemies            f1e7              (R )
+UpdateMusic              f204              (R )
+UseColor1                f093              (R )
+VBLANK                   0001              (R )
+VBLANK_TIME              002b              (R )
+VBWait                   f066              (R )
+VDELBL                   0027                  
+VDELP0                   0025                  
+VDELP1                   0026                  
+VerticalBlank            f040              (R )
+VSYNC                    0000              (R )
+WSYNC                    0002              (R )
+--- End of Symbol List.

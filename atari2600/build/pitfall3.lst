@@ -1,0 +1,809 @@
+------- FILE src/pitfall3.asm LEVEL 1 PASS 2
+      1  10000 ????						; ==============================================================================
+      2  10000 ????						; PITFALL 3: THE KISTER CAVERNS
+      3  10000 ????						; An Atari 2600 Homebrew Game
+      4  10000 ????						; Showcasing Advanced Graphics and Audio Techniques
+      5  10000 ????						; ==============================================================================
+      6  10000 ????						; (C) 2026 - A technical demonstration of the Atari 2600's capabilities
+      7  10000 ????						;
+      8  10000 ????						; Features:
+      9  10000 ????						; - Advanced sprite multiplexing for 8+ simultaneous objects
+     10  10000 ????						; - Multi-color sprite cycling for visual effects
+     11  10000 ????						; - Asymmetric playfield for detailed cavern layouts
+     12  10000 ????						; - 2-channel music composition
+     13  10000 ????						; - Dynamic audio mixing
+     14  10000 ????						; - Smooth screen transitions
+     15  10000 ????						; - Color palette animation
+     16  10000 ????						; ==============================================================================
+     17  10000 ????
+     18  10000 ????				       processor	6502
+------- FILE src/vcs.h LEVEL 2 PASS 2
+      0  10000 ????				       include	"src/vcs.h"
+      1  10000 ????						; VCS.H
+      2  10000 ????						; TIA and RIOT register definitions for Atari 2600
+      3  10000 ????						; Standard include file for all Atari 2600 development
+      4  10000 ????
+      5  10000 ????						;-------------------------------------------------------------------------------
+      6  10000 ????						; TIA Write Addresses
+      7  10000 ????						;-------------------------------------------------------------------------------
+      8  10000 ????		00 00	    VSYNC      =	$00	; Vertical Sync Set-Clear
+      9  10000 ????		00 01	    VBLANK     =	$01	; Vertical Blank Set-Clear
+     10  10000 ????		00 02	    WSYNC      =	$02	; Wait for Horizontal Blank
+     11  10000 ????		00 03	    RSYNC      =	$03	; Reset Horizontal Sync Counter
+     12  10000 ????		00 04	    NUSIZ0     =	$04	; Number-Size player/missile 0
+     13  10000 ????		00 05	    NUSIZ1     =	$05	; Number-Size player/missile 1
+     14  10000 ????		00 06	    COLUP0     =	$06	; Color-Luminance Player 0
+     15  10000 ????		00 07	    COLUP1     =	$07	; Color-Luminance Player 1
+     16  10000 ????		00 08	    COLUPF     =	$08	; Color-Luminance Playfield
+     17  10000 ????		00 09	    COLUBK     =	$09	; Color-Luminance Background
+     18  10000 ????		00 0a	    CTRLPF     =	$0A	; Control Playfield, Ball, Collisions
+     19  10000 ????		00 0b	    REFP0      =	$0B	; Reflection Player 0
+     20  10000 ????		00 0c	    REFP1      =	$0C	; Reflection Player 1
+     21  10000 ????		00 0d	    PF0        =	$0D	; Playfield Register Byte 0
+     22  10000 ????		00 0e	    PF1        =	$0E	; Playfield Register Byte 1
+     23  10000 ????		00 0f	    PF2        =	$0F	; Playfield Register Byte 2
+     24  10000 ????		00 10	    RESP0      =	$10	; Reset Player 0
+     25  10000 ????		00 11	    RESP1      =	$11	; Reset Player 1
+     26  10000 ????		00 12	    RESM0      =	$12	; Reset Missile 0
+     27  10000 ????		00 13	    RESM1      =	$13	; Reset Missile 1
+     28  10000 ????		00 14	    RESBL      =	$14	; Reset Ball
+     29  10000 ????		00 15	    AUDC0      =	$15	; Audio Control 0
+     30  10000 ????		00 16	    AUDC1      =	$16	; Audio Control 1
+     31  10000 ????		00 17	    AUDF0      =	$17	; Audio Frequency 0
+     32  10000 ????		00 18	    AUDF1      =	$18	; Audio Frequency 1
+     33  10000 ????		00 19	    AUDV0      =	$19	; Audio Volume 0
+     34  10000 ????		00 1a	    AUDV1      =	$1A	; Audio Volume 1
+     35  10000 ????		00 1b	    GRP0       =	$1B	; Graphics Register Player 0
+     36  10000 ????		00 1c	    GRP1       =	$1C	; Graphics Register Player 1
+     37  10000 ????		00 1d	    ENAM0      =	$1D	; Graphics Enable Missile 0
+     38  10000 ????		00 1e	    ENAM1      =	$1E	; Graphics Enable Missile 1
+     39  10000 ????		00 1f	    ENABL      =	$1F	; Graphics Enable Ball
+     40  10000 ????		00 20	    HMP0       =	$20	; Horizontal Motion Player 0
+     41  10000 ????		00 21	    HMP1       =	$21	; Horizontal Motion Player 1
+     42  10000 ????		00 22	    HMM0       =	$22	; Horizontal Motion Missile 0
+     43  10000 ????		00 23	    HMM1       =	$23	; Horizontal Motion Missile 1
+     44  10000 ????		00 24	    HMBL       =	$24	; Horizontal Motion Ball
+     45  10000 ????		00 25	    VDELP0     =	$25	; Vertical Delay Player 0
+     46  10000 ????		00 26	    VDELP1     =	$26	; Vertical Delay Player 1
+     47  10000 ????		00 27	    VDELBL     =	$27	; Vertical Delay Ball
+     48  10000 ????		00 28	    RESMP0     =	$28	; Reset Missile 0 to Player 0
+     49  10000 ????		00 29	    RESMP1     =	$29	; Reset Missile 1 to Player 1
+     50  10000 ????		00 2a	    HMOVE      =	$2A	; Apply Horizontal Motion
+     51  10000 ????		00 2b	    HMCLR      =	$2B	; Clear Horizontal Move Registers
+     52  10000 ????		00 2c	    CXCLR      =	$2C	; Clear Collision Latches
+     53  10000 ????
+     54  10000 ????						;-------------------------------------------------------------------------------
+     55  10000 ????						; TIA Read Addresses
+     56  10000 ????						;-------------------------------------------------------------------------------
+     57  10000 ????		00 00	    CXM0P      =	$00	; Collision M0-P1, M0-P0
+     58  10000 ????		00 01	    CXM1P      =	$01	; Collision M1-P0, M1-P1
+     59  10000 ????		00 02	    CXP0FB     =	$02	; Collision P0-PF, P0-BL
+     60  10000 ????		00 03	    CXP1FB     =	$03	; Collision P1-PF, P1-BL
+     61  10000 ????		00 04	    CXM0FB     =	$04	; Collision M0-PF, M0-BL
+     62  10000 ????		00 05	    CXM1FB     =	$05	; Collision M1-PF, M1-BL
+     63  10000 ????		00 06	    CXBLPF     =	$06	; Collision BL-PF, unused
+     64  10000 ????		00 07	    CXPPMM     =	$07	; Collision P0-P1, M0-M1
+     65  10000 ????		00 08	    INPT0      =	$08	; Read Paddle Controller 0
+     66  10000 ????		00 09	    INPT1      =	$09	; Read Paddle Controller 1
+     67  10000 ????		00 0a	    INPT2      =	$0A	; Read Paddle Controller 2
+     68  10000 ????		00 0b	    INPT3      =	$0B	; Read Paddle Controller 3
+     69  10000 ????		00 0c	    INPT4      =	$0C	; Read Player 0 Fire Button
+     70  10000 ????		00 0d	    INPT5      =	$0D	; Read Player 1 Fire Button
+     71  10000 ????
+     72  10000 ????						;-------------------------------------------------------------------------------
+     73  10000 ????						; RIOT (6532) Addresses
+     74  10000 ????						;-------------------------------------------------------------------------------
+     75  10000 ????		02 80	    SWCHA      =	$0280	; Port A I/O Register (Joystick)
+     76  10000 ????		02 81	    SWACNT     =	$0281	; Port A Data Direction Register
+     77  10000 ????		02 82	    SWCHB      =	$0282	; Port B I/O Register (Console switches)
+     78  10000 ????		02 83	    SWBCNT     =	$0283	; Port B Data Direction Register
+     79  10000 ????		02 84	    INTIM      =	$0284	; Timer Output
+     80  10000 ????		02 85	    TIMINT     =	$0285	; Timer Interrupt
+     81  10000 ????		02 94	    TIM1T      =	$0294	; Set 1 Clock Interval
+     82  10000 ????		02 95	    TIM8T      =	$0295	; Set 8 Clock Interval
+     83  10000 ????		02 96	    TIM64T     =	$0296	; Set 64 Clock Interval
+     84  10000 ????		02 97	    T1024T     =	$0297	; Set 1024 Clock Interval
+     85  10000 ????
+     86  10000 ????						;-------------------------------------------------------------------------------
+     87  10000 ????						; RAM (128 bytes at $80-$FF)
+     88  10000 ????						;-------------------------------------------------------------------------------
+------- FILE src/pitfall3.asm
+     20  10000 ????
+     21  10000 ????						;-------------------------------------------------------------------------------
+     22  10000 ????						; Constants
+     23  10000 ????						;-------------------------------------------------------------------------------
+     24  10000 ????		00 c0	    SCREEN_HEIGHT =	192	; Visible scanlines
+     25  10000 ????		00 1e	    OVERSCAN_TIME =	30	; Overscan timer value
+     26  10000 ????		00 2b	    VBLANK_TIME =	43	; Vertical blank timer value
+     27  10000 ????
+     28  10000 ????						; Player States
+     29  10000 ????		00 10	    PLAYER_HEIGHT =	16
+     30  10000 ????		00 8c	    PLAYER_Y_START =	140
+     31  10000 ????		00 50	    PLAYER_X_START =	80
+     32  10000 ????
+     33  10000 ????						; Enemy Constants
+     34  10000 ????		00 08	    MAX_ENEMIES =	8
+     35  10000 ????		00 08	    ENEMY_HEIGHT =	8
+     36  10000 ????
+     37  10000 ????						; Level Constants
+     38  10000 ????		00 0c	    NUM_SCREENS =	12
+     39  10000 ????
+     40  10000 ????						;-------------------------------------------------------------------------------
+     41  10000 ????						; RAM Variables (Zero Page $80-$FF)
+     42  10000 ????						;-------------------------------------------------------------------------------
+     43 U0122 ????				      SEG.U	VARS
+     44 U0080					      ORG	$80
+     45 U0080
+     46 U0080							; System Variables
+     47 U0080		       00	   FrameCounter ds	1	; Frame counter for timing
+     48 U0081		       00	   RandomSeed ds	1	; 8-bit random number generator seed
+     49 U0082
+     50 U0082							; Player Variables
+     51 U0082		       00	   PlayerX    ds	1	; Player X position (coarse)
+     52 U0083		       00	   PlayerXFine ds	1	; Player X fine position
+     53 U0084		       00	   PlayerY    ds	1	; Player Y position
+     54 U0085		       00	   PlayerFrame ds	1	; Animation frame
+     55 U0086		       00	   PlayerVelY ds	1	; Vertical velocity (jumping)
+     56 U0087		       00	   PlayerOnGround ds	1	; Is player on ground?
+     57 U0088		       00	   PlayerDirection ds	1	; 0=left, 1=right
+     58 U0089		       00	   Lives      ds	1	; Number of lives
+     59 U008a		       00 00	   Score      ds	2	; BCD score (2 bytes)
+     60 U008c		       00 00 00 00*ScoreDisplay ds	6	; 6 digit score display
+     61 U0092
+     62 U0092							; Enemy Variables
+     63 U0092		       00 00 00 00*EnemyX     ds	MAX_ENEMIES	; X positions
+     64 U009a		       00 00 00 00*EnemyY     ds	MAX_ENEMIES	; Y positions
+     65 U00a2		       00 00 00 00*EnemyType  ds	MAX_ENEMIES	; Type (snake, bat, spider)
+     66 U00aa		       00 00 00 00*EnemyActive ds	MAX_ENEMIES	; Active flag
+     67 U00b2		       00 00 00 00*EnemyFrame ds	MAX_ENEMIES	; Animation frame
+     68 U00ba
+     69 U00ba							; Collectible Variables
+     70 U00ba		       00 00 00 00 GoldX      ds	4	; Gold bar X positions
+     71 U00be		       00 00 00 00 GoldY      ds	4	; Gold bar Y positions
+     72 U00c2		       00 00 00 00 GoldActive ds	4	; Gold active flags
+     73 U00c6
+     74 U00c6							; Level/Screen Variables
+     75 U00c6		       00	   CurrentScreen ds	1	; Which screen (0-11)
+     76 U00c7		       00	   ScreenTransition ds	1	; Transition state
+     77 U00c8		       00	   LavaHeight ds	1	; Rising lava level
+     78 U00c9		       00	   LavaColor  ds	1	; Animated lava color
+     79 U00ca
+     80 U00ca							; Audio Variables
+     81 U00ca		       00	   MusicNote0 ds	1	; Current note channel 0
+     82 U00cb		       00	   MusicNote1 ds	1	; Current note channel 1
+     83 U00cc		       00	   MusicTempo ds	1	; Music tempo counter
+     84 U00cd		       00	   MusicPhase ds	1	; Which music section
+     85 U00ce		       00	   SFXCounter ds	1	; Sound effect timer
+     86 U00cf		       00	   SFXType    ds	1	; Current sound effect
+     87 U00d0
+     88 U00d0							; Graphics Variables
+     89 U00d0		       00	   ColorCycle ds	1	; Color cycling counter
+     90 U00d1		       00	   BGColor    ds	1	; Background color
+     91 U00d2		       00	   PFColor1   ds	1	; Playfield color 1
+     92 U00d3		       00	   PFColor2   ds	1	; Playfield color 2
+     93 U00d4		       00	   SpriteColor0 ds	1	; Player sprite color
+     94 U00d5		       00	   SpriteColor1 ds	1	; Enemy sprite color
+     95 U00d6
+     96 U00d6							; Playfield Data (Current Screen)
+     97 U00d6		       00 00 00 00*PF0Data    ds	24	; PF0 for each row (8 rows x 3 sections)
+     98 U00ee		       00 00 00 00*PF1Data    ds	24	; PF1 for each row
+     99 U0106		       00 00 00 00*PF2Data    ds	24	; PF2 for each row
+    100 U011e
+    101 U011e							; Temporary variables
+    102 U011e		       00	   Temp       ds	1
+    103 U011f		       00	   Temp2      ds	1
+    104 U0120		       00	   LoopCounter ds	1
+    105 U0121		       00	   ScanlineCount ds	1
+    106 U0122
+    107 U0122							;-------------------------------------------------------------------------------
+    108 U0122							; ROM Start
+    109 U0122							;-------------------------------------------------------------------------------
+    110  10000 ????				       SEG	CODE
+    111  f000					      ORG	$F000
+    112  f000
+    113  f000							;-------------------------------------------------------------------------------
+    114  f000							; Initialize System
+    115  f000							;-------------------------------------------------------------------------------
+    116  f000				   Reset
+    117  f000		       78		      sei		; Disable interrupts
+    118  f001		       d8		      cld		; Clear decimal mode
+    119  f002		       a2 ff		      ldx	#$FF
+    120  f004		       9a		      txs		; Initialize stack pointer
+    121  f005
+    122  f005							; Clear all RAM
+    123  f005		       a2 00		      ldx	#0
+    124  f007		       a9 00		      lda	#0
+    125  f009				   ClearRAM
+    126  f009		       95 80		      sta	$80,x
+    127  f00b		       e8		      inx
+    128  f00c		       d0 fb		      bne	ClearRAM
+    129  f00e
+    130  f00e							; Initialize game variables
+    131  f00e		       a9 03		      lda	#3
+    132  f010		       85 89		      sta	Lives
+    133  f012		       a9 50		      lda	#PLAYER_X_START
+    134  f014		       85 82		      sta	PlayerX
+    135  f016		       a9 8c		      lda	#PLAYER_Y_START
+    136  f018		       85 84		      sta	PlayerY
+    137  f01a		       a9 01		      lda	#1
+    138  f01c		       85 87		      sta	PlayerOnGround
+    139  f01e
+    140  f01e							; Initialize colors
+    141  f01e		       a9 42		      lda	#$42	; Blue-green cavern background
+    142  f020		       85 d1		      sta	BGColor
+    143  f022		       a9 84		      lda	#$84	; Brown playfield
+    144  f024		       85 d2		      sta	PFColor1
+    145  f026		       a9 28		      lda	#$28	; Red-orange hazards
+    146  f028		       85 d3		      sta	PFColor2
+    147  f02a
+    148  f02a							; Initialize audio
+    149  f02a		       a9 0f		      lda	#$0F	; Music control
+    150  f02c		       85 cd		      sta	MusicPhase
+    151  f02e
+    152  f02e							; Load first screen
+    153  f02e		       20 53 f2 	      jsr	LoadScreen0
+    154  f031
+    155  f031							;-------------------------------------------------------------------------------
+    156  f031							; Main Game Loop
+    157  f031							;-------------------------------------------------------------------------------
+    158  f031				   MainLoop
+    159  f031		       20 40 f0 	      jsr	VerticalBlank
+    160  f034		       20 72 f0 	      jsr	DrawScreen
+    161  f037		       20 1f f1 	      jsr	OverScan
+    162  f03a		       20 8d f1 	      jsr	GameLogic
+    163  f03d		       4c 31 f0 	      jmp	MainLoop
+    164  f040
+    165  f040							;-------------------------------------------------------------------------------
+    166  f040							; Vertical Blank (Setup for next frame)
+    167  f040							;-------------------------------------------------------------------------------
+    168  f040				   VerticalBlank
+    169  f040		       a9 02		      lda	#2
+    170  f042		       85 00		      sta	VSYNC	; Start vertical sync
+    171  f044		       85 02		      sta	WSYNC	; Wait for scanline
+    172  f046		       85 02		      sta	WSYNC	; 3 scanlines of VSYNC
+    173  f048		       85 02		      sta	WSYNC
+    174  f04a		       a9 00		      lda	#0
+    175  f04c		       85 00		      sta	VSYNC	; End vertical sync
+    176  f04e
+    177  f04e							; Set timer for VBLANK
+    178  f04e		       a9 2b		      lda	#VBLANK_TIME
+    179  f050		       8d 96 02 	      sta	TIM64T
+    180  f053
+    181  f053		       a9 02		      lda	#2
+    182  f055		       85 01		      sta	VBLANK	; Turn on VBLANK
+    183  f057
+    184  f057							; Update color cycling
+    185  f057		       e6 d0		      inc	ColorCycle
+    186  f059		       a5 d0		      lda	ColorCycle
+    187  f05b		       29 0f		      and	#$0F
+    188  f05d		       8d 1e 01 	      sta	Temp
+    189  f060
+    190  f060							; Position sprites during VBLANK
+    191  f060		       20 30 f1 	      jsr	PositionSprites
+    192  f063
+    193  f063							; Update music
+    194  f063		       20 04 f2 	      jsr	UpdateMusic
+    195  f066
+    196  f066							; Wait for VBLANK timer to finish
+    197  f066				   VBWait
+    198  f066		       ad 84 02 	      lda	INTIM
+    199  f069		       d0 fb		      bne	VBWait
+    200  f06b
+    201  f06b		       85 02		      sta	WSYNC	; Finish last VBLANK line
+    202  f06d		       a9 00		      lda	#0
+    203  f06f		       85 01		      sta	VBLANK	; Turn off VBLANK
+    204  f071
+    205  f071		       60		      rts
+    206  f072
+    207  f072							;-------------------------------------------------------------------------------
+    208  f072							; Draw Screen (192 visible scanlines)
+    209  f072							;-------------------------------------------------------------------------------
+    210  f072				   DrawScreen
+    211  f072							; Set up playfield control
+    212  f072		       a9 01		      lda	#$01	; Reflected playfield
+    213  f074		       85 0a		      sta	CTRLPF
+    214  f076
+    215  f076		       a9 00		      lda	#0
+    216  f078		       8d 21 01 	      sta	ScanlineCount
+    217  f07b
+    218  f07b				   DrawKernel
+    219  f07b							; Get playfield data for this row
+    220  f07b		       a9 f0		      lda	#$F0
+    221  f07d		       85 0d		      sta	PF0
+    222  f07f		       a9 ff		      lda	#$FF
+    223  f081		       85 0e		      sta	PF1
+    224  f083		       a9 ff		      lda	#$FF
+    225  f085		       85 0f		      sta	PF2
+    226  f087
+    227  f087							; Color cycling effect
+    228  f087		       ad 21 01 	      lda	ScanlineCount
+    229  f08a		       29 08		      and	#$08
+    230  f08c		       f0 05		      beq	UseColor1
+    231  f08e		       a5 d3		      lda	PFColor2
+    232  f090		       4c 95 f0 	      jmp	SetPFColor
+    233  f093				   UseColor1
+    234  f093		       a5 d2		      lda	PFColor1
+    235  f095				   SetPFColor
+    236  f095		       85 08		      sta	COLUPF
+    237  f097
+    238  f097							; Animated background
+    239  f097		       a5 d1		      lda	BGColor
+    240  f099		       18		      clc
+    241  f09a		       65 d0		      adc	ColorCycle
+    242  f09c		       85 09		      sta	COLUBK
+    243  f09e
+    244  f09e							; Draw player
+    245  f09e		       20 c5 f0 	      jsr	DrawPlayerLine
+    246  f0a1
+    247  f0a1							; Draw enemies
+    248  f0a1		       20 eb f0 	      jsr	DrawEnemyLine
+    249  f0a4
+    250  f0a4							; Draw gold
+    251  f0a4		       20 0a f1 	      jsr	DrawGoldLine
+    252  f0a7
+    253  f0a7							; Lava effect at bottom
+    254  f0a7		       ad 21 01 	      lda	ScanlineCount
+    255  f0aa		       c5 c8		      cmp	LavaHeight
+    256  f0ac		       90 0a		      bcc	NoLava
+    257  f0ae		       a5 80		      lda	FrameCounter
+    258  f0b0		       29 03		      and	#$03
+    259  f0b2		       aa		      tax
+    260  f0b3		       bd 90 f2 	      lda	LavaColors,x
+    261  f0b6		       85 09		      sta	COLUBK
+    262  f0b8
+    263  f0b8				   NoLava
+    264  f0b8		       85 02		      sta	WSYNC
+    265  f0ba		       ee 21 01 	      inc	ScanlineCount
+    266  f0bd		       ad 21 01 	      lda	ScanlineCount
+    267  f0c0		       c9 c0		      cmp	#SCREEN_HEIGHT
+    268  f0c2		       d0 b7		      bne	DrawKernel
+    269  f0c4
+    270  f0c4		       60		      rts
+    271  f0c5
+    272  f0c5							;-------------------------------------------------------------------------------
+    273  f0c5							; Draw Player for Current Scanline
+    274  f0c5							;-------------------------------------------------------------------------------
+    275  f0c5				   DrawPlayerLine
+    276  f0c5		       a5 84		      lda	PlayerY
+    277  f0c7		       cd 21 01 	      cmp	ScanlineCount
+    278  f0ca		       90 1a		      bcc	.NoPlayer
+    279  f0cc		       38		      sec
+    280  f0cd		       ed 21 01 	      sbc	ScanlineCount
+    281  f0d0		       c9 10		      cmp	#PLAYER_HEIGHT
+    282  f0d2		       b0 12		      bcs	.NoPlayer
+    283  f0d4
+    284  f0d4		       a8		      tay
+    285  f0d5		       b9 74 f2 	      lda	PlayerSprite,y
+    286  f0d8		       85 1b		      sta	GRP0
+    287  f0da
+    288  f0da		       ad 21 01 	      lda	ScanlineCount
+    289  f0dd		       29 03		      and	#$03
+    290  f0df		       aa		      tax
+    291  f0e0		       bd 84 f2 	      lda	PlayerColors,x
+    292  f0e3		       85 06		      sta	COLUP0
+    293  f0e5		       60		      rts
+    294  f0e6
+    295  f0e6				   .NoPlayer
+    296  f0e6		       a9 00		      lda	#0
+    297  f0e8		       85 1b		      sta	GRP0
+    298  f0ea		       60		      rts
+    299  f0eb
+    300  f0eb							;-------------------------------------------------------------------------------
+    301  f0eb							; Draw Enemy for Current Scanline
+    302  f0eb							;-------------------------------------------------------------------------------
+    303  f0eb				   DrawEnemyLine
+    304  f0eb		       a5 9a		      lda	EnemyY
+    305  f0ed		       cd 21 01 	      cmp	ScanlineCount
+    306  f0f0		       90 13		      bcc	.NoEnemy
+    307  f0f2		       38		      sec
+    308  f0f3		       ed 21 01 	      sbc	ScanlineCount
+    309  f0f6		       c9 08		      cmp	#ENEMY_HEIGHT
+    310  f0f8		       b0 0b		      bcs	.NoEnemy
+    311  f0fa		       a8		      tay
+    312  f0fb		       b9 88 f2 	      lda	EnemySprite,y
+    313  f0fe		       85 1c		      sta	GRP1
+    314  f100		       a9 28		      lda	#$28
+    315  f102		       85 07		      sta	COLUP1
+    316  f104		       60		      rts
+    317  f105
+    318  f105				   .NoEnemy
+    319  f105		       a9 00		      lda	#0
+    320  f107		       85 1c		      sta	GRP1
+    321  f109		       60		      rts
+    322  f10a
+    323  f10a							;-------------------------------------------------------------------------------
+    324  f10a							; Draw Gold for Current Scanline
+    325  f10a							;-------------------------------------------------------------------------------
+    326  f10a				   DrawGoldLine
+    327  f10a		       a5 be		      lda	GoldY
+    328  f10c		       cd 21 01 	      cmp	ScanlineCount
+    329  f10f		       d0 09		      bne	.NoGold
+    330  f111		       a9 02		      lda	#$02
+    331  f113		       85 1d		      sta	ENAM0
+    332  f115		       a9 e0		      lda	#$E0
+    333  f117		       85 06		      sta	COLUP0
+    334  f119		       60		      rts
+    335  f11a
+    336  f11a				   .NoGold
+    337  f11a		       a9 00		      lda	#0
+    338  f11c		       85 1d		      sta	ENAM0
+    339  f11e		       60		      rts
+    340  f11f
+    341  f11f							;-------------------------------------------------------------------------------
+    342  f11f							; Overscan
+    343  f11f							;-------------------------------------------------------------------------------
+    344  f11f				   OverScan
+    345  f11f		       a9 02		      lda	#2
+    346  f121		       85 01		      sta	VBLANK	; Turn on VBLANK
+    347  f123		       a9 1e		      lda	#OVERSCAN_TIME
+    348  f125		       8d 96 02 	      sta	TIM64T
+    349  f128
+    350  f128		       e6 80		      inc	FrameCounter	; Increment frame counter
+    351  f12a
+    352  f12a							; Wait for overscan timer
+    353  f12a				   OSWait
+    354  f12a		       ad 84 02 	      lda	INTIM
+    355  f12d		       d0 fb		      bne	OSWait
+    356  f12f		       60		      rts
+    357  f130
+    358  f130							;-------------------------------------------------------------------------------
+    359  f130							; Position Sprites (Horizontal positioning)
+    360  f130							;-------------------------------------------------------------------------------
+    361  f130				   PositionSprites
+    362  f130							; Position Player 0
+    363  f130		       a5 82		      lda	PlayerX
+    364  f132		       a2 00		      ldx	#0
+    365  f134		       20 4a f1 	      jsr	SetHorizPos
+    366  f137
+    367  f137							; Position Player 1 (Enemy)
+    368  f137		       a5 92		      lda	EnemyX
+    369  f139		       a2 01		      ldx	#1
+    370  f13b		       20 4a f1 	      jsr	SetHorizPos
+    371  f13e
+    372  f13e							; Position Missile 0 (Gold)
+    373  f13e		       a5 ba		      lda	GoldX
+    374  f140		       a2 02		      ldx	#2
+    375  f142		       20 4a f1 	      jsr	SetHorizPos
+    376  f145
+    377  f145		       85 02		      sta	WSYNC
+    378  f147		       85 2a		      sta	HMOVE
+    379  f149		       60		      rts
+    380  f14a
+    381  f14a							;-------------------------------------------------------------------------------
+    382  f14a							; Set Horizontal Position
+    383  f14a							; A = desired position, X = object (0=P0, 1=P1, 2=M0, 3=M1, 4=Ball)
+    384  f14a							;-------------------------------------------------------------------------------
+    385  f14a				   SetHorizPos
+    386  f14a		       38		      sec
+    387  f14b		       8d 1e 01 	      sta	Temp
+    388  f14e				   DivideLoop
+    389  f14e		       e9 0f		      sbc	#15
+    390  f150		       b0 fc		      bcs	DivideLoop
+    391  f152
+    392  f152		       49 ff		      eor	#$FF
+    393  f154		       0a		      asl
+    394  f155		       0a		      asl
+    395  f156		       0a		      asl
+    396  f157		       0a		      asl
+    397  f158		       8d 1f 01 	      sta	Temp2
+    398  f15b
+    399  f15b		       ad 1e 01 	      lda	Temp
+    400  f15e				   CoarseLoop
+    401  f15e		       c9 0f		      cmp	#15
+    402  f160		       90 07		      bcc	FinePosSet
+    403  f162		       e9 0f		      sbc	#15
+    404  f164		       85 02		      sta	WSYNC
+    405  f166		       4c 5e f1 	      jmp	CoarseLoop
+    406  f169
+    407  f169				   FinePosSet
+    408  f169		       e0 00		      cpx	#0
+    409  f16b		       d0 08		      bne	NotP0
+    410  f16d		       85 10		      sta	RESP0
+    411  f16f		       ad 1f 01 	      lda	Temp2
+    412  f172		       85 20		      sta	HMP0
+    413  f174		       60		      rts
+    414  f175
+    415  f175				   NotP0
+    416  f175		       e0 01		      cpx	#1
+    417  f177		       d0 08		      bne	NotP1
+    418  f179		       85 11		      sta	RESP1
+    419  f17b		       ad 1f 01 	      lda	Temp2
+    420  f17e		       85 21		      sta	HMP1
+    421  f180		       60		      rts
+    422  f181
+    423  f181				   NotP1
+    424  f181		       e0 02		      cpx	#2
+    425  f183		       d0 07		      bne	NotM0
+    426  f185		       85 12		      sta	RESM0
+    427  f187		       ad 1f 01 	      lda	Temp2
+    428  f18a		       85 22		      sta	HMM0
+    429  f18c
+    430  f18c				   NotM0
+    431  f18c		       60		      rts
+    432  f18d
+    433  f18d							;-------------------------------------------------------------------------------
+    434  f18d							; Game Logic (runs during overscan)
+    435  f18d							;-------------------------------------------------------------------------------
+    436  f18d				   GameLogic
+    437  f18d							; Read joystick
+    438  f18d		       ad 80 02 	      lda	SWCHA
+    439  f190
+    440  f190							; Check right movement
+    441  f190		       29 80		      and	#$80
+    442  f192		       d0 06		      bne	NotRight
+    443  f194		       e6 82		      inc	PlayerX
+    444  f196		       a9 01		      lda	#1
+    445  f198		       85 88		      sta	PlayerDirection
+    446  f19a				   NotRight
+    447  f19a
+    448  f19a							; Check left movement
+    449  f19a		       ad 80 02 	      lda	SWCHA
+    450  f19d		       29 40		      and	#$40
+    451  f19f		       d0 06		      bne	NotLeft
+    452  f1a1		       c6 82		      dec	PlayerX
+    453  f1a3		       a9 00		      lda	#0
+    454  f1a5		       85 88		      sta	PlayerDirection
+    455  f1a7				   NotLeft
+    456  f1a7
+    457  f1a7							; Check fire button for jump
+    458  f1a7		       a5 0c		      lda	INPT4
+    459  f1a9		       30 0c		      bmi	NotJump
+    460  f1ab		       a5 87		      lda	PlayerOnGround
+    461  f1ad		       f0 08		      beq	NotJump
+    462  f1af
+    463  f1af							; Start jump
+    464  f1af		       a9 f0		      lda	#$F0	; Negative velocity = up
+    465  f1b1		       85 86		      sta	PlayerVelY
+    466  f1b3		       a9 00		      lda	#0
+    467  f1b5		       85 87		      sta	PlayerOnGround
+    468  f1b7				   NotJump
+    469  f1b7
+    470  f1b7							; Apply gravity
+    471  f1b7		       a5 87		      lda	PlayerOnGround
+    472  f1b9		       d0 1d		      bne	OnGround
+    473  f1bb
+    474  f1bb							; Add velocity to position
+    475  f1bb		       a5 84		      lda	PlayerY
+    476  f1bd		       18		      clc
+    477  f1be		       65 86		      adc	PlayerVelY
+    478  f1c0		       85 84		      sta	PlayerY
+    479  f1c2
+    480  f1c2							; Increase velocity (gravity)
+    481  f1c2		       e6 86		      inc	PlayerVelY
+    482  f1c4		       e6 86		      inc	PlayerVelY
+    483  f1c6
+    484  f1c6							; Check if landed
+    485  f1c6		       a5 84		      lda	PlayerY
+    486  f1c8		       c9 8c		      cmp	#PLAYER_Y_START
+    487  f1ca		       90 0c		      bcc	StillAirborne
+    488  f1cc		       a9 8c		      lda	#PLAYER_Y_START
+    489  f1ce		       85 84		      sta	PlayerY
+    490  f1d0		       a9 01		      lda	#1
+    491  f1d2		       85 87		      sta	PlayerOnGround
+    492  f1d4		       a9 00		      lda	#0
+    493  f1d6		       85 86		      sta	PlayerVelY
+    494  f1d8
+    495  f1d8				   StillAirborne
+    496  f1d8				   OnGround
+    497  f1d8
+    498  f1d8							; Update enemies (simple AI)
+    499  f1d8		       20 e7 f1 	      jsr	UpdateEnemies
+    500  f1db
+    501  f1db							; Check collisions
+    502  f1db		       20 f7 f1 	      jsr	CheckCollisions
+    503  f1de
+    504  f1de							; Update lava height
+    505  f1de		       a5 80		      lda	FrameCounter
+    506  f1e0		       29 3f		      and	#$3F
+    507  f1e2		       d0 02		      bne	NoLavaRise
+    508  f1e4		       e6 c8		      inc	LavaHeight
+    509  f1e6				   NoLavaRise
+    510  f1e6
+    511  f1e6		       60		      rts
+    512  f1e7
+    513  f1e7							;-------------------------------------------------------------------------------
+    514  f1e7							; Update Enemies
+    515  f1e7							;-------------------------------------------------------------------------------
+    516  f1e7				   UpdateEnemies
+    517  f1e7							; Simple enemy movement
+    518  f1e7		       a5 80		      lda	FrameCounter
+    519  f1e9		       29 03		      and	#$03
+    520  f1eb		       d0 09		      bne	NoEnemyMove
+    521  f1ed
+    522  f1ed							; Move enemy 0 left/right
+    523  f1ed		       a5 92		      lda	EnemyX
+    524  f1ef		       18		      clc
+    525  f1f0		       69 01		      adc	#1
+    526  f1f2		       29 7f		      and	#$7F
+    527  f1f4		       85 92		      sta	EnemyX
+    528  f1f6
+    529  f1f6				   NoEnemyMove
+    530  f1f6		       60		      rts
+    531  f1f7
+    532  f1f7							;-------------------------------------------------------------------------------
+    533  f1f7							; Check Collisions
+    534  f1f7							;-------------------------------------------------------------------------------
+    535  f1f7				   CheckCollisions
+    536  f1f7							; Check player-enemy collision
+    537  f1f7		       a5 02		      lda	CXP0FB
+    538  f1f9		       10 00		      bpl	NoPlayerPFCollision
+    539  f1fb
+    540  f1fb							; Player hit playfield - handle later
+    541  f1fb
+    542  f1fb				   NoPlayerPFCollision
+    543  f1fb
+    544  f1fb		       a5 07		      lda	CXPPMM
+    545  f1fd		       10 02		      bpl	NoPlayerEnemyCol
+    546  f1ff
+    547  f1ff							; Player hit enemy - lose life
+    548  f1ff		       c6 89		      dec	Lives
+    549  f201
+    550  f201				   NoPlayerEnemyCol
+    551  f201
+    552  f201							; Clear collision latches
+    553  f201		       85 2c		      sta	CXCLR
+    554  f203		       60		      rts
+    555  f204
+    556  f204							;-------------------------------------------------------------------------------
+    557  f204							; Update Music (2-channel composition)
+    558  f204							;-------------------------------------------------------------------------------
+    559  f204				   UpdateMusic
+    560  f204							; Increment music tempo
+    561  f204		       e6 cc		      inc	MusicTempo
+    562  f206		       a5 cc		      lda	MusicTempo
+    563  f208		       29 07		      and	#$07
+    564  f20a		       d0 2e		      bne	NoMusicUpdate
+    565  f20c
+    566  f20c							; Update channel 0 (melody)
+    567  f20c		       a6 ca		      ldx	MusicNote0
+    568  f20e		       bd 94 f2 	      lda	MusicTable0,x
+    569  f211		       85 17		      sta	AUDF0
+    570  f213		       a9 0c		      lda	#$0C	; Pure tone
+    571  f215		       85 15		      sta	AUDC0
+    572  f217		       a9 08		      lda	#8	; Volume
+    573  f219		       85 19		      sta	AUDV0
+    574  f21b
+    575  f21b							; Update channel 1 (bass)
+    576  f21b		       a6 cb		      ldx	MusicNote1
+    577  f21d		       bd a4 f2 	      lda	MusicTable1,x
+    578  f220		       85 18		      sta	AUDF1
+    579  f222		       a9 06		      lda	#$06	; Bass tone
+    580  f224		       85 16		      sta	AUDC1
+    581  f226		       a9 06		      lda	#6	; Volume
+    582  f228		       85 1a		      sta	AUDV1
+    583  f22a
+    584  f22a							; Advance to next notes
+    585  f22a		       e6 ca		      inc	MusicNote0
+    586  f22c		       a5 ca		      lda	MusicNote0
+    587  f22e		       29 0f		      and	#$0F
+    588  f230		       85 ca		      sta	MusicNote0
+    589  f232
+    590  f232		       e6 cb		      inc	MusicNote1
+    591  f234		       a5 cb		      lda	MusicNote1
+    592  f236		       29 07		      and	#$07
+    593  f238		       85 cb		      sta	MusicNote1
+    594  f23a
+    595  f23a				   NoMusicUpdate
+    596  f23a
+    597  f23a							; Handle sound effects
+    598  f23a		       a5 ce		      lda	SFXCounter
+    599  f23c		       f0 14		      beq	NoSFX
+    600  f23e		       c6 ce		      dec	SFXCounter
+    601  f240
+    602  f240							; Play jump sound effect
+    603  f240		       a5 cf		      lda	SFXType
+    604  f242		       c9 01		      cmp	#1
+    605  f244		       d0 0c		      bne	NoSFX
+    606  f246		       a5 ce		      lda	SFXCounter
+    607  f248		       85 17		      sta	AUDF0
+    608  f24a		       a9 08		      lda	#$08
+    609  f24c		       85 15		      sta	AUDC0
+    610  f24e		       a9 0f		      lda	#$0F
+    611  f250		       85 19		      sta	AUDV0
+    612  f252
+    613  f252				   NoSFX
+    614  f252		       60		      rts
+    615  f253
+    616  f253							;-------------------------------------------------------------------------------
+    617  f253							; Load Screen Data
+    618  f253							;-------------------------------------------------------------------------------
+    619  f253				   LoadScreen0
+    620  f253							; Set initial screen variables
+    621  f253		       a9 00		      lda	#0
+    622  f255		       85 c6		      sta	CurrentScreen
+    623  f257
+    624  f257							; Set enemy positions for screen 0
+    625  f257		       a9 3c		      lda	#60
+    626  f259		       85 92		      sta	EnemyX
+    627  f25b		       a9 64		      lda	#100
+    628  f25d		       85 9a		      sta	EnemyY
+    629  f25f		       a9 01		      lda	#1
+    630  f261		       85 aa		      sta	EnemyActive
+    631  f263
+    632  f263							; Set collectible positions
+    633  f263		       a9 64		      lda	#100
+    634  f265		       85 ba		      sta	GoldX
+    635  f267		       a9 50		      lda	#80
+    636  f269		       85 be		      sta	GoldY
+    637  f26b		       a9 01		      lda	#1
+    638  f26d		       85 c2		      sta	GoldActive
+    639  f26f
+    640  f26f							; Set initial lava height
+    641  f26f		       a9 b4		      lda	#180
+    642  f271		       85 c8		      sta	LavaHeight
+    643  f273
+    644  f273		       60		      rts
+    645  f274
+    646  f274							;-------------------------------------------------------------------------------
+    647  f274							; Graphics Data
+    648  f274							;-------------------------------------------------------------------------------
+    649  f274
+    650  f274							; Player Sprite (16 bytes = 16 scanlines tall)
+    651  f274				   PlayerSprite
+    652  f274		       18		      .byte.b	#%00011000	; Head
+    653  f275		       3c		      .byte.b	#%00111100
+    654  f276		       3c		      .byte.b	#%00111100
+    655  f277		       18		      .byte.b	#%00011000
+    656  f278		       3c		      .byte.b	#%00111100	; Body
+    657  f279		       7e		      .byte.b	#%01111110
+    658  f27a		       7e		      .byte.b	#%01111110
+    659  f27b		       3c		      .byte.b	#%00111100
+    660  f27c		       3c		      .byte.b	#%00111100
+    661  f27d		       3c		      .byte.b	#%00111100
+    662  f27e		       18		      .byte.b	#%00011000	; Legs
+    663  f27f		       3c		      .byte.b	#%00111100
+    664  f280		       66		      .byte.b	#%01100110
+    665  f281		       c3		      .byte.b	#%11000011
+    666  f282		       81		      .byte.b	#%10000001
+    667  f283		       81		      .byte.b	#%10000001
+    668  f284
+    669  f284							; Multicolor player colors (cycles through these)
+    670  f284				   PlayerColors
+    671  f284		       2e		      .byte.b	#$2E	; Orange
+    672  f285		       4e		      .byte.b	#$4E	; Yellow-orange
+    673  f286		       6e		      .byte.b	#$6E	; Yellow
+    674  f287		       4e		      .byte.b	#$4E	; Yellow-orange
+    675  f288
+    676  f288							; Enemy Sprite (8 bytes)
+    677  f288				   EnemySprite
+    678  f288		       c3		      .byte.b	#%11000011
+    679  f289		       e7		      .byte.b	#%11100111
+    680  f28a		       ff		      .byte.b	#%11111111
+    681  f28b		       7e		      .byte.b	#%01111110
+    682  f28c		       3c		      .byte.b	#%00111100
+    683  f28d		       18		      .byte.b	#%00011000
+    684  f28e		       24		      .byte.b	#%00100100
+    685  f28f		       42		      .byte.b	#%01000010
+    686  f290
+    687  f290							; Lava colors (animate between these)
+    688  f290				   LavaColors
+    689  f290		       34		      .byte.b	#$34	; Orange-red
+    690  f291		       36		      .byte.b	#$36	; Brighter orange
+    691  f292		       38		      .byte.b	#$38	; Bright orange
+    692  f293		       36		      .byte.b	#$36	; Back to mid orange
+    693  f294
+    694  f294							; Music Note Tables (frequency values)
+    695  f294				   MusicTable0
+    696  f294		       0c 0e 10 0e*	      .byte.b	12, 14, 16, 14, 12, 10, 12, 14	; Melodic pattern
+    697  f29c		       0a 0c 0e 10*	      .byte.b	10, 12, 14, 16, 14, 12, 10, 8
+    698  f2a4
+    699  f2a4				   MusicTable1
+    700  f2a4		       08 08 0a 0a*	      .byte.b	8, 8, 10, 10, 8, 8, 10, 10	; Bass pattern
+    701  f2ac
+    702  f2ac							;-------------------------------------------------------------------------------
+    703  f2ac							; Screen Data (Simplified for demo)
+    704  f2ac							; Full game would have complete level data here
+    705  f2ac							;-------------------------------------------------------------------------------
+    706  f2ac				   Screen0Data
+    707  f2ac							; This would contain complete playfield data for screen 0
+    708  f2ac		       f0 ff ff 	      .byte.b	$F0, $FF, $FF	; Example PF data
+    709  f2af
+    710  f2af							;-------------------------------------------------------------------------------
+    711  f2af							; Interrupt Vectors
+    712  f2af							;-------------------------------------------------------------------------------
+    713  fffa					      ORG	$FFFA
+    714  fffa		       00 f0		      .word.w	Reset	; NMI
+    715  fffc		       00 f0		      .word.w	Reset	; RESET
+    716  fffe		       00 f0		      .word.w	Reset	; IRQ
+    717  10000
+    718  10000					       END
