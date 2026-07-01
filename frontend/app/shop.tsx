@@ -39,6 +39,7 @@ export default function Shop() {
   const { coins, inventory, buyPowerUp, syncServerBalance } = useEconomy();
 
   const [packs, setPacks] = useState<CoinPack[]>([]);
+  const [packsLive, setPacksLive] = useState(true);
   const [loadingPacks, setLoadingPacks] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string>("");
@@ -48,12 +49,11 @@ export default function Shop() {
     let cancelled = false;
     setLoadingPacks(true);
     fetchPacks()
-      .then((p) => {
-        if (!cancelled) setPacks(p);
+      .then(({ packs: p, live }) => {
+        if (!cancelled) { setPacks(p); setPacksLive(live); }
       })
-      .catch((e) => {
-        console.warn("Failed to fetch coin packs", e);
-        if (!cancelled) setPacks([]);
+      .catch(() => {
+        if (!cancelled) { setPacks([]); setPacksLive(false); }
       })
       .finally(() => {
         if (!cancelled) setLoadingPacks(false);
@@ -92,6 +92,10 @@ export default function Shop() {
 
   const onBuyPack = async (pack: CoinPack) => {
     if (purchasing) return;
+    if (!packsLive) {
+      Alert.alert("Coming Soon", "Payment system is not yet configured. Add your Stripe API key to enable purchases.");
+      return;
+    }
     getSoundEngine().uiClick();
     setPurchasing(pack.id);
     try {
@@ -148,44 +152,50 @@ export default function Shop() {
             <ActivityIndicator color="#FFD23F" />
             <Text style={styles.loadingText}>Loading packs…</Text>
           </View>
-        ) : packs.length === 0 ? (
-          <Text style={styles.emptyText}>
-            Coin packs are temporarily unavailable. Please try again later.
-          </Text>
         ) : (
-          <View style={styles.packsGrid}>
-            {packs.map((p) => {
-              const isLoading = purchasing === p.id;
-              const isBest = p.badge === "BEST VALUE";
-              const isMega = p.badge === "MEGA DEAL";
-              const border = isBest ? "#FF477E" : isMega ? "#A06DFF" : "#FFD23F";
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.packBtn, { borderColor: border }, isLoading && { opacity: 0.5 }]}
-                  onPress={() => onBuyPack(p)}
-                  disabled={!!purchasing}
-                  testID={`pack-${p.id}`}
-                  activeOpacity={0.8}
-                >
-                  {p.badge && (
-                    <View style={[styles.badge, { backgroundColor: border }]}>
-                      <Text style={styles.badgeText}>{p.badge}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.packCoins}>🪙 {p.coins.toLocaleString()}</Text>
-                  <Text style={styles.packLabel}>GHOST COINS</Text>
-                  <View style={styles.packPriceWrap}>
-                    {isLoading ? (
-                      <ActivityIndicator color="#FFFF00" size="small" />
-                    ) : (
-                      <Text style={styles.packPrice}>{formatPrice(p)}</Text>
+          <>
+            {!packsLive && (
+              <View style={styles.comingSoonBanner}>
+                <Text style={styles.comingSoonText}>⚙️ PAYMENT SYSTEM COMING SOON</Text>
+                <Text style={styles.comingSoonSub}>Add STRIPE_API_KEY to the backend to enable purchases</Text>
+              </View>
+            )}
+            <View style={styles.packsGrid}>
+              {packs.map((p) => {
+                const isLoading = purchasing === p.id;
+                const isBest = p.badge === "BEST VALUE";
+                const isMega = p.badge === "MEGA DEAL";
+                const border = isBest ? "#FF477E" : isMega ? "#A06DFF" : "#FFD23F";
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.packBtn, { borderColor: border }, (!packsLive || isLoading) && { opacity: 0.5 }]}
+                    onPress={() => onBuyPack(p)}
+                    disabled={!!purchasing}
+                    testID={`pack-${p.id}`}
+                    activeOpacity={0.8}
+                  >
+                    {p.badge && (
+                      <View style={[styles.badge, { backgroundColor: border }]}>
+                        <Text style={styles.badgeText}>{p.badge}</Text>
+                      </View>
                     )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    <Text style={styles.packCoins}>🪙 {p.coins.toLocaleString()}</Text>
+                    <Text style={styles.packLabel}>GHOST COINS</Text>
+                    <View style={styles.packPriceWrap}>
+                      {isLoading ? (
+                        <ActivityIndicator color="#FFFF00" size="small" />
+                      ) : (
+                        <Text style={styles.packPrice}>
+                          {packsLive ? formatPrice(p) : "Coming Soon"}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
         )}
 
         <Text style={styles.legalText}>
@@ -273,6 +283,17 @@ const styles = StyleSheet.create({
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   loadingText: { color: "#FFD23F", fontSize: 13 },
   emptyText: { color: "#888899", fontSize: 12, padding: 16, textAlign: "center" },
+  comingSoonBanner: {
+    backgroundColor: "#1a0a00",
+    borderWidth: 1,
+    borderColor: "#ff8800",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  comingSoonText: { color: "#ff8800", fontWeight: "900", fontSize: 12, letterSpacing: 1 },
+  comingSoonSub: { color: "#cc6600", fontSize: 10, marginTop: 4, textAlign: "center" },
   packsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
