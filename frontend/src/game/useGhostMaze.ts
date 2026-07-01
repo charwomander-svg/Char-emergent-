@@ -154,7 +154,7 @@ export function useGhostMaze(opts?: {
   dailySeed?: number;
   dailySeedDate?: string;
   startingLevel?: number;
-  onCoinsEarned?: (n: number, reason: "pellet" | "superPellet" | "catch" | "levelClear" | "perfect") => void;
+  onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
@@ -450,8 +450,7 @@ export function useGhostMaze(opts?: {
             progressRef.current = p;
             saveProgress(p);
           }
-          const lvlCoins = COIN_REWARD.levelClear + Math.floor(bonusGame.bonusScore / 100);
-          onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
+          onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
           mutated = true;
         }
       }
@@ -500,7 +499,6 @@ export function useGhostMaze(opts?: {
           );
           pelletsRemaining--;
           getSoundEngine().pellet();
-          onCoinsEarnedRef.current?.(COIN_REWARD.pellet, "pellet");
         } else if (cell === 3) {
           maze = maze.map((row, ry) =>
             ry === next.y
@@ -508,7 +506,6 @@ export function useGhostMaze(opts?: {
               : row,
           );
           getSoundEngine().superPellet();
-          onCoinsEarnedRef.current?.(COIN_REWARD.superPellet, "superPellet");
           // make all alive ghosts vulnerable
           for (let i = 0; i < newGhosts.length; i++) {
             if (newGhosts[i].alive) {
@@ -686,7 +683,6 @@ export function useGhostMaze(opts?: {
             }
             lastComboTime = now;
             score += SCORE_CATCH;
-            onCoinsEarnedRef.current?.(COIN_REWARD.catch, "catch");
             if (triggeredCombo) {
               getSoundEngine().comboHit(comboCount);
             } else {
@@ -714,12 +710,9 @@ export function useGhostMaze(opts?: {
               } BONUS`;
               getSoundEngine().levelWin();
 
-              // Award level coins
+              // Award level coins (base + 1 coin per 5% pellets remaining)
               const lvlCoins = COIN_REWARD.levelClear + Math.floor(pctRemaining * COIN_REWARD.perPercentRemaining);
               onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
-              if (pctRemaining === 100) {
-                onCoinsEarnedRef.current?.(COIN_REWARD.perfectBonus, "perfect");
-              }
 
               // Persist progress
               if (progressRef.current) {
