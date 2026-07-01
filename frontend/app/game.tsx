@@ -19,6 +19,7 @@ import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
+import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 
 const QUICK_SLOT_IDS: PowerUpId[] = ["speedBoost", "freeze", "teleport", "shield"];
 
@@ -256,7 +257,8 @@ export default function GameScreen() {
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory]);
 
-  const bossHpPct = state.boss ? Math.max(0, (state.boss.hp / state.boss.maxHp) * 100) : 0;
+  const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
+  const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -302,7 +304,7 @@ export default function GameScreen() {
           selectedGhostId={state.selectedGhostId}
           ready={state.status === "ready"}
           level={state.level}
-          boss={state.boss}
+          bonusGame={state.bonusGame}
         />
         <View style={styles.footerHud} testID="hud-bottom">
           <View style={styles.statusLine}>
@@ -318,13 +320,14 @@ export default function GameScreen() {
                 {bestRunMs > 0 && <Text style={styles.statusPillSub}>BEST {fmtMs(bestRunMs)}</Text>}
               </View>
             )}
-            {state.boss && (
+            {state.bonusGame && (
               <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>BOSS {state.boss.hp}/{state.boss.maxHp}</Text>
-                <Text style={styles.statusPillSub}>{state.boss.title}</Text>
-                <View style={styles.bossMiniBarOuter}>
-                  <View style={[styles.bossMiniBarInner, { width: `${bossHpPct}%` }]} />
-                </View>
+                <Text style={styles.statusPillText}>
+                  {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft}✕
+                </Text>
+                <Text style={styles.statusPillSub}>
+                  {Math.ceil(bonusTimeLeft / 1000)}s LEFT
+                </Text>
               </View>
             )}
             {activeEffects.length > 0 && (

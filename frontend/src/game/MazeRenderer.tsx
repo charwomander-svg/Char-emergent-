@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, Animated, Easing } from "react-native";
+import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
-import type { BossState } from "@/src/game/boss";
-import { bossVisualScale, bossAuraColor, bossIsLunging } from "@/src/game/boss";
+import type { BonusGameState } from "@/src/game/bonusGame";
+import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED } from "@/src/game/constants";
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   selectedGhostId: number;
   ready: boolean;
   level: number;
-  boss?: BossState | null;
+  bonusGame?: BonusGameState | null;
 }
 
 // Smooth position hook — interpolates grid coords to pixel coords with
@@ -571,7 +571,7 @@ export default function MazeRenderer({
   selectedGhostId,
   ready,
   level,
-  boss,
+  bonusGame,
 }: Props) {
   if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
@@ -580,11 +580,6 @@ export default function MazeRenderer({
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
-
-  // Boss visuals — aura tint + sprite scale + active lunge flash.
-  const bossScale = bossVisualScale(boss ?? null);
-  const aura = bossAuraColor(boss ?? null);
-  const lunging = bossIsLunging(boss ?? null, performance.now());
 
   return (
     <View
@@ -617,24 +612,30 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        {/* Boss aura beneath Pellet Guy (pulses red while lunging) */}
-        {boss && aura && pelletGuy.alive && (
-          <BossAuraSprite
-            x={pelletGuy.x}
-            y={pelletGuy.y}
+        {/* Bonus game items — flags, targets, or Pookas */}
+        {bonusGame &&
+          bonusGame.items
+            .filter((item) => !item.collected)
+            .map((item, idx) => (
+              <BonusItemSprite
+                key={idx}
+                x={item.x}
+                y={item.y}
+                size={cellSize}
+                emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                moveDuration={pgDuration}
+                moving={bonusGame.type === "digDugDash"}
+              />
+            ))}
+        {/* Pellet Guy — hidden during bonus rounds */}
+        {!bonusGame && (
+          <PelletGuySprite
+            pg={pelletGuy}
             size={cellSize}
-            scale={bossScale + (lunging ? 0.25 : 0)}
-            color={aura}
-            lunging={lunging}
             moveDuration={pgDuration}
+            visualScale={1}
           />
         )}
-        <PelletGuySprite
-          pg={pelletGuy}
-          size={cellSize}
-          moveDuration={pgDuration}
-          visualScale={bossScale}
-        />
         {ghosts.map((g) => (
           <GhostSprite
             key={g.id}
@@ -651,46 +652,25 @@ export default function MazeRenderer({
 }
 
 // ---------------------------------------------------------------------------
-// Boss aura — a soft animated circle behind the Pellet Guy showing the phase
-// color and pulsing while a phase-3 lunge is active.
+// Bonus item — a simple emoji overlay rendered at a fixed grid cell
+// (for flags, targets) or with smooth movement (for Pookas).
 // ---------------------------------------------------------------------------
-const BossAuraSprite = React.memo(function BossAuraSprite({
+const BonusItemSprite = React.memo(function BonusItemSprite({
   x,
   y,
   size,
-  scale,
-  color,
-  lunging,
+  emoji,
   moveDuration,
+  moving,
 }: {
   x: number;
   y: number;
   size: number;
-  scale: number;
-  color: string;
-  lunging: boolean;
+  emoji: string;
   moveDuration: number;
+  moving: boolean;
 }) {
-  const { animX, animY } = useSmoothPosition(x, y, moveDuration, size);
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [pulse]);
-
-  const auraSize = size * scale * 1.5;
-  const offset = (auraSize - size) / 2;
-  const opacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: lunging ? [0.55, 0.95] : [0.25, 0.55],
-  });
-
+  const { animX, animY } = useSmoothPosition(x, y, moving ? moveDuration : 0, size);
   return (
     <Animated.View
       style={[
@@ -698,29 +678,17 @@ const BossAuraSprite = React.memo(function BossAuraSprite({
         {
           width: size,
           height: size,
-          left: -offset,
-          top: -offset,
           transform: [
             { translateX: animX },
             { translateY: animY },
           ],
           pointerEvents: "none",
+          alignItems: "center",
+          justifyContent: "center",
         },
       ]}
     >
-      <Animated.View
-        style={{
-          width: auraSize,
-          height: auraSize,
-          borderRadius: auraSize / 2,
-          backgroundColor: color,
-          opacity,
-          shadowColor: color,
-          shadowOpacity: 1,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 0 },
-        }}
-      />
+      <Text style={{ fontSize: size * 0.6, lineHeight: size }}>{emoji}</Text>
     </Animated.View>
   );
 });

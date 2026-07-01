@@ -40,15 +40,12 @@ import { COIN_REWARD } from "./economy";
 import type { ActiveEffects } from "./types";
 import { loadSettings } from "./settings";
 import {
-  isBossLevel,
-  createBoss,
-  applyBossHit,
-  bossSpeedScale,
-  maybeBossTeleport,
-  maybeBossLunge,
-  bossIsLunging,
-  BOSS_REWARDS,
-} from "./boss";
+  isBonusLevel,
+  getBonusGameType,
+  createBonusGame,
+  tickBonusGame,
+  BONUS_CONFIG,
+} from "./bonusGame";
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -104,7 +101,7 @@ function buildInitialState(
     level,
     daily?.seed,
   );
-  const bossActive = isBossLevel(level);
+  const bonusActive = isBonusLevel(level);
   const now = performance.now();
   return {
     status: "ready",
@@ -119,8 +116,8 @@ function buildInitialState(
     pelletGuy: createInitialPelletGuy(pelletGuySpawn),
     lastComboTime: 0,
     comboCount: 0,
-    message: bossActive
-      ? `⚠️ BOSS LEVEL ${level} ⚠️\nBIG PELLET GUY!`
+    message: bonusActive
+      ? `🎮 BONUS STAGE! 🎮\n${BONUS_CONFIG[getBonusGameType(level)].label}`
       : daily
         ? `DAILY ${daily.seedDate}`
         : `LEVEL ${level}`,
@@ -128,7 +125,9 @@ function buildInitialState(
     barricades: [],
     ghostDeathsThisLevel: 0,
     effects: { ...EMPTY_EFFECTS },
-    boss: bossActive ? createBoss(now) : null,
+    bonusGame: bonusActive
+      ? createBonusGame(getBonusGameType(level), maze, now)
+      : null,
   };
 }
 
@@ -297,8 +296,7 @@ export function useGhostMaze(opts?: {
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
     // Boss makes Pellet Guy faster (smaller interval) in later phases.
-    const pgBossScale = prev.boss ? bossSpeedScale(prev.boss) : 1.0;
-    const pgInterval = SPEED.pelletGuy * scale * pgBossScale;
+    const pgInterval = SPEED.pelletGuy * scale;
 
     let nextState: GameState = prev;
     let mutated = false;
@@ -380,8 +378,10 @@ export function useGhostMaze(opts?: {
     let score = prev.score;
     let barricades = prev.barricades;
     let ghostDeathsThisLevel = prev.ghostDeathsThisLevel;
-    // Boss state evolves over the tick — phases, teleport timers, lunge windows.
-    let boss = prev.boss;
+    // Bonus game state evolves each tick.
+    let bonusGame = prev.bonusGame;
+    let status: GameState["status"] = prev.status;
+    let message = prev.message;
 
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
@@ -397,24 +397,53 @@ export function useGhostMaze(opts?: {
       }
     } else if (!freezeActive && now - lastPelletGuyMoveRef.current >= pgInterval) {
       // -----------------------------------------------------------------
-      // Boss mechanics that fire BEFORE normal movement (so the teleport
-      // is reflected on the same tick).
+      // Bonus game tick: runs regardless of whether PG moves this frame.
+      // Pookas (digDugDash) move on their own timers inside tickBonusGame.
       // -----------------------------------------------------------------
-      if (boss) {
-        // Phase >= 2: teleport to a far-away pellet on cooldown.
-        const tp = maybeBossTeleport(boss, maze, now, pg.x, pg.y);
-        if (tp) {
-          pg = { ...pg, x: tp.x, y: tp.y, direction: pg.direction };
-          boss = { ...boss, nextTeleportAt: tp.nextTeleportAt };
+      if (bonusGame && !bonusGame.complete) {
+        const ghostPos = newGhosts
+          .filter((g) => g.alive)
+          .map((g) => ({ x: g.x, y: g.y }));
+        const { next, collectedNow, bonusPointsEarned } = tickBonusGame(
+          bonusGame,
+          maze,
+          ghostPos,
+          now,
+        );
+        if (collectedNow > 0 || next.complete !== bonusGame.complete) {
+          bonusGame = next;
+          score += bonusPointsEarned;
           mutated = true;
+          if (collectedNow > 0) getSoundEngine().catchHit();
+        } else {
+          bonusGame = next;
         }
-        // Phase 3: maybe trigger a 1.2-second "lunge".
-        const lunge = maybeBossLunge(boss, now);
-        if (lunge) {
-          boss = { ...boss, ...lunge };
+
+        if (bonusGame.complete) {
+          const allClear = bonusGame.collectedItems >= bonusGame.totalItems;
+          status = "levelWon";
+          const config = BONUS_CONFIG[bonusGame.type];
+          if (allClear) {
+            message = `🎉 BONUS CLEAR!\n+${bonusGame.bonusScore} BONUS POINTS`;
+          } else {
+            message = `⏱ TIME UP!\n+${bonusGame.bonusScore} BONUS POINTS`;
+          }
+          getSoundEngine().levelWin();
+          if (progressRef.current) {
+            const p = { ...progressRef.current };
+            p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
+            p.highScore = Math.max(p.highScore, score);
+            progressRef.current = p;
+            saveProgress(p);
+          }
+          const lvlCoins = COIN_REWARD.levelClear + Math.floor(bonusGame.bonusScore / 100);
+          onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
           mutated = true;
         }
       }
+
+      // During a bonus level Pellet Guy is frozen — skip movement entirely.
+      if (!bonusGame) {
       lastPelletGuyMoveRef.current = now;
 
       const pgPrevX = pg.x;
@@ -520,7 +549,8 @@ export function useGhostMaze(opts?: {
           }
         }
       }
-    }
+      } // end if (!bonusGame) — PG movement skipped during bonus levels
+    } // end else if (pg movement tick)
 
     // --- Expire barricades ---
     if (barricades.length > 0) {
@@ -588,8 +618,6 @@ export function useGhostMaze(opts?: {
     let lastComboTime = prev.lastComboTime;
     let comboCount = prev.comboCount;
     let lives = prev.lives;
-    let status: GameState["status"] = prev.status;
-    let message = prev.message;
 
     if (pg.alive) {
       for (let i = 0; i < newGhosts.length; i++) {
@@ -597,30 +625,12 @@ export function useGhostMaze(opts?: {
         if (!g.alive) continue;
         if (g.x === pg.x && g.y === pg.y) {
           // -------------------------------------------------------------
-          // BOSS LUNGE: in phase 3, if Pellet Guy is currently lunging
-          // (a brief window after a dash) he eats ANY ghost on contact —
-          // even an invulnerable, non-vulnerable ghost. Shield still
-          // absorbs one hit though.
+          // BONUS LEVELS: ghost-on-PG collision is disabled (PG frozen,
+          // bonus items handle scoring). Only normal catch/vulnerable logic
+          // applies on non-bonus levels.
           // -------------------------------------------------------------
-          if (bossIsLunging(boss, now)) {
-            if (effectsNext.shieldGhostId === g.id) {
-              effectsNext = { ...effectsNext, shieldGhostId: null };
-              getSoundEngine().uiClick();
-              mutated = true;
-              continue;
-            }
-            const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
-            ghostDeathsThisLevel++;
-            newGhosts[i] = {
-              ...g,
-              alive: false,
-              respawnAt: now + delay,
-              vulnerable: false,
-              vulnerableUntil: 0,
-            };
-            score += SCORE_SPIKED_GHOST_PENALTY; // same penalty as a spike
-            getSoundEngine().ghostEaten();
-            mutated = true;
+          if (bonusGame) {
+            // No collision during bonus rounds.
             continue;
           }
 
@@ -677,42 +687,7 @@ export function useGhostMaze(opts?: {
             };
             mutated = true;
 
-            // ---- Boss level: apply HP damage and check defeat ----
-            if (boss) {
-              const { next: nextBoss, defeated } = applyBossHit(boss, now);
-              boss = nextBoss;
-              // Bonus coins per phase hit (in addition to the regular catch reward).
-              onCoinsEarnedRef.current?.(BOSS_REWARDS.perPhaseHitCoins, "catch");
-
-              if (defeated) {
-                // Boss defeated! Treat as level win with extra bonus.
-                score += BOSS_REWARDS.finalDefeatScore;
-                const pctRemaining = Math.round(
-                  (pelletsRemaining / Math.max(1, prev.totalPellets)) * 100,
-                );
-                status = "levelWon";
-                message = `⭐ BOSS DEFEATED! ⭐\n+${BOSS_REWARDS.finalDefeatScore} BOSS BONUS\n+${BOSS_REWARDS.finalDefeatCoins} 🪙`;
-                getSoundEngine().levelWin();
-                onCoinsEarnedRef.current?.(BOSS_REWARDS.finalDefeatCoins, "levelClear");
-
-                // Persist progress for boss clears
-                if (progressRef.current) {
-                  const p = { ...progressRef.current };
-                  p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
-                  p.totalCatches = p.totalCatches + CATCH_TO_WIN;
-                  if (pctRemaining === 100) p.perfectClears = p.perfectClears + 1;
-                  p.highScore = Math.max(p.highScore, score);
-                  progressRef.current = p;
-                  saveProgress(p);
-                }
-              } else {
-                // Phase transition — flash a quick HUD message.
-                message = `HP ${nextBoss.hp}/${nextBoss.maxHp} — ${nextBoss.title}`;
-              }
-              break;
-            }
-
-            // Non-boss level: classic 3-catch win.
+            // ---- Non-bonus level: classic 3-catch win. ----
             if (catches >= CATCH_TO_WIN) {
               // Level won!
               const pctRemaining = Math.round(
@@ -802,7 +777,7 @@ export function useGhostMaze(opts?: {
       mutated = true;
     }
 
-    if (mutated || status !== prev.status || effectsNext !== effects || boss !== prev.boss) {
+    if (mutated || status !== prev.status || effectsNext !== effects || bonusGame !== prev.bonusGame) {
       nextState = {
         ...prev,
         ghosts: newGhosts,
@@ -819,7 +794,7 @@ export function useGhostMaze(opts?: {
         barricades,
         ghostDeathsThisLevel,
         effects: effectsNext,
-        boss,
+        bonusGame,
       };
       setState(nextState);
     }
