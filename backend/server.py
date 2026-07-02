@@ -53,8 +53,12 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
-@api_router.get("/")
-async def root():
+@app.get("/")
+async def index():
+    return {"status": "ok", "service": "Ghost Maze API", "docs": "/api/"}
+
+
+
     return {"message": "Ghost Maze API"}
 
 
