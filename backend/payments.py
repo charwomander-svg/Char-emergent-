@@ -239,7 +239,7 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
     # -----------------------------------------------------------------------
     @router.get("/packs", response_model=list[PackInfo])
     async def list_packs():
-        return [PackInfo(**p.dict()) for p in COIN_PACKS.values()]
+        return [PackInfo(**p.model_dump()) for p in COIN_PACKS.values()]
 
     @router.post("/session", response_model=CreateCheckoutResponse)
     async def create_checkout_session(body: CreateCheckoutRequest, request: Request):

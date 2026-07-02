@@ -6,7 +6,7 @@ import os
 import logging
 import hashlib
 from pathlib import Path
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Literal
 import uuid
 from datetime import datetime, timezone, date
@@ -61,7 +61,7 @@ async def root():
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_obj = StatusCheck(client_name=input.client_name)
-    await db.status_checks.insert_one(status_obj.dict())
+    await db.status_checks.insert_one(status_obj.model_dump())
     return status_obj
 
 
@@ -99,7 +99,8 @@ class ScoreSubmission(BaseModel):
     daily_seed_date: Optional[str] = None  # required if mode==daily
     run_time_ms: Optional[int] = Field(default=None, ge=0)
 
-    @validator("player_name")
+    @field_validator("player_name", mode="before")
+    @classmethod
     def sanitize_name(cls, v: str) -> str:
         v = v.strip()
         if not v:
@@ -157,7 +158,7 @@ async def submit_score(s: ScoreSubmission):
         timestamp=datetime.now(timezone.utc),
     )
 
-    await db.scores.insert_one(entry.dict())
+    await db.scores.insert_one(entry.model_dump())
     return entry
 
 
