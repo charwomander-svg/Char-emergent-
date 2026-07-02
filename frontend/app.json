@@ -15,6 +15,7 @@
       ]
     ],
     "android": {
+      "package": "dev.charware.ghost_maze",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
