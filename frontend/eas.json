@@ -11,13 +11,13 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "REPLACE_WITH_RENDER_URL"
+        "EXPO_PUBLIC_BACKEND_URL": "https://ghost-maze-backend.onrender.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "REPLACE_WITH_RENDER_URL"
+        "EXPO_PUBLIC_BACKEND_URL": "https://ghost-maze-backend.onrender.com"
       }
     }
   },
