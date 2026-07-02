@@ -17,12 +17,27 @@ from payments import get_router as get_payments_router, init_stripe
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+mongo_url = os.getenv('MONGO_URL', '')
+db_name = os.getenv('DB_NAME', 'ghost_maze')
+
+# Initialize DB connection at module load if env vars are present; if
+# MONGO_URL is absent the server will still import cleanly and the startup
+# event below will surface a clear error.
+if mongo_url:
+    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
+else:
+    client = None  # type: ignore[assignment]
+    db = None
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+
+@app.on_event("startup")
+async def startup_db():
+    if not mongo_url:
+        raise RuntimeError("MONGO_URL environment variable is not set")
 
 
 # ============================================================
