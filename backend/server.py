@@ -58,6 +58,11 @@ async def index():
     return {"status": "ok", "service": "Ghost Maze API", "docs": "/api/"}
 
 
+@api_router.get("/")
+async def root():
+    return {"message": "Ghost Maze API"}
+
+
 
     return {"message": "Ghost Maze API"}
 
