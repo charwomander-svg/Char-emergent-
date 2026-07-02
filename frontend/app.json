@@ -8,8 +8,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#000000",
-          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#0d0d1a",
+          "image": "./assets/images/app-image.png",
           "imageWidth": 200
         }
       ]
