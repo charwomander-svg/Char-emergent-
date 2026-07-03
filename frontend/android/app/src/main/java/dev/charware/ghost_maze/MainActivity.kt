@@ -1,4 +1,4 @@
-package com.anonymous.frontend
+package dev.charware.ghost_maze
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

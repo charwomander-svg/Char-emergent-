@@ -1,4 +1,4 @@
-package com.anonymous.frontend
+package dev.charware.ghost_maze
 
 import android.app.Application
 import android.content.res.Configuration
