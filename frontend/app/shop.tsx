@@ -7,126 +7,120 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Linking,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import {
+  initConnection,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  purchaseErrorListener,
+  purchaseUpdatedListener,
+  ErrorCode,
+  type Purchase,
+  type PurchaseError,
+  type Product,
+} from "react-native-iap";
 import { COLORS } from "@/src/game/constants";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";
 import { getSoundEngine } from "@/src/game/sounds";
-import {
-  fetchPacks,
-  createCheckoutSession,
-  getPlayerBalance,
-  type CoinPack,
-} from "@/src/game/payments";
-import { getPlayerId } from "@/src/game/playerId";
 
-function getWebOrigin(): string {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return (
-    (typeof process !== "undefined" && (process as any).env?.EXPO_PUBLIC_BACKEND_URL) ||
-    ""
-  );
-}
+// SKU → coins mapping (must match Play Console in-app product IDs exactly)
+const COIN_SKUS: { sku: string; coins: number; label: string; price: string; badge?: string }[] = [
+  { sku: "ghost_coins_100",   coins: 100,   label: "Starter Pack",  price: "$0.99" },
+  { sku: "ghost_coins_250",   coins: 250,   label: "Small Pack",    price: "$1.99" },
+  { sku: "ghost_coins_500",   coins: 500,   label: "Medium Pack",   price: "$3.99", badge: "POPULAR" },
+  { sku: "ghost_coins_1200",  coins: 1200,  label: "Big Pack",      price: "$7.99", badge: "BEST VALUE" },
+  { sku: "ghost_coins_2500",  coins: 2500,  label: "Mega Pack",     price: "$14.99" },
+  { sku: "ghost_coins_6000",  coins: 6000,  label: "Ultimate Pack", price: "$29.99", badge: "MEGA DEAL" },
+];
 
 export default function Shop() {
   const router = useRouter();
-  const { coins, inventory, buyPowerUp, syncServerBalance } = useEconomy();
+  const { coins, inventory, buyPowerUp, grantCoins } = useEconomy();
 
-  const [packs, setPacks] = useState<CoinPack[]>([]);
-  const [packsLive, setPacksLive] = useState(true);
-  const [loadingPacks, setLoadingPacks] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [iapReady, setIapReady] = useState(false);
+  const [loadingIap, setLoadingIap] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string>("");
 
-  // Load coin packs from backend on mount
   useEffect(() => {
-    let cancelled = false;
-    setLoadingPacks(true);
-    fetchPacks()
-      .then(({ packs: p, live }) => {
-        if (!cancelled) { setPacks(p); setPacksLive(live); }
-      })
-      .catch(() => {
-        if (!cancelled) { setPacks([]); setPacksLive(false); }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingPacks(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    let purchaseUpdateSub: ReturnType<typeof purchaseUpdatedListener>;
+    let purchaseErrorSub: ReturnType<typeof purchaseErrorListener>;
 
-  const restoreBalance = useCallback(async () => {
-    try {
-      const playerId = await getPlayerId();
-      const serverBalance = await getPlayerBalance(playerId);
-      const delta = syncServerBalance(serverBalance);
-      if (delta > 0) {
-        setSyncMessage(`Synced +${delta.toLocaleString()} coins from your account.`);
-      } else {
-        setSyncMessage("Balance already up to date.");
+    const setup = async () => {
+      try {
+        await initConnection();
+        const prods = await fetchProducts({ skus: COIN_SKUS.map((s) => s.sku) });
+        setProducts((prods ?? []) as Product[]);
+        setIapReady(true);
+
+        purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
+          const entry = COIN_SKUS.find((s) => s.sku === purchase.productId);
+          if (entry) {
+          grantCoins(entry.coins);
+            await finishTransaction({ purchase, isConsumable: true });
+            Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
+          }
+          setPurchasing(null);
+        });
+
+        purchaseErrorSub = purchaseErrorListener((error: PurchaseError) => {
+          if (error.code !== ErrorCode.UserCancelled) {
+            Alert.alert("Purchase failed", error.message || "Something went wrong.");
+          }
+          setPurchasing(null);
+        });
+      } catch {
+        setIapReady(false);
+      } finally {
+        setLoadingIap(false);
       }
-    } catch {
-      setSyncMessage("Could not sync your balance right now.");
-    }
-  }, [syncServerBalance]);
+    };
 
-  useEffect(() => {
-    restoreBalance();
-  }, [restoreBalance]);
+    if (Platform.OS === "android") {
+      setup();
+    } else {
+      setLoadingIap(false);
+    }
+
+    return () => {
+      purchaseUpdateSub?.remove();
+      purchaseErrorSub?.remove();
+    };
+  }, [grantCoins]);
+
+  const onBuyPack = async (sku: string) => {
+    if (purchasing || !iapReady) return;
+    getSoundEngine().uiClick();
+    setPurchasing(sku);
+    try {
+      await (requestPurchase as any)({ skus: [sku] });
+      // result handled by purchaseUpdatedListener
+    } catch (e: any) {
+      if (e?.code !== ErrorCode.UserCancelled) {
+        Alert.alert("Purchase failed", e?.message || "Could not start purchase.");
+      }
+      setPurchasing(null);
+    }
+  };
 
   const onBuyPower = (id: keyof typeof POWER_UPS) => {
     getSoundEngine().uiClick();
     const ok = buyPowerUp(id);
     if (!ok) {
-      Alert.alert("Not enough coins", "Earn more Ghost Coins by playing, or get a coin pack.");
+      Alert.alert("Not enough coins", "Earn more Ghost Coins by playing, or buy a coin pack.");
     }
   };
 
-  const onBuyPack = async (pack: CoinPack) => {
-    if (purchasing) return;
-    if (!packsLive) {
-      Alert.alert("Coming Soon", "Payment system is not yet configured. Add your Stripe API key to enable purchases.");
-      return;
-    }
-    getSoundEngine().uiClick();
-    setPurchasing(pack.id);
-    try {
-      const playerId = await getPlayerId();
-      const origin = getWebOrigin();
-      if (!origin) {
-        Alert.alert("Setup error", "Could not determine app origin for payment redirect.");
-        return;
-      }
-      const session = await createCheckoutSession(pack.id, playerId, origin);
-      // Open Stripe Checkout
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.location.assign(session.checkout_url);
-      } else {
-        await Linking.openURL(session.checkout_url);
-        // On native, send user to the in-app pending screen so we can poll
-        router.push({
-          pathname: "/checkout/success",
-          params: { session_id: session.session_id },
-        });
-      }
-    } catch (e: any) {
-      console.error("Stripe checkout failed", e);
-      Alert.alert("Purchase failed", e?.message || "Could not start checkout. Try again.");
-    } finally {
-      setPurchasing(null);
-    }
-  };
-
-  const formatPrice = (p: CoinPack) =>
-    `$${(p.price_cents / 100).toFixed(2)}`;
+  // Merge Play Store prices into SKU list when available
+  const packs = COIN_SKUS.map((entry) => {
+    const prod = products.find((p) => (p as any).productId === entry.sku);
+    return { ...entry, livePrice: (prod as any)?.localizedPrice ?? entry.price };
+  });
 
   return (
     <SafeAreaView style={styles.container} testID="shop-screen">
@@ -143,36 +137,34 @@ export default function Shop() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Coin packs */}
         <Text style={styles.sectionTitle}>GHOST COIN PACKS</Text>
-        <Text style={styles.subTitle}>
-          Buy coins to unlock more power-ups. No ads. Ever.
-        </Text>
+        <Text style={styles.subTitle}>Buy coins to unlock more power-ups. No ads. Ever.</Text>
 
-        {loadingPacks ? (
+        {loadingIap ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="#FFD23F" />
-            <Text style={styles.loadingText}>Loading packs…</Text>
+            <Text style={styles.loadingText}>Loading…</Text>
           </View>
         ) : (
           <>
-            {!packsLive && (
+            {!iapReady && Platform.OS === "android" && (
               <View style={styles.comingSoonBanner}>
-                <Text style={styles.comingSoonText}>⚙️ PAYMENT SYSTEM COMING SOON</Text>
-                <Text style={styles.comingSoonSub}>Add STRIPE_API_KEY to the backend to enable purchases</Text>
+                <Text style={styles.comingSoonText}>⚙️ STORE UNAVAILABLE</Text>
+                <Text style={styles.comingSoonSub}>Google Play Billing could not be initialized.</Text>
               </View>
             )}
             <View style={styles.packsGrid}>
               {packs.map((p) => {
-                const isLoading = purchasing === p.id;
+                const isLoading = purchasing === p.sku;
                 const isBest = p.badge === "BEST VALUE";
                 const isMega = p.badge === "MEGA DEAL";
                 const border = isBest ? "#FF477E" : isMega ? "#A06DFF" : "#FFD23F";
                 return (
                   <TouchableOpacity
-                    key={p.id}
-                    style={[styles.packBtn, { borderColor: border }, (!packsLive || isLoading) && { opacity: 0.5 }]}
-                    onPress={() => onBuyPack(p)}
-                    disabled={!!purchasing}
-                    testID={`pack-${p.id}`}
+                    key={p.sku}
+                    style={[styles.packBtn, { borderColor: border }, (!iapReady || !!purchasing) && { opacity: 0.5 }]}
+                    onPress={() => onBuyPack(p.sku)}
+                    disabled={!iapReady || !!purchasing}
+                    testID={`pack-${p.sku}`}
                     activeOpacity={0.8}
                   >
                     {p.badge && (
@@ -186,9 +178,7 @@ export default function Shop() {
                       {isLoading ? (
                         <ActivityIndicator color="#FFFF00" size="small" />
                       ) : (
-                        <Text style={styles.packPrice}>
-                          {packsLive ? formatPrice(p) : "Coming Soon"}
-                        </Text>
+                        <Text style={styles.packPrice}>{p.livePrice}</Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -199,12 +189,8 @@ export default function Shop() {
         )}
 
         <Text style={styles.legalText}>
-          Secure checkout by Stripe. Payments are processed in test mode in this preview.
+          Purchases are processed securely through Google Play.
         </Text>
-        <TouchableOpacity style={styles.restoreBtn} onPress={restoreBalance} testID="restore-balance-btn">
-          <Text style={styles.restoreBtnText}>↻ RESTORE / SYNC BALANCE</Text>
-        </TouchableOpacity>
-        {!!syncMessage && <Text style={styles.syncText}>{syncMessage}</Text>}
 
         {/* Power-up grid */}
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>POWER-UPS</Text>
@@ -223,10 +209,7 @@ export default function Shop() {
                 <Text style={styles.rowOwned}>OWNED: {owned}</Text>
               </View>
               <TouchableOpacity
-                style={[
-                  styles.buyBtn,
-                  !canAfford && { opacity: 0.4 },
-                ]}
+                style={[styles.buyBtn, !canAfford && { opacity: 0.4 }]}
                 onPress={() => onBuyPower(id)}
                 disabled={!canAfford}
                 testID={`buy-${id}`}
