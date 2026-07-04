@@ -1,4 +1,4 @@
-name: Build Android Signed Release APK
+name: Build Android Signed Release AAB
 
 on:
   push:
@@ -45,16 +45,16 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x frontend/android/gradlew
 
-      - name: Build release APK
+      - name: Build release AAB
         working-directory: frontend/android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew bundleRelease
 
-      - name: Upload APK artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: frontend/android/app/build/outputs/apk/release/*.apk
+          name: app-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/*.aab
