@@ -63,10 +63,6 @@ async def root():
     return {"message": "Ghost Maze API"}
 
 
-
-    return {"message": "Ghost Maze API"}
-
-
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_obj = StatusCheck(client_name=input.client_name)
@@ -136,6 +132,11 @@ class DailySeedInfo(BaseModel):
     seed: int
 
 
+class LeaderboardSummary(BaseModel):
+    overall_best: Optional[ScoreEntry] = None
+    level_bests: List[ScoreEntry]
+
+
 @api_router.get("/daily-seed", response_model=DailySeedInfo)
 async def daily_seed():
     d = utc_today_str()
@@ -190,6 +191,53 @@ async def leaderboard(
     )
     rows = await db.scores.find(query, {"_id": 0}).sort(sort_spec).to_list(limit)
     return [ScoreEntry(**r) for r in rows]
+
+
+@api_router.get("/leaderboard-summary", response_model=LeaderboardSummary)
+async def leaderboard_summary(
+    mode: Literal["classic", "speedrun"] = "classic",
+):
+    query = {"mode": mode}
+    rows = await db.scores.find(query, {"_id": 0}).to_list(length=None)
+    entries = [ScoreEntry(**r) for r in rows]
+
+    if mode == "speedrun":
+        by_level: dict[int, ScoreEntry] = {}
+        for entry in entries:
+            existing = by_level.get(entry.level)
+            if existing is None:
+                by_level[entry.level] = entry
+                continue
+            existing_time = existing.run_time_ms or 0
+            next_time = entry.run_time_ms or 0
+            if existing_time <= 0 or (
+                next_time > 0
+                and (
+                    next_time < existing_time
+                    or (next_time == existing_time and entry.score > existing.score)
+                )
+            ):
+                by_level[entry.level] = entry
+
+        level_bests = [by_level[level] for level in sorted(by_level.keys())]
+        return LeaderboardSummary(overall_best=None, level_bests=level_bests)
+
+    by_level: dict[int, ScoreEntry] = {}
+    overall_best: Optional[ScoreEntry] = None
+    for entry in entries:
+        existing = by_level.get(entry.level)
+        if existing is None or entry.score > existing.score or (
+            entry.score == existing.score and entry.timestamp < existing.timestamp
+        ):
+            by_level[entry.level] = entry
+
+        if overall_best is None or entry.score > overall_best.score or (
+            entry.score == overall_best.score and entry.timestamp < overall_best.timestamp
+        ):
+            overall_best = entry
+
+    level_bests = [by_level[level] for level in sorted(by_level.keys())]
+    return LeaderboardSummary(overall_best=overall_best, level_bests=level_bests)
 
 
 app.include_router(api_router)

@@ -1,25 +1,29 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
-import { fetchLeaderboard, ScoreEntry } from "@/src/game/api";
+import {
+  fetchLeaderboardSummary,
+  type LeaderboardSummary,
+  type ScoreEntry,
+} from "@/src/game/api";
 
 type Tab = "classic" | "speedrun";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("classic");
-  const [scores, setScores] = useState<ScoreEntry[]>([]);
+  const [summary, setSummary] = useState<LeaderboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -27,11 +31,11 @@ export default function LeaderboardScreen() {
   const load = useCallback(async () => {
     setErr(null);
     try {
-      const data = await fetchLeaderboard(tab, { limit: 50 });
-      setScores(data);
+      const data = await fetchLeaderboardSummary(tab);
+      setSummary(data);
     } catch (e: any) {
       setErr(e.message || "Failed to load leaderboard");
-      setScores([]);
+      setSummary(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,6 +72,20 @@ export default function LeaderboardScreen() {
     return `${m}:${String(s).padStart(2, "0")}`;
   };
 
+  const levelRows = useMemo(() => {
+    const byLevel = new Map<number, ScoreEntry>();
+    for (const row of summary?.level_bests ?? []) byLevel.set(row.level, row);
+    if (tab === "speedrun") {
+      return Array.from({ length: 50 }, (_, index) => {
+        const level = index + 1;
+        return { level, entry: byLevel.get(level) ?? null };
+      });
+    }
+    return Array.from(byLevel.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([level, entry]) => ({ level, entry }));
+  }, [summary, tab]);
+
   return (
     <SafeAreaView style={styles.container} testID="leaderboard-screen">
       <View style={styles.header}>
@@ -85,7 +103,6 @@ export default function LeaderboardScreen() {
         <View style={{ width: 72 }} />
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tab, tab === "classic" && styles.tabActive]}
@@ -106,15 +123,16 @@ export default function LeaderboardScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
       {tab === "speedrun" && (
-        <View style={styles.dailyHeader}>
-          <Text style={styles.dailyDate}>Fastest run times rank first.</Text>
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>Best time for each of the 50 levels.</Text>
           <TouchableOpacity
-            style={styles.playDailyBtn}
+            style={styles.playBtn}
             onPress={playSpeedrun}
             testID="play-speedrun-btn"
           >
-            <Text style={styles.playDailyText}>▶ START SPEEDRUN</Text>
+            <Text style={styles.playBtnText}>▶ START SPEEDRUN</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -122,7 +140,7 @@ export default function LeaderboardScreen() {
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color="#FFFF00" />
-          <Text style={styles.loadingText}>Loading scores…</Text>
+          <Text style={styles.loadingText}>Loading leaderboard…</Text>
         </View>
       ) : err ? (
         <View style={styles.loadingWrap}>
@@ -131,17 +149,13 @@ export default function LeaderboardScreen() {
             <Text style={styles.retryBtnText}>RETRY</Text>
           </TouchableOpacity>
         </View>
-      ) : scores.length === 0 ? (
+      ) : !summary || (!summary.overall_best && summary.level_bests.length === 0) ? (
         <View style={styles.loadingWrap}>
-          <Text style={styles.emptyText}>
-            {"No scores yet. Be the first!"}
-          </Text>
+          <Text style={styles.emptyText}>No scores yet. Be the first!</Text>
         </View>
       ) : (
-        <FlatList
-          data={scores}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+        <ScrollView
+          contentContainerStyle={styles.scroll}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -149,31 +163,48 @@ export default function LeaderboardScreen() {
               tintColor="#FFFF00"
             />
           }
-          renderItem={({ item, index }) => (
-            <View
-              style={[styles.row, index < 3 && styles.rowTop]}
-              testID={`score-row-${index}`}
-            >
-              <Text style={styles.rank}>
-                {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
+        >
+          {tab === "classic" && summary.overall_best && (
+            <View style={styles.overallCard}>
+              <Text style={styles.overallLabel}>OVERALL HIGH SCORE</Text>
+              <Text style={styles.overallScore}>{summary.overall_best.score}</Text>
+              <Text style={styles.overallMeta}>
+                {summary.overall_best.player_name} · L{summary.overall_best.level} ·{" "}
+                {summary.overall_best.catches} catches
               </Text>
-              <View style={styles.rowMain}>
-                <Text style={styles.playerName}>{item.player_name}</Text>
-                <Text style={styles.rowMeta}>
-                  L{item.level} · {item.catches} catches · {item.theme_id}
-                </Text>
-              </View>
-              {tab === "speedrun" ? (
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.scoreText}>{formatRunMs(item.run_time_ms)}</Text>
-                  <Text style={styles.rowMeta}>score {item.score}</Text>
-                </View>
-              ) : (
-                <Text style={styles.scoreText}>{item.score}</Text>
-              )}
             </View>
           )}
-        />
+
+          <Text style={styles.sectionTitle}>
+            {tab === "classic" ? "BEST SCORE BY LEVEL" : "BEST SPEEDRUN TIME BY LEVEL"}
+          </Text>
+
+          {levelRows.map(({ level, entry }) => (
+            <View key={level} style={styles.row} testID={`leaderboard-level-${level}`}>
+              <Text style={styles.rank}>L{level}</Text>
+              <View style={styles.rowMain}>
+                {entry ? (
+                  <>
+                    <Text style={styles.playerName}>{entry.player_name}</Text>
+                    <Text style={styles.rowMeta}>
+                      {tab === "classic"
+                        ? `${entry.catches} catches · ${entry.theme_id}`
+                        : `score ${entry.score} · ${entry.theme_id}`}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.playerNameDim}>—</Text>
+                    <Text style={styles.rowMeta}>No run yet</Text>
+                  </>
+                )}
+              </View>
+              <Text style={styles.scoreText}>
+                {tab === "classic" ? entry?.score ?? "—" : formatRunMs(entry?.run_time_ms)}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -213,9 +244,9 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: "#1a1a2e", borderColor: "#FFFF00" },
   tabText: { color: "#888899", fontWeight: "bold", letterSpacing: 2 },
   tabTextActive: { color: "#FFFF00" },
-  dailyHeader: {
+  banner: {
     margin: 16,
-    marginBottom: 4,
+    marginBottom: 6,
     padding: 12,
     borderRadius: 8,
     backgroundColor: COLORS.uiPanel,
@@ -223,14 +254,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.uiBorder,
     alignItems: "center",
   },
-  dailyDate: { color: "#FFB897", fontSize: 12, letterSpacing: 1, marginBottom: 8 },
-  playDailyBtn: {
+  bannerText: { color: "#FFB897", fontSize: 12, letterSpacing: 1, marginBottom: 8 },
+  playBtn: {
     backgroundColor: "#FFFF00",
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 6,
   },
-  playDailyText: { color: "#000", fontWeight: "900", letterSpacing: 2, fontSize: 13 },
+  playBtnText: { color: "#000", fontWeight: "900", letterSpacing: 2, fontSize: 13 },
   loadingWrap: { padding: 32, alignItems: "center", flex: 1, justifyContent: "center" },
   loadingText: { color: "#FFB897", marginTop: 8, letterSpacing: 1 },
   emptyText: { color: "#888899", textAlign: "center", lineHeight: 22, letterSpacing: 1 },
@@ -244,7 +275,33 @@ const styles = StyleSheet.create({
     borderColor: COLORS.uiBorder,
   },
   retryBtnText: { color: "#FFFF00", fontWeight: "bold", letterSpacing: 1 },
-  list: { padding: 12 },
+  scroll: { padding: 12, paddingBottom: 30 },
+  overallCard: {
+    backgroundColor: "#16162b",
+    borderColor: "#FFFF00",
+    borderWidth: 2,
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 14,
+    alignItems: "center",
+  },
+  overallLabel: { color: "#FFB897", fontSize: 12, fontWeight: "900", letterSpacing: 2 },
+  overallScore: {
+    color: "#FFFF00",
+    fontSize: 34,
+    fontWeight: "900",
+    marginTop: 6,
+    fontVariant: ["tabular-nums"],
+  },
+  overallMeta: { color: "#FFFFFF", fontSize: 12, marginTop: 4, letterSpacing: 1 },
+  sectionTitle: {
+    color: "#FFB897",
+    fontWeight: "900",
+    letterSpacing: 2,
+    fontSize: 13,
+    marginBottom: 8,
+    marginTop: 4,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -256,16 +313,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.uiBorder,
   },
-  rowTop: { borderColor: "#FFFF00" },
   rank: {
     color: "#FFFF00",
     fontWeight: "900",
     fontSize: 16,
-    width: 44,
+    width: 52,
     textAlign: "center",
   },
   rowMain: { flex: 1, marginLeft: 8 },
   playerName: { color: "#FFFFFF", fontWeight: "bold", fontSize: 14, letterSpacing: 1 },
+  playerNameDim: { color: "#666688", fontWeight: "bold", fontSize: 14, letterSpacing: 1 },
   rowMeta: { color: "#888899", fontSize: 11, marginTop: 2 },
   scoreText: {
     color: "#FFFF00",

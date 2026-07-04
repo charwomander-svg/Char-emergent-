@@ -31,6 +31,11 @@ export interface ScoreSubmission {
   run_time_ms?: number;
 }
 
+export interface LeaderboardSummary {
+  overall_best: ScoreEntry | null;
+  level_bests: ScoreEntry[];
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
@@ -65,4 +70,11 @@ export async function fetchLeaderboard(
   if (options?.daily_seed_date) params.set("daily_seed_date", options.daily_seed_date);
   if (options?.limit) params.set("limit", String(options.limit));
   return http<ScoreEntry[]>(`/leaderboard?${params.toString()}`);
+}
+
+export async function fetchLeaderboardSummary(
+  mode: "classic" | "speedrun",
+): Promise<LeaderboardSummary> {
+  const params = new URLSearchParams({ mode });
+  return http<LeaderboardSummary>(`/leaderboard-summary?${params.toString()}`);
 }
