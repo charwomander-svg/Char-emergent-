@@ -271,39 +271,6 @@ export default function GameScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.gameWrapper} {...panResponder.panHandlers}>
-        <View style={styles.topHud} testID="hud-top">
-          <View style={styles.topStat}>
-            <Text style={styles.topLabel}>SCORE</Text>
-            <Text style={styles.topValue}>{state.score}</Text>
-          </View>
-          <View style={styles.topStat}>
-            <Text style={styles.topLabel}>LIVES</Text>
-            <View style={styles.lifeDots}>
-              {lifeDots.map((filled, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.lifeDot,
-                    filled ? styles.lifeDotFilled : styles.lifeDotEmpty,
-                  ]}
-                />
-              ))}
-            </View>
-            <Text style={styles.lifeCount}>x{state.lives}</Text>
-          </View>
-          <View style={styles.topStat}>
-            <Text style={styles.topLabel}>COMBO</Text>
-            <Text style={styles.topValue}>x{Math.max(1, state.comboCount)}</Text>
-          </View>
-          <View style={styles.topStat}>
-            <Text style={styles.topLabel}>CATCH</Text>
-            <Text style={styles.topValue}>{state.catches}</Text>
-          </View>
-          <View style={styles.topStat}>
-            <Text style={styles.topLabel}>LEVEL</Text>
-            <Text style={styles.topValue}>{state.level}</Text>
-          </View>
-        </View>
         <View
           style={styles.mazeArea}
           onLayout={(e) =>
@@ -328,9 +295,11 @@ export default function GameScreen() {
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
+            <Text style={styles.statusLabel}>CATCH</Text>
+            <Text style={styles.statusValue}>{state.catches}</Text>
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
-              <Text style={styles.statusPillSub}>{statusLabel}</Text>
+              <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
             </View>
             {mode === "speedrun" && (
               <View style={styles.statusPill}>
@@ -377,6 +346,13 @@ export default function GameScreen() {
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
                 <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+                <View style={styles.lifeHearts} testID="hud-lives">
+                  {lifeDots.map((filled, index) => (
+                    <Text key={index} style={[styles.lifeHeart, !filled && styles.lifeHeartEmpty]}>
+                      ♥
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
             <View style={styles.ghostToggleRow}>
@@ -426,9 +402,15 @@ export default function GameScreen() {
             })}
           </View>
           <View style={styles.controlRow}>
-            <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
-              <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
-            </TouchableOpacity>
+            <View style={styles.scorePill} testID="hud-score">
+              <Text style={styles.scorePillLabel}>SCORE</Text>
+              <Text style={styles.scorePillValue}>{state.score}</Text>
+            </View>
+            {(state.status === "playing" || state.status === "paused" || state.status === "ready") && (
+              <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
+                <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
+              </TouchableOpacity>
+            )}
             {state.bonusGame && !state.bonusGame.complete &&
               (state.bonusGame.type === "galagaBlitz" || state.bonusGame.type === "digDugDash") && (
               <TouchableOpacity onPress={bonusAction} style={styles.actionBtn} testID="bonus-action-btn">
@@ -475,40 +457,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
   gameWrapper: { flex: 1, flexDirection: "column" },
   mazeArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  topHud: {
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  topStat: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    backgroundColor: "#101426dd",
-    borderWidth: 1,
-    borderColor: "#2b3357",
-  },
-  topLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  topValue: { color: "#f7fbff", fontSize: 18, fontWeight: "900", marginTop: 2 },
-  lifeDots: { flexDirection: "row", gap: 4, marginTop: 6, alignItems: "center" },
-  lifeDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#ff6b9a",
-  },
-  lifeDotFilled: { backgroundColor: "#ff6b9a" },
-  lifeDotEmpty: { backgroundColor: "transparent" },
-  lifeCount: { color: "#ff8ea9", fontSize: 10, fontWeight: "900", marginTop: 4, letterSpacing: 1 },
   footerHud: {
     paddingHorizontal: 8,
     paddingBottom: 8,
-    paddingTop: 4,
+    paddingTop: 2,
     gap: 6,
   },
   statusLine: {
@@ -575,6 +527,9 @@ const styles = StyleSheet.create({
   panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  lifeHearts: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 2 },
+  lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
+  lifeHeartEmpty: { color: "#5d3550" },
   ghostToggleRow: { flexDirection: "row", gap: 6 },
   ghostToggle: {
     flex: 1,
@@ -613,7 +568,25 @@ const styles = StyleSheet.create({
   slotDim: { opacity: 0.4 },
   slotIcon: { fontSize: 18, lineHeight: 18 },
   slotCount: { fontSize: 10, fontWeight: "900", marginTop: 3 },
-  controlRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  controlRow: { flexDirection: "row", alignItems: "stretch", justifyContent: "center", gap: 8 },
+  scorePill: {
+    minWidth: 124,
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#1d1d2f",
+    justifyContent: "center",
+  },
+  scorePillLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  scorePillValue: {
+    color: "#FFD23F",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 2,
+    fontVariant: ["tabular-nums"],
+  },
   pauseBtn: {
     borderWidth: 1,
     borderColor: "#ffff66",

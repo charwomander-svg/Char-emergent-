@@ -98,11 +98,24 @@ function buildInitialState(
   themeId: string,
   daily?: { seed: number; seedDate: string } | null,
 ): GameState {
-  const { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
+  let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
     level,
     daily?.seed,
   );
   const bonusActive = isBonusLevel(level);
+  if (bonusActive) {
+    let convertedSuperPellets = 0;
+    maze = maze.map((row) =>
+      row.map((cell) => {
+        if (cell === 3) {
+          convertedSuperPellets++;
+          return 2;
+        }
+        return cell;
+      }),
+    );
+    totalPellets += convertedSuperPellets;
+  }
   const now = performance.now();
   return {
     status: "ready",
@@ -119,9 +132,7 @@ function buildInitialState(
     comboCount: 0,
     message: bonusActive
       ? `🎮 BONUS STAGE! 🎮\n${BONUS_CONFIG[getBonusGameType(level)].label}`
-      : daily
-        ? `DAILY ${daily.seedDate}`
-        : `LEVEL ${level}`,
+      : `LEVEL ${level}`,
     selectedGhostId: 0,
     barricades: [],
     ghostDeathsThisLevel: 0,
