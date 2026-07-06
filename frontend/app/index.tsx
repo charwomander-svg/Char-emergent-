@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
+import { syncPlayGames } from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
@@ -19,6 +20,7 @@ export default function MainMenu() {
 
   useEffect(() => {
     let mounted = true;
+    void syncPlayGames();
     loadSettings().then((s) => {
       if (!mounted) return;
       if (s.soundOn && s.musicOn) getSoundEngine().startMusic();

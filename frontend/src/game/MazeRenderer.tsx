@@ -67,6 +67,23 @@ function speedScale(level: number): number {
   return Math.max(0.55, 1 - (level - 1) * 0.05);
 }
 
+function useChompAnimation(duration = 120) {
+  const chompAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chompAnim, { toValue: 0, duration, useNativeDriver: true }),
+        Animated.timing(chompAnim, { toValue: 1, duration, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [chompAnim, duration]);
+
+  return chompAnim;
+}
+
 // Cell renderer - memoized for performance
 const Cell = React.memo(function Cell({
   type,
@@ -449,17 +466,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
 
   // Chomp animation runs on the native thread — completely decoupled from JS
   // game-loop renders so it never blinks or stutters. Must be before early return.
-  const chompAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(chompAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
-        Animated.timing(chompAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [chompAnim]);
+  const chompAnim = useChompAnimation();
 
   if (!pg.alive) {
     // explosion / star
@@ -758,11 +765,11 @@ const EnemyPelletGuySprite = React.memo(function EnemyPelletGuySprite({
   pumpCount: number;
 }) {
   const { animX, animY } = useSmoothPosition(x, y, moveDuration, size);
+  const chompAnim = useChompAnimation(150);
   const rotation = dir === "right" ? "0deg"
     : dir === "down" ? "90deg"
     : dir === "left" ? "180deg"
     : "270deg";
-  const chomp = Math.floor(performance.now() / 150) % 2 === 0;
   // Tint: normal=yellow, 1 pump=orange, 2 pumps=red (already popped)
   const faceColor = pumpCount >= 1 ? "#ff8800" : COLORS.pelletGuy;
   // Inflate scale: 1 pump = 1.15x
@@ -790,7 +797,16 @@ const EnemyPelletGuySprite = React.memo(function EnemyPelletGuySprite({
           overflow: "hidden",
         }}
       >
-        {chomp && (
+        <Animated.View
+          style={{
+            opacity: chompAnim,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
           <>
             <View
               style={{
@@ -817,7 +833,7 @@ const EnemyPelletGuySprite = React.memo(function EnemyPelletGuySprite({
               } as any}
             />
           </>
-        )}
+        </Animated.View>
       </View>
     </Animated.View>
   );

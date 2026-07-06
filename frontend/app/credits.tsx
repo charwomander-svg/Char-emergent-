@@ -13,6 +13,7 @@ import { COLORS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
 import { loadProgress, saveProgress } from "@/src/game/progress";
 import { MAX_LEVELS } from "@/src/game/constants";
+import { queueAchievementUnlock, syncPlayGames } from "@/src/game/playGames";
 
 const CHEAT_TAPS = 5;
 
@@ -32,6 +33,11 @@ export default function Credits() {
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cheatActivated, setCheatActivated] = useState(false);
+
+  React.useEffect(() => {
+    void queueAchievementUnlock("chardcore");
+    void syncPlayGames();
+  }, []);
 
   const handleDevNameTap = useCallback(async () => {
     if (cheatActivated) return;
@@ -56,6 +62,7 @@ export default function Credits() {
       await saveProgress(updated);
       setCheatActivated(true);
       getSoundEngine().levelWin?.();
+      void queueAchievementUnlock("shhhItsASecret");
       Alert.alert("👻 Cheat Activated", "All 50 levels are now unlocked!");
     }
   }, [cheatActivated]);

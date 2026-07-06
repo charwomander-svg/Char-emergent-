@@ -47,6 +47,11 @@ import {
   fireBonusAction,
   BONUS_CONFIG,
 } from "./bonusGame";
+import {
+  queueAchievementUnlock,
+  recordClassicLevelBest,
+  syncProgressAchievements,
+} from "./playGames";
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -218,6 +223,7 @@ export function useGhostMaze(opts?: {
   stateRef.current = state;
   // Ghost-house exit stagger
   const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
+  const levelStartScoreRef = useRef<number>(0);
 
   const startLevel = useCallback((level: number, lives: number, score: number) => {
     const fresh = buildInitialState(
@@ -231,6 +237,7 @@ export function useGhostMaze(opts?: {
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
     ghostReleaseAtRef.current = [0, 0, 0, 0];
+    levelStartScoreRef.current = score;
     setState(fresh);
   }, []);
 
@@ -450,6 +457,7 @@ export function useGhostMaze(opts?: {
           const config = BONUS_CONFIG[bonusGame.type];
           if (allClear) {
             message = `🎉 BONUS CLEAR!\n+${bonusGame.bonusScore} BONUS POINTS`;
+            void queueAchievementUnlock("bonus");
           } else {
             message = `⏱ TIME UP!\n+${bonusGame.bonusScore} BONUS POINTS`;
           }
@@ -460,7 +468,9 @@ export function useGhostMaze(opts?: {
             p.highScore = Math.max(p.highScore, score);
             progressRef.current = p;
             saveProgress(p);
+            void syncProgressAchievements(p);
           }
+          if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
           onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
           mutated = true;
         }
@@ -710,6 +720,9 @@ export function useGhostMaze(opts?: {
 
             // ---- Non-bonus level: classic 3-catch win. ----
             if (catches >= CATCH_TO_WIN) {
+              if (catches === 1) {
+                void queueAchievementUnlock("flippingTheScript");
+              }
               // Level won!
               const pctRemaining = Math.round(
                 (pelletsRemaining / Math.max(1, prev.totalPellets)) * 100,
@@ -734,6 +747,19 @@ export function useGhostMaze(opts?: {
                 // Auto-unlock theme entries by re-scanning
                 progressRef.current = p;
                 saveProgress(p);
+                void syncProgressAchievements(p);
+              }
+              if (modeRef.current === "classic") {
+                void recordClassicLevelBest(
+                  prev.level,
+                  Math.max(0, score - levelStartScoreRef.current),
+                );
+              }
+              if (prev.level === 1) void queueAchievementUnlock("oneAndDone");
+              if (comboCount >= 2) void queueAchievementUnlock("freeHugs");
+              if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
+              if (pelletsRemaining <= Math.max(1, Math.floor(prev.totalPellets * 0.15))) {
+                void queueAchievementUnlock("pelletSchmellet");
               }
             }
             break; // only one catch per tick
@@ -859,9 +885,12 @@ export function useGhostMaze(opts?: {
       if (progressRef.current) {
         const p = { ...progressRef.current };
         p.highScore = Math.max(p.highScore, state.score);
+        p.highestLevel = Math.max(p.highestLevel, MAX_LEVELS);
         progressRef.current = p;
         saveProgress(p);
+        void syncProgressAchievements(p);
       }
+      void queueAchievementUnlock("chardcore");
       getSoundEngine().levelWin();
       return;
     }

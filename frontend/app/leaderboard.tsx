@@ -66,11 +66,16 @@ export default function LeaderboardScreen() {
 
   const formatRunMs = (ms?: number | null): string => {
     if (!ms || ms <= 0) return "—";
-    const sec = Math.floor(ms / 1000);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
+    const totalMs = Math.floor(ms);
+    const totalSeconds = Math.floor(totalMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const millis = totalMs % 1000;
+    return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
   };
+
+  const aggregateTitle =
+    tab === "classic" ? "TOP 5 SUM OF BEST SCORES" : "TOP 5 SUM OF BEST TIMES";
 
   const levelRows = useMemo(() => {
     const byLevel = new Map<number, ScoreEntry>();
@@ -171,6 +176,34 @@ export default function LeaderboardScreen() {
               <Text style={styles.overallMeta}>
                 {summary.overall_best.player_name} · L{summary.overall_best.level} ·{" "}
                 {summary.overall_best.catches} catches
+              </Text>
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>{aggregateTitle}</Text>
+          {summary.aggregate_bests.length > 0 ? (
+            summary.aggregate_bests.map((entry, index) => (
+              <View
+                key={entry.id}
+                style={[styles.row, styles.aggregateRow]}
+                testID={`leaderboard-aggregate-${index + 1}`}
+              >
+                <Text style={styles.rank}>#{index + 1}</Text>
+                <View style={styles.rowMain}>
+                  <Text style={styles.playerName}>{entry.player_name}</Text>
+                  <Text style={styles.rowMeta}>
+                    50/50 cleared · {entry.catches} catches
+                  </Text>
+                </View>
+                <Text style={styles.scoreText}>
+                  {tab === "classic" ? entry.score : formatRunMs(entry.run_time_ms)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyAggregateCard}>
+              <Text style={styles.rowMeta}>
+                No full 50-level aggregate runs yet.
               </Text>
             </View>
           )}
@@ -312,6 +345,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderWidth: 1,
     borderColor: COLORS.uiBorder,
+  },
+  aggregateRow: {
+    borderColor: "#FFFF00",
+    backgroundColor: "#16162b",
+  },
+  emptyAggregateCard: {
+    backgroundColor: COLORS.uiPanel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    marginBottom: 8,
   },
   rank: {
     color: "#FFFF00",

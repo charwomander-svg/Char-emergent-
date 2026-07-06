@@ -135,6 +135,7 @@ class DailySeedInfo(BaseModel):
 class LeaderboardSummary(BaseModel):
     overall_best: Optional[ScoreEntry] = None
     level_bests: List[ScoreEntry]
+    aggregate_bests: List[ScoreEntry] = []
 
 
 @api_router.get("/daily-seed", response_model=DailySeedInfo)
@@ -201,6 +202,71 @@ async def leaderboard_summary(
     rows = await db.scores.find(query, {"_id": 0}).to_list(length=None)
     entries = [ScoreEntry(**r) for r in rows]
 
+    per_player_level_best: dict[str, dict[int, ScoreEntry]] = {}
+    for entry in entries:
+        player_levels = per_player_level_best.setdefault(entry.player_name, {})
+        existing = player_levels.get(entry.level)
+        if mode == "speedrun":
+            if existing is None:
+                if (entry.run_time_ms or 0) > 0:
+                    player_levels[entry.level] = entry
+                continue
+            existing_time = existing.run_time_ms or 0
+            next_time = entry.run_time_ms or 0
+            if next_time > 0 and (
+                existing_time <= 0
+                or next_time < existing_time
+                or (next_time == existing_time and entry.score > existing.score)
+                or (
+                    next_time == existing_time
+                    and entry.score == existing.score
+                    and entry.timestamp < existing.timestamp
+                )
+            ):
+                player_levels[entry.level] = entry
+        else:
+            if existing is None or entry.score > existing.score or (
+                entry.score == existing.score and entry.timestamp < existing.timestamp
+            ):
+                player_levels[entry.level] = entry
+
+    aggregate_bests: List[ScoreEntry] = []
+    for player_name, level_map in per_player_level_best.items():
+        if len(level_map) < 50:
+            continue
+        player_entries = [level_map[level] for level in sorted(level_map.keys())]
+        if mode == "speedrun":
+            total_run_time = sum((entry.run_time_ms or 0) for entry in player_entries)
+            if total_run_time <= 0:
+                continue
+            aggregate_bests.append(
+                ScoreEntry(
+                    id=f"aggregate-speedrun-{player_name}",
+                    player_name=player_name,
+                    score=sum(entry.score for entry in player_entries),
+                    level=50,
+                    catches=sum(entry.catches for entry in player_entries),
+                    theme_id="aggregate",
+                    mode=mode,
+                    run_time_ms=total_run_time,
+                    timestamp=min(entry.timestamp for entry in player_entries),
+                )
+            )
+        else:
+            aggregate_bests.append(
+                ScoreEntry(
+                    id=f"aggregate-classic-{player_name}",
+                    player_name=player_name,
+                    score=sum(entry.score for entry in player_entries),
+                    level=50,
+                    catches=sum(entry.catches for entry in player_entries),
+                    theme_id="aggregate",
+                    mode=mode,
+                    run_time_ms=None,
+                    timestamp=min(entry.timestamp for entry in player_entries),
+                )
+            )
+
     if mode == "speedrun":
         by_level: dict[int, ScoreEntry] = {}
         for entry in entries:
@@ -220,7 +286,18 @@ async def leaderboard_summary(
                 by_level[entry.level] = entry
 
         level_bests = [by_level[level] for level in sorted(by_level.keys())]
-        return LeaderboardSummary(overall_best=None, level_bests=level_bests)
+        aggregate_bests.sort(
+            key=lambda entry: (
+                entry.run_time_ms or 10**18,
+                -entry.score,
+                entry.timestamp,
+            )
+        )
+        return LeaderboardSummary(
+            overall_best=None,
+            level_bests=level_bests,
+            aggregate_bests=aggregate_bests[:5],
+        )
 
     by_level: dict[int, ScoreEntry] = {}
     overall_best: Optional[ScoreEntry] = None
@@ -237,7 +314,12 @@ async def leaderboard_summary(
             overall_best = entry
 
     level_bests = [by_level[level] for level in sorted(by_level.keys())]
-    return LeaderboardSummary(overall_best=overall_best, level_bests=level_bests)
+    aggregate_bests.sort(key=lambda entry: (-entry.score, entry.timestamp))
+    return LeaderboardSummary(
+        overall_best=overall_best,
+        level_bests=level_bests,
+        aggregate_bests=aggregate_bests[:5],
+    )
 
 
 app.include_router(api_router)

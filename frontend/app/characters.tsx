@@ -16,6 +16,11 @@ import {
   saveProgress,
   Theme,
 } from "@/src/game/progress";
+import {
+  syncPlayGames,
+  syncProgressAchievements,
+  syncThemeAchievement,
+} from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 
 export default function CharactersScreen() {
@@ -23,7 +28,11 @@ export default function CharactersScreen() {
   const [progress, setProgress] = useState<ProgressData | null>(null);
 
   useEffect(() => {
-    loadProgress().then(setProgress);
+    loadProgress().then((next) => {
+      setProgress(next);
+      void syncProgressAchievements(next);
+      void syncPlayGames();
+    });
   }, []);
 
   if (!progress) {
@@ -40,6 +49,7 @@ export default function CharactersScreen() {
     const next = { ...progress, selectedThemeId: t.id };
     setProgress(next);
     await saveProgress(next);
+    await syncThemeAchievement(t);
   };
 
   return (

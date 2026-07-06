@@ -34,6 +34,7 @@ export interface ScoreSubmission {
 export interface LeaderboardSummary {
   overall_best: ScoreEntry | null;
   level_bests: ScoreEntry[];
+  aggregate_bests: ScoreEntry[];
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {

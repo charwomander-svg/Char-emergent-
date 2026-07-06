@@ -20,13 +20,20 @@ import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
+import {
+  queueAchievementUnlock,
+  recordSpeedrunLevelBest,
+  syncPlayGames,
+} from "@/src/game/playGames";
 
 
 function fmtMs(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const totalMs = Math.max(0, Math.floor(ms));
+  const totalSeconds = Math.floor(totalMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const millis = totalMs % 1000;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
 export default function GameScreen() {
@@ -75,11 +82,15 @@ export default function GameScreen() {
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
+  const recordedSpeedrunLevelsRef = useRef<Record<number, true>>({});
+  const previousLevelRef = useRef(state.level);
+  const levelStartElapsedRef = useRef(0);
   const stateRef = useRef(state);
   stateRef.current = state;
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
+    void syncPlayGames();
   }, []);
 
   const computeTimerMs = useCallback(() => {
@@ -102,12 +113,20 @@ export default function GameScreen() {
       setElapsedMs(finalMs);
       saveBestRunMs(finalMs).then(setBestRunMs);
       submitFinalScore("SPEEDRUN", finalMs).catch(() => {});
+      void queueAchievementUnlock("gottaGoFast");
+      if (state.level >= MAX_LEVELS) {
+        const finalLevel = previousLevelRef.current;
+        if (!recordedSpeedrunLevelsRef.current[finalLevel]) {
+          recordedSpeedrunLevelsRef.current[finalLevel] = true;
+          void recordSpeedrunLevelBest(finalLevel, finalMs - levelStartElapsedRef.current);
+        }
+      }
     }
   }, [mode, state.status, computeTimerMs, submitFinalScore]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
-    const id = setInterval(() => setElapsedMs(computeTimerMs()), 200);
+    const id = setInterval(() => setElapsedMs(computeTimerMs()), 16);
     return () => clearInterval(id);
   }, [mode, computeTimerMs]);
 
@@ -117,8 +136,31 @@ export default function GameScreen() {
       timerRunningFromRef.current = null;
       setElapsedMs(0);
       submittedSpeedrunRef.current = false;
+      recordedSpeedrunLevelsRef.current = {};
+      previousLevelRef.current = state.level;
+      levelStartElapsedRef.current = 0;
     }
   }, [state.status, state.level, state.score]);
+
+  useEffect(() => {
+    if (mode !== "speedrun") return;
+    const previousLevel = previousLevelRef.current;
+    if (state.level > previousLevel) {
+      const elapsed = computeTimerMs();
+      if (!recordedSpeedrunLevelsRef.current[previousLevel]) {
+        recordedSpeedrunLevelsRef.current[previousLevel] = true;
+        void recordSpeedrunLevelBest(previousLevel, elapsed - levelStartElapsedRef.current);
+      }
+      levelStartElapsedRef.current = elapsed;
+    }
+    previousLevelRef.current = state.level;
+  }, [computeTimerMs, mode, state.level]);
+
+  useEffect(() => {
+    if (armedGhosts.length === 4) {
+      void queueAchievementUnlock("friends");
+    }
+  }, [armedGhosts]);
 
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);
