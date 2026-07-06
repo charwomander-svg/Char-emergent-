@@ -163,13 +163,6 @@ export default function GameScreen() {
     }
   }, [armedGhosts]);
 
-  useEffect(() => {
-    if (state.catches > previousCatchesRef.current && armedGhosts.length === 4) {
-      void queueAchievementUnlock("freeHugs");
-    }
-    previousCatchesRef.current = state.catches;
-  }, [armedGhosts.length, state.catches]);
-
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);
     setArmedGhosts(next);

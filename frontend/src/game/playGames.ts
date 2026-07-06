@@ -34,7 +34,7 @@ export const ACHIEVEMENT_IDS = {
 // - Gotta Go Fast!: finish a speedrun run
 // - Top ten / We're halfway there: reach levels 10 / 25
 // - Friends!: arm all four ghosts at once
-// - Free hugs: catch Pellet Guy while all four ghosts are armed
+// - Free hugs: reach 50 total catches
 // - 25 to Life / Remember me for centuries: reach 25 / 100 total catches
 // - Classic Concentration / The King of Speed: fill all 50 aggregate bests and submit
 // - Pellet, Schmelle: clear a level with very few pellets left
@@ -244,5 +244,6 @@ export async function syncProgressAchievements(progress: ProgressData): Promise<
   if (progress.highestLevel >= 10) await queueAchievementUnlock("topTen");
   if (progress.highestLevel >= 25) await queueAchievementUnlock("halfwayThere");
   if (progress.totalCatches >= 25) await queueAchievementUnlock("twentyFiveToLife");
+  if (progress.totalCatches >= 50) await queueAchievementUnlock("freeHugs");
   if (progress.totalCatches >= 100) await queueAchievementUnlock("rememberMeForCenturies");
 }
