@@ -19,7 +19,6 @@ import {
 import {
   syncPlayGames,
   syncProgressAchievements,
-  syncThemeAchievement,
 } from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 
@@ -49,7 +48,6 @@ export default function CharactersScreen() {
     const next = { ...progress, selectedThemeId: t.id };
     setProgress(next);
     await saveProgress(next);
-    await syncThemeAchievement(t);
   };
 
   return (

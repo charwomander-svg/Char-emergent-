@@ -85,6 +85,7 @@ export default function GameScreen() {
   const recordedSpeedrunLevelsRef = useRef<Record<number, true>>({});
   const previousLevelRef = useRef(state.level);
   const levelStartElapsedRef = useRef(0);
+  const previousCatchesRef = useRef(state.catches);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -161,6 +162,13 @@ export default function GameScreen() {
       void queueAchievementUnlock("friends");
     }
   }, [armedGhosts]);
+
+  useEffect(() => {
+    if (state.catches > previousCatchesRef.current && armedGhosts.length === 4) {
+      void queueAchievementUnlock("freeHugs");
+    }
+    previousCatchesRef.current = state.catches;
+  }, [armedGhosts.length, state.catches]);
 
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);

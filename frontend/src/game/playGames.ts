@@ -1,7 +1,7 @@
 import { Platform, NativeModules } from "react-native";
 
 import { MAX_LEVELS } from "./constants";
-import type { ProgressData, Theme } from "./progress";
+import type { ProgressData } from "./progress";
 import { storage } from "@/src/utils/storage";
 
 const CLASSIC_AGGREGATE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQAQ0";
@@ -34,12 +34,12 @@ export const ACHIEVEMENT_IDS = {
 // - Gotta Go Fast!: finish a speedrun run
 // - Top ten / We're halfway there: reach levels 10 / 25
 // - Friends!: arm all four ghosts at once
-// - Free hugs: land a chained combo catch
+// - Free hugs: catch Pellet Guy while all four ghosts are armed
 // - 25 to Life / Remember me for centuries: reach 25 / 100 total catches
 // - Classic Concentration / The King of Speed: fill all 50 aggregate bests and submit
 // - Pellet, Schmelle: clear a level with very few pellets left
 // - Chardcore: view the credits
-// - Shhh. It's a secret: reveal a hidden theme or secret credits unlock
+// - Shhh. It's a secret: trigger the level-select cheat code
 // - Close Call: clear a level while on your last life
 
 type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
@@ -245,10 +245,4 @@ export async function syncProgressAchievements(progress: ProgressData): Promise<
   if (progress.highestLevel >= 25) await queueAchievementUnlock("halfwayThere");
   if (progress.totalCatches >= 25) await queueAchievementUnlock("twentyFiveToLife");
   if (progress.totalCatches >= 100) await queueAchievementUnlock("rememberMeForCenturies");
-}
-
-export async function syncThemeAchievement(theme: Theme): Promise<void> {
-  if (theme.hidden) {
-    await queueAchievementUnlock("shhhItsASecret");
-  }
 }

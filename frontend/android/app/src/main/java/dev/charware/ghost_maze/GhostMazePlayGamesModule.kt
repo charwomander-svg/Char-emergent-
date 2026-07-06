@@ -1,0 +1,74 @@
+package dev.charware.ghost_maze
+
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.google.android.gms.games.PlayGames
+
+class GhostMazePlayGamesModule(
+  reactContext: ReactApplicationContext
+) : ReactContextBaseJavaModule(reactContext) {
+
+  override fun getName(): String = "GhostMazePlayGames"
+
+  @ReactMethod
+  fun isConfigured(promise: Promise) {
+    promise.resolve(hasProjectId())
+  }
+
+  @ReactMethod
+  fun signIn(promise: Promise) {
+    val activity = currentActivity
+    if (activity == null || !hasProjectId()) {
+      promise.resolve(false)
+      return
+    }
+
+    val client = PlayGames.getGamesSignInClient(activity)
+    client.isAuthenticated()
+      .addOnSuccessListener { auth ->
+        if (auth.isAuthenticated) {
+          promise.resolve(true)
+          return@addOnSuccessListener
+        }
+        client.signIn()
+          .addOnSuccessListener { result -> promise.resolve(result.isAuthenticated) }
+          .addOnFailureListener { promise.resolve(false) }
+      }
+      .addOnFailureListener { promise.resolve(false) }
+  }
+
+  @ReactMethod
+  fun unlockAchievement(achievementId: String, promise: Promise) {
+    val activity = currentActivity
+    if (activity == null || !hasProjectId()) {
+      promise.resolve(false)
+      return
+    }
+
+    PlayGames.getAchievementsClient(activity)
+      .unlockImmediate(achievementId)
+      .addOnSuccessListener { promise.resolve(true) }
+      .addOnFailureListener { promise.resolve(false) }
+  }
+
+  @ReactMethod
+  fun submitLeaderboardScore(leaderboardId: String, score: Double, promise: Promise) {
+    val activity = currentActivity
+    if (activity == null || !hasProjectId()) {
+      promise.resolve(false)
+      return
+    }
+
+    PlayGames.getLeaderboardsClient(activity)
+      .submitScoreImmediate(leaderboardId, score.toLong())
+      .addOnSuccessListener { promise.resolve(true) }
+      .addOnFailureListener { promise.resolve(false) }
+  }
+
+  private fun hasProjectId(): Boolean {
+    val id = reactApplicationContext.getString(R.string.game_services_project_id).trim()
+    return id.isNotEmpty() && id != "0"
+  }
+}
