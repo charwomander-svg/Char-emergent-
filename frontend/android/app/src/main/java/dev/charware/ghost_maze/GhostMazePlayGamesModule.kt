@@ -1,5 +1,6 @@
 package dev.charware.ghost_maze
 
+import android.app.Activity
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -12,6 +13,11 @@ class GhostMazePlayGamesModule(
 
   override fun getName(): String = "GhostMazePlayGames"
 
+  private fun getActivityOrNull(): Activity? {
+    val activity = currentActivity
+    return if (activity is Activity) activity else null
+  }
+
   @ReactMethod
   fun isConfigured(promise: Promise) {
     promise.resolve(hasProjectId())
@@ -19,7 +25,7 @@ class GhostMazePlayGamesModule(
 
   @ReactMethod
   fun signIn(promise: Promise) {
-    val activity = currentActivity
+    val activity = getActivityOrNull()
     if (activity == null || !hasProjectId()) {
       promise.resolve(false)
       return
@@ -41,7 +47,7 @@ class GhostMazePlayGamesModule(
 
   @ReactMethod
   fun unlockAchievement(achievementId: String, promise: Promise) {
-    val activity = currentActivity
+    val activity = getActivityOrNull()
     if (activity == null || !hasProjectId()) {
       promise.resolve(false)
       return
@@ -55,7 +61,7 @@ class GhostMazePlayGamesModule(
 
   @ReactMethod
   fun submitLeaderboardScore(leaderboardId: String, score: Double, promise: Promise) {
-    val activity = currentActivity
+    val activity = getActivityOrNull()
     if (activity == null || !hasProjectId()) {
       promise.resolve(false)
       return
