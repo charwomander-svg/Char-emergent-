@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   initConnection,
+  endConnection,
   fetchProducts,
   requestPurchase,
   finishTransaction,
@@ -46,22 +47,29 @@ export default function Shop() {
   const [iapReady, setIapReady] = useState(false);
   const [loadingIap, setLoadingIap] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [storeError, setStoreError] = useState<string | null>(null);
 
   useEffect(() => {
     let purchaseUpdateSub: ReturnType<typeof purchaseUpdatedListener>;
     let purchaseErrorSub: ReturnType<typeof purchaseErrorListener>;
+    let mounted = true;
 
     const setup = async () => {
       try {
         await initConnection();
-        const prods = await fetchProducts({ skus: COIN_SKUS.map((s) => s.sku) });
+        const prods = await fetchProducts({
+          skus: COIN_SKUS.map((s) => s.sku),
+          type: "in-app",
+        });
+        if (!mounted) return;
         setProducts((prods ?? []) as Product[]);
-        setIapReady(true);
+        setIapReady((prods?.length ?? 0) > 0);
+        setStoreError((prods?.length ?? 0) > 0 ? null : "No Google Play products were returned.");
 
         purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
           const entry = COIN_SKUS.find((s) => s.sku === purchase.productId);
           if (entry) {
-          grantCoins(entry.coins);
+            grantCoins(entry.coins);
             await finishTransaction({ purchase, isConsumable: true });
             Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
           }
@@ -74,22 +82,26 @@ export default function Shop() {
           }
           setPurchasing(null);
         });
-      } catch {
+      } catch (error: any) {
+        if (!mounted) return;
         setIapReady(false);
+        setStoreError(error?.message || "Google Play Billing could not be initialized.");
       } finally {
-        setLoadingIap(false);
+        if (mounted) setLoadingIap(false);
       }
     };
 
     if (Platform.OS === "android") {
-      setup();
+      void setup();
     } else {
       setLoadingIap(false);
     }
 
     return () => {
+      mounted = false;
       purchaseUpdateSub?.remove();
       purchaseErrorSub?.remove();
+      void endConnection();
     };
   }, [grantCoins]);
 
@@ -98,7 +110,14 @@ export default function Shop() {
     getSoundEngine().uiClick();
     setPurchasing(sku);
     try {
-      await (requestPurchase as any)({ skus: [sku] });
+      await requestPurchase({
+        request: {
+          android: {
+            skus: [sku],
+          },
+        },
+        type: "in-app",
+      });
       // result handled by purchaseUpdatedListener
     } catch (e: any) {
       if (e?.code !== ErrorCode.UserCancelled) {
@@ -118,8 +137,8 @@ export default function Shop() {
 
   // Merge Play Store prices into SKU list when available
   const packs = COIN_SKUS.map((entry) => {
-    const prod = products.find((p) => (p as any).productId === entry.sku);
-    return { ...entry, livePrice: (prod as any)?.localizedPrice ?? entry.price };
+    const prod = products.find((p) => p.id === entry.sku);
+    return { ...entry, livePrice: prod?.displayPrice ?? entry.price };
   });
 
   return (
@@ -149,7 +168,9 @@ export default function Shop() {
             {!iapReady && Platform.OS === "android" && (
               <View style={styles.comingSoonBanner}>
                 <Text style={styles.comingSoonText}>⚙️ STORE UNAVAILABLE</Text>
-                <Text style={styles.comingSoonSub}>Google Play Billing could not be initialized.</Text>
+                <Text style={styles.comingSoonSub}>
+                  {storeError || "Google Play Billing could not be initialized."}
+                </Text>
               </View>
             )}
             <View style={styles.packsGrid}>

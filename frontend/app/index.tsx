@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
+import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
@@ -16,7 +17,9 @@ import { loadSettings } from "@/src/game/settings";
 
 export default function MainMenu() {
   const router = useRouter();
-  const { coins } = useEconomy();
+  const { coins, economy, grantCoins } = useEconomy();
+  const { missions, completedCount, rewardClaimed, rewardCoins, dateKey } =
+    useDailyMissions(economy ? grantCoins : undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -70,6 +73,39 @@ export default function MainMenu() {
         <View style={styles.coinBadgeTop} testID="menu-coin-balance">
           <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
           <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
+        </View>
+
+        <View style={styles.dailyMissionCard} testID="daily-missions-card">
+          <View style={styles.dailyMissionHeader}>
+            <Text style={styles.dailyMissionTitle}>DAILY MISSIONS</Text>
+            <Text style={styles.dailyMissionDate}>{dateKey}</Text>
+          </View>
+          <Text style={styles.dailyMissionReward}>
+            {rewardClaimed
+              ? `Reward claimed · +${rewardCoins} coins`
+              : `Complete all 3 for +${rewardCoins} Ghost Coins`}
+          </Text>
+          {missions.map((mission) => (
+            <View key={mission.id} style={styles.dailyMissionRow}>
+              <Text style={styles.dailyMissionBullet}>{mission.completed ? "✓" : "○"}</Text>
+              <View style={styles.dailyMissionTextWrap}>
+                <Text
+                  style={[
+                    styles.dailyMissionText,
+                    mission.completed && styles.dailyMissionTextDone,
+                  ]}
+                >
+                  {mission.title}
+                </Text>
+                <Text style={styles.dailyMissionProgress}>
+                  {mission.progress}/{mission.target}
+                </Text>
+              </View>
+            </View>
+          ))}
+          <Text style={styles.dailyMissionFooter}>
+            {completedCount}/3 complete
+          </Text>
         </View>
 
         {/* Play Button */}
@@ -180,7 +216,7 @@ export default function MainMenu() {
             • Tap a ghost's toggle button (footer) to switch which ghost you control{"\n"}
             • Ghosts keep moving until you change direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
-            • Multi-ghost catches = combo bonus points{"\n"}
+            • Arm multiple ghosts to redirect them together{"\n"}
             • Every 5th level is a BONUS stage — Speed Rally, Star Blitz, or Inflator{"\n"}
             • In SPEEDRUN, pick any level and race for the fastest clear time{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
@@ -392,5 +428,79 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontWeight: "bold",
     marginTop: 2,
+  },
+  dailyMissionCard: {
+    width: "100%",
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#57e8ff",
+    backgroundColor: "#101a2c",
+    gap: 8,
+  },
+  dailyMissionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dailyMissionTitle: {
+    color: "#57e8ff",
+    fontWeight: "900",
+    fontSize: 15,
+    letterSpacing: 1.5,
+  },
+  dailyMissionDate: {
+    color: "#FFB897",
+    fontSize: 10,
+    letterSpacing: 1,
+    fontWeight: "bold",
+  },
+  dailyMissionReward: {
+    color: "#FFF4A3",
+    fontSize: 12,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  dailyMissionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  dailyMissionBullet: {
+    color: "#57e8ff",
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 1,
+  },
+  dailyMissionTextWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dailyMissionText: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  dailyMissionTextDone: {
+    color: "#9fffa9",
+  },
+  dailyMissionProgress: {
+    color: "#FFB897",
+    fontSize: 12,
+    fontWeight: "900",
+    minWidth: 34,
+    textAlign: "right",
+  },
+  dailyMissionFooter: {
+    color: "#9eb3d8",
+    fontSize: 11,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    textAlign: "right",
   },
 });

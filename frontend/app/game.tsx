@@ -20,6 +20,7 @@ import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
+import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
 import {
   queueAchievementUnlock,
   recordSpeedrunLevelBest,
@@ -84,6 +85,7 @@ export default function GameScreen() {
   const submittedSpeedrunRef = useRef(false);
   const recordedSpeedrunLevelsRef = useRef<Record<number, true>>({});
   const previousLevelRef = useRef(state.level);
+  const previousStatusRef = useRef(state.status);
   const levelStartElapsedRef = useRef(0);
   const previousCatchesRef = useRef(state.catches);
   const stateRef = useRef(state);
@@ -160,8 +162,32 @@ export default function GameScreen() {
   useEffect(() => {
     if (armedGhosts.length === 4) {
       void queueAchievementUnlock("friends");
+      void recordDailyMissionProgress({ armAllEvents: 1 });
     }
   }, [armedGhosts]);
+
+  useEffect(() => {
+    const previousCatches = previousCatchesRef.current;
+    if (state.catches > previousCatches) {
+      void recordDailyMissionProgress({ catches: state.catches - previousCatches });
+    }
+    previousCatchesRef.current = state.catches;
+  }, [state.catches]);
+
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    if (state.status === "levelWon" && previousStatus !== "levelWon") {
+      const progress: Parameters<typeof recordDailyMissionProgress>[0] = { levelsCleared: 1 };
+      if (
+        state.bonusGame &&
+        state.bonusGame.collectedItems >= state.bonusGame.totalItems
+      ) {
+        progress.bonusPerfectClears = 1;
+      }
+      void recordDailyMissionProgress(progress);
+    }
+    previousStatusRef.current = state.status;
+  }, [state.bonusGame, state.status]);
 
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);

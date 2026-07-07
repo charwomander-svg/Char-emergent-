@@ -67,6 +67,11 @@ const DEFAULT_DATA: PlayGamesData = {
   speedrunAggregateSubmitted: false,
 };
 
+let cachedConfigured: boolean | null = null;
+let signedInThisSession = false;
+let signInAttemptedThisSession = false;
+let signInPromise: Promise<boolean> | null = null;
+
 function getNativeModule(): PlayGamesModuleShape | null {
   if (Platform.OS !== "android") return null;
   return NativeModules.GhostMazePlayGames ?? null;
@@ -89,24 +94,43 @@ async function savePlayGamesData(data: PlayGamesData): Promise<void> {
 }
 
 async function isConfigured(): Promise<boolean> {
+  if (cachedConfigured != null) return cachedConfigured;
   const native = getNativeModule();
   if (!native?.isConfigured) return false;
   try {
-    return !!(await native.isConfigured());
+    cachedConfigured = !!(await native.isConfigured());
+    return cachedConfigured;
   } catch {
+    cachedConfigured = false;
     return false;
   }
 }
 
 async function ensureSignedIn(): Promise<boolean> {
+  if (signedInThisSession) return true;
+  if (signInPromise) return signInPromise;
   const native = getNativeModule();
   if (!native?.signIn) return false;
+  const signIn = native.signIn.bind(native);
   if (!(await isConfigured())) return false;
-  try {
-    return !!(await native.signIn());
-  } catch {
-    return false;
-  }
+  if (signInAttemptedThisSession) return false;
+
+  signInAttemptedThisSession = true;
+  signInPromise = (async () => {
+    try {
+      const signedIn = !!(await signIn());
+      if (signedIn) {
+        signedInThisSession = true;
+      }
+      return signedIn;
+    } catch {
+      return false;
+    } finally {
+      signInPromise = null;
+    }
+  })();
+
+  return signInPromise;
 }
 
 async function unlockAchievementNow(key: AchievementKey): Promise<boolean> {
