@@ -112,7 +112,7 @@ export default function Shop() {
     try {
       await requestPurchase({
         request: {
-          android: {
+          google: {
             skus: [sku],
           },
         },
@@ -219,6 +219,7 @@ export default function Shop() {
           const def = POWER_UPS[id];
           const owned = inventory[id] ?? 0;
           const canAfford = coins >= def.cost;
+          const atLimit = def.maxOwned != null && owned >= def.maxOwned;
           return (
             <View key={id} style={[styles.row, { borderColor: def.color }]} testID={`shop-row-${id}`}>
               <View style={[styles.iconWrap, { backgroundColor: def.color + "22" }]}>
@@ -227,16 +228,18 @@ export default function Shop() {
               <View style={styles.rowText}>
                 <Text style={[styles.rowName, { color: def.color }]}>{def.name}</Text>
                 <Text style={styles.rowDesc}>{def.description}</Text>
-                <Text style={styles.rowOwned}>OWNED: {owned}</Text>
+                <Text style={styles.rowOwned}>
+                  OWNED: {owned}{def.maxOwned != null ? `/${def.maxOwned}` : ""}
+                </Text>
               </View>
               <TouchableOpacity
-                style={[styles.buyBtn, !canAfford && { opacity: 0.4 }]}
+                style={[styles.buyBtn, (!canAfford || atLimit) && { opacity: 0.4 }]}
                 onPress={() => onBuyPower(id)}
-                disabled={!canAfford}
+                disabled={!canAfford || atLimit}
                 testID={`buy-${id}`}
               >
                 <Text style={styles.buyText}>🪙 {def.cost}</Text>
-                <Text style={styles.buyLabel}>BUY</Text>
+                <Text style={styles.buyLabel}>{atLimit ? "MAX" : "BUY"}</Text>
               </TouchableOpacity>
             </View>
           );

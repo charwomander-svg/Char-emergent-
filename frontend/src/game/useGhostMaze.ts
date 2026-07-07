@@ -60,28 +60,36 @@ const EMPTY_EFFECTS: ActiveEffects = {
   shieldGhostId: null,
   fastRespawn: false,
   decoy: null,
+  teamPhaseUntil: 0,
+  spikeArmUntilByCell: {},
 };
 
 function createInitialGhosts(
   spawns: { x: number; y: number }[],
   themeId: string,
+  eliminatedGhostIds: GhostId[] = [],
 ): Ghost[] {
   const theme = getTheme(themeId);
-  return [0, 1, 2, 3].map((id) => ({
-    id: id as GhostId,
-    color: theme.ghostColors[id],
-    name: COLORS.ghostNames[id],
-    x: spawns[id].x,
-    y: spawns[id].y,
-    spawnX: spawns[id].x,
-    spawnY: spawns[id].y,
-    direction: (["left", "right", "up", "down"] as Direction[])[id],
-    nextDirection: (["left", "right", "up", "down"] as Direction[])[id],
-    vulnerable: false,
-    vulnerableUntil: 0,
-    alive: true,
-    respawnAt: 0,
-  }));
+  return [0, 1, 2, 3].map((id) => {
+    const ghostId = id as GhostId;
+    const eliminated = eliminatedGhostIds.includes(ghostId);
+    return {
+      id: ghostId,
+      color: theme.ghostColors[id],
+      name: COLORS.ghostNames[id],
+      x: spawns[id].x,
+      y: spawns[id].y,
+      spawnX: spawns[id].x,
+      spawnY: spawns[id].y,
+      direction: (["left", "right", "up", "down"] as Direction[])[id],
+      nextDirection: (["left", "right", "up", "down"] as Direction[])[id],
+      vulnerable: false,
+      vulnerableUntil: 0,
+      alive: !eliminated,
+      permaDead: eliminated,
+      respawnAt: eliminated ? Number.POSITIVE_INFINITY : 0,
+    };
+  });
 }
 
 function createInitialPelletGuy(spawn: { x: number; y: number }): PelletGuy {
@@ -102,6 +110,7 @@ function buildInitialState(
   score: number,
   themeId: string,
   daily?: { seed: number; seedDate: string } | null,
+  eliminatedGhostIds: GhostId[] = [],
 ): GameState {
   let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
     level,
@@ -122,6 +131,20 @@ function buildInitialState(
     totalPellets += convertedSuperPellets;
   }
   const now = performance.now();
+  const bonusGame = bonusActive
+    ? createBonusGame(getBonusGameType(level), maze, now)
+    : null;
+  const adjustedBonusGame = bonusGame && themeId === "royal-haunts"
+    ? {
+        ...bonusGame,
+        durationMs: bonusGame.durationMs + 1000,
+        endsAt: bonusGame.endsAt + 1000,
+      }
+    : bonusGame;
+  const initialEffects: ActiveEffects = {
+    ...EMPTY_EFFECTS,
+    speedBoostUntil: themeId === "rainbow" ? now + 3000 : 0,
+  };
   return {
     status: "ready",
     level,
@@ -131,20 +154,18 @@ function buildInitialState(
     totalPellets,
     pelletsRemaining: totalPellets,
     maze,
-    ghosts: createInitialGhosts(ghostSpawns, themeId),
+    ghosts: createInitialGhosts(ghostSpawns, themeId, eliminatedGhostIds),
     pelletGuy: createInitialPelletGuy(pelletGuySpawn),
     lastComboTime: 0,
     comboCount: 0,
     message: bonusActive
       ? `🎮 BONUS STAGE! 🎮\n${BONUS_CONFIG[getBonusGameType(level)].label}`
       : `LEVEL ${level}`,
-    selectedGhostId: 0,
+    selectedGhostId: ([0, 1, 2, 3] as GhostId[]).find((id) => !eliminatedGhostIds.includes(id)) ?? 0,
     barricades: [],
     ghostDeathsThisLevel: 0,
-    effects: { ...EMPTY_EFFECTS },
-    bonusGame: bonusActive
-      ? createBonusGame(getBonusGameType(level), maze, now)
-      : null,
+    effects: initialEffects,
+    bonusGame: adjustedBonusGame,
   };
 }
 
@@ -165,8 +186,45 @@ function speedScale(level: number): number {
   return Math.max(0.31, 0.55 - (level - 10) * 0.006);
 }
 
+function manhattan(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function findSafePelletGuyRespawn(
+  maze: CellType[][],
+  pelletGuy: PelletGuy,
+  ghosts: Ghost[],
+): { x: number; y: number } {
+  const livingGhosts = ghosts.filter((ghost) => ghost.alive);
+  const candidates: { x: number; y: number; nearestGhost: number; spawnDistance: number }[] = [];
+
+  for (let y = 0; y < maze.length; y++) {
+    for (let x = 0; x < maze[0].length; x++) {
+      if (!isWalkable(maze, x, y, true)) continue;
+      const pos = { x, y };
+      const nearestGhost = livingGhosts.length > 0
+        ? Math.min(...livingGhosts.map((ghost) => manhattan(pos, ghost)))
+        : Infinity;
+      candidates.push({
+        x,
+        y,
+        nearestGhost,
+        spawnDistance: manhattan(pos, { x: pelletGuy.spawnX, y: pelletGuy.spawnY }),
+      });
+    }
+  }
+
+  candidates.sort((a, b) =>
+    b.nearestGhost - a.nearestGhost ||
+    a.spawnDistance - b.spawnDistance,
+  );
+
+  const best = candidates[0];
+  return best ? { x: best.x, y: best.y } : { x: pelletGuy.spawnX, y: pelletGuy.spawnY };
+}
+
 export function useGhostMaze(opts?: {
-  mode?: "classic" | "daily" | "custom" | "speedrun";
+  mode?: "classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless";
   dailySeed?: number;
   dailySeedDate?: string;
   startingLevel?: number;
@@ -174,8 +232,15 @@ export function useGhostMaze(opts?: {
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
-  const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun">(opts?.mode ?? "classic");
+  const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless">(opts?.mode ?? "classic");
   const musicEnabledRef = useRef<boolean>(true);
+  const hardcoreEliminatedRef = useRef<GhostId[]>([]);
+  const oathShieldAvailableRef = useRef(false);
+  const firstBarricadeSkippedRef = useRef(false);
+  const firstFastRespawnUsedRef = useRef(false);
+  const firstFreezeBoostUsedRef = useRef(false);
+  const lastSpectreRollRef = useRef(0);
+  const lastMonoRollRef = useRef(0);
   const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
     opts?.dailySeed != null
       ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
@@ -194,6 +259,7 @@ export function useGhostMaze(opts?: {
     loadProgress().then((p) => {
       progressRef.current = p;
       themeIdRef.current = p.selectedThemeId;
+      oathShieldAvailableRef.current = p.selectedThemeId === "dark-knights";
       setState((cur) => {
         if (cur.status !== "ready" || cur.level !== initialLevel || cur.score !== 0) return cur;
         return buildInitialState(
@@ -202,6 +268,7 @@ export function useGhostMaze(opts?: {
           0,
           p.selectedThemeId,
           dailyRef.current,
+          [],
         );
       });
     });
@@ -232,16 +299,24 @@ export function useGhostMaze(opts?: {
       score,
       themeIdRef.current,
       dailyRef.current,
+      modeRef.current === "hardcore" ? hardcoreEliminatedRef.current : [],
     );
     readyStartRef.current = performance.now();
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
     ghostReleaseAtRef.current = [0, 0, 0, 0];
     levelStartScoreRef.current = score;
+    firstBarricadeSkippedRef.current = false;
+    firstFastRespawnUsedRef.current = false;
+    firstFreezeBoostUsedRef.current = false;
+    lastSpectreRollRef.current = 0;
+    lastMonoRollRef.current = 0;
     setState(fresh);
   }, []);
 
   const startNewGame = useCallback(() => {
+    hardcoreEliminatedRef.current = [];
+    oathShieldAvailableRef.current = themeIdRef.current === "dark-knights";
     startLevel(1, STARTING_LIVES, 0);
   }, [startLevel]);
 
@@ -254,7 +329,10 @@ export function useGhostMaze(opts?: {
         if (!ghost.alive) return prev;
         // Try to apply immediately if possible (instant reverse / change)
         const next = applyDirection(ghost.x, ghost.y, dir);
-        const canApply = isWalkable(prev.maze, next.x, next.y, false);
+        const phased = prev.effects.teamPhaseUntil > performance.now();
+        const canApply = phased
+          ? next.y >= 0 && next.y < prev.maze.length && next.x >= 0 && next.x < prev.maze[0].length && prev.maze[next.y][next.x] !== 1
+          : isWalkable(prev.maze, next.x, next.y, false);
         const ghosts = prev.ghosts.map((g, i) =>
           i === ghostId
             ? {
@@ -311,11 +389,12 @@ export function useGhostMaze(opts?: {
     const speedBoostActive = effects.speedBoostUntil > now;
     const freezeActive = effects.freezeUntil > now;
     const magnetActive = effects.magnetUntil > now;
+    const teamPhaseActive = effects.teamPhaseUntil > now;
     const ghostSpeedMult = speedBoostActive ? 0.6 : 1.0;
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
-    // Boss makes Pellet Guy faster (smaller interval) in later phases.
-    const pgInterval = SPEED.pelletGuy * scale;
+    const pelletGuyPanicMultiplier = prev.catches >= 2 ? 0.7 : prev.catches >= 1 ? 0.85 : 1;
+    const pgInterval = SPEED.pelletGuy * scale * pelletGuyPanicMultiplier;
 
     let nextState: GameState = prev;
     let mutated = false;
@@ -329,10 +408,12 @@ export function useGhostMaze(opts?: {
       const g = newGhosts[i];
       // handle respawn
       if (!g.alive) {
+        if (g.permaDead) continue;
         if (now >= g.respawnAt) {
           newGhosts[i] = {
             ...g,
             alive: true,
+            permaDead: false,
             x: g.spawnX,
             y: g.spawnY,
             direction: (["left", "right", "up", "down"] as Direction[])[i],
@@ -366,17 +447,21 @@ export function useGhostMaze(opts?: {
       // try queued direction first
       let dir = ghost.nextDirection;
       let next = applyDirection(ghost.x, ghost.y, dir);
-      if (!isWalkable(prev.maze, next.x, next.y, false)) {
+      const ghostCanWalk = (x: number, y: number) =>
+        teamPhaseActive
+          ? y >= 0 && y < prev.maze.length && x >= 0 && x < prev.maze[0].length && prev.maze[y][x] !== 1
+          : isWalkable(prev.maze, x, y, false);
+      if (!ghostCanWalk(next.x, next.y)) {
         dir = ghost.direction;
         next = applyDirection(ghost.x, ghost.y, dir);
       }
-      if (!isWalkable(prev.maze, next.x, next.y, false)) {
+      if (!ghostCanWalk(next.x, next.y)) {
         // Both queued and current direction blocked - pick any valid direction
         // (so ghost doesn't sit forever if user-set direction hits a wall)
         const validDirs = (["up", "down", "left", "right"] as Direction[]).filter(
           (d) => {
             const n = applyDirection(ghost.x, ghost.y, d);
-            return isWalkable(prev.maze, n.x, n.y, false);
+            return ghostCanWalk(n.x, n.y);
           },
         );
         if (validDirs.length === 0) continue; // truly stuck
@@ -408,18 +493,53 @@ export function useGhostMaze(opts?: {
     let score = prev.score;
     let barricades = prev.barricades;
     let ghostDeathsThisLevel = prev.ghostDeathsThisLevel;
+    const hardcoreMode = modeRef.current === "hardcore";
     // Bonus game state evolves each tick.
     let bonusGame = prev.bonusGame;
     let status: GameState["status"] = prev.status;
     let message = prev.message;
+    let effectsNext: ActiveEffects = effects;
+
+    if (
+      themeIdRef.current === "spectre" &&
+      !bonusGame &&
+      effects.teamPhaseUntil <= now &&
+      now - lastSpectreRollRef.current >= 10000
+    ) {
+      lastSpectreRollRef.current = now;
+      if (Math.random() < 0.07) {
+        effectsNext = { ...effectsNext, teamPhaseUntil: now + 2000 };
+        message = "GHOST PHASE";
+        mutated = true;
+      }
+    }
+
+    if (
+      themeIdRef.current === "mono" &&
+      !bonusGame &&
+      pg.alive &&
+      now - lastMonoRollRef.current >= 6000
+    ) {
+      lastMonoRollRef.current = now;
+      if (Math.random() < 0.03) {
+        const reverse = opposite(pg.direction);
+        const reversePos = applyDirection(pg.x, pg.y, reverse);
+        if (isWalkable(maze, reversePos.x, reversePos.y, true)) {
+          pg = { ...pg, direction: reverse };
+          message = "POLARITY FLIP";
+          mutated = true;
+        }
+      }
+    }
 
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
+        const respawn = findSafePelletGuyRespawn(maze, pg, newGhosts);
         pg = {
           ...pg,
           alive: true,
-          x: pg.spawnX,
-          y: pg.spawnY,
+          x: respawn.x,
+          y: respawn.y,
           direction: "left",
         };
         lastPelletGuyMoveRef.current = now;
@@ -528,14 +648,20 @@ export function useGhostMaze(opts?: {
           );
           getSoundEngine().superPellet();
           // make all alive ghosts vulnerable
+          const vulnerabilityMs = themeIdRef.current === "neon"
+            ? SUPER_PELLET_DURATION_MS * 0.8
+            : SUPER_PELLET_DURATION_MS;
           for (let i = 0; i < newGhosts.length; i++) {
             if (newGhosts[i].alive) {
               newGhosts[i] = {
                 ...newGhosts[i],
                 vulnerable: true,
-                vulnerableUntil: now + SUPER_PELLET_DURATION_MS,
+                vulnerableUntil: now + vulnerabilityMs,
               };
             }
+          }
+          if (themeIdRef.current === "solar-flare") {
+            effectsNext = { ...effectsNext, revealUntil: now + 2000 };
           }
         }
 
@@ -553,7 +679,9 @@ export function useGhostMaze(opts?: {
           if (activeTraps < MAX_ACTIVE_TRAPS) {
             const dropChance = Math.min(
               TRAP_DROP_MAX_CHANCE,
-              TRAP_DROP_BASE_CHANCE + (prev.level - 1) * TRAP_DROP_LEVEL_BOOST,
+              TRAP_DROP_BASE_CHANCE +
+                (prev.level - 1) * TRAP_DROP_LEVEL_BOOST +
+                prev.catches * 0.025,
             );
             if (Math.random() < dropChance) {
               const isSpike = Math.random() < SPIKE_PROBABILITY;
@@ -565,16 +693,29 @@ export function useGhostMaze(opts?: {
                     ? row.map((c, cx) => (cx === tx ? (6 as CellType) : c))
                     : row,
                 );
+                if (themeIdRef.current === "ironworks") {
+                  effectsNext = {
+                    ...effectsNext,
+                    spikeArmUntilByCell: {
+                      ...effectsNext.spikeArmUntilByCell,
+                      [`${tx},${ty}`]: now + 1000,
+                    },
+                  };
+                }
               } else {
-                maze = maze.map((row, ry) =>
-                  ry === ty
-                    ? row.map((c, cx) => (cx === tx ? (7 as CellType) : c))
-                    : row,
-                );
-                barricades = [
-                  ...barricades,
-                  { x: tx, y: ty, expiresAt: now + BARRICADE_DURATION_MS },
-                ];
+                if (themeIdRef.current === "static-squad" && !firstBarricadeSkippedRef.current) {
+                  firstBarricadeSkippedRef.current = true;
+                } else {
+                  maze = maze.map((row, ry) =>
+                    ry === ty
+                      ? row.map((c, cx) => (cx === tx ? (7 as CellType) : c))
+                      : row,
+                  );
+                  barricades = [
+                    ...barricades,
+                    { x: tx, y: ty, expiresAt: now + BARRICADE_DURATION_MS },
+                  ];
+                }
               }
               getSoundEngine().uiClick();
             }
@@ -610,11 +751,12 @@ export function useGhostMaze(opts?: {
     }
 
     // --- Ghost-on-spike collision (after ghost moves) ---
-    let effectsNext: ActiveEffects = effects;
     for (let i = 0; i < newGhosts.length; i++) {
       const g = newGhosts[i];
       if (!g.alive) continue;
       if (maze[g.y][g.x] === 6) {
+        const spikeArmUntil = effectsNext.spikeArmUntilByCell[`${g.x},${g.y}`] ?? 0;
+        if (effectsNext.teamPhaseUntil > now || spikeArmUntil > now) continue;
         // Spike triggered. Consume the spike either way.
         maze = maze.map((row, ry) =>
           ry === g.y
@@ -630,12 +772,24 @@ export function useGhostMaze(opts?: {
           continue;
         }
 
-        const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
-        ghostDeathsThisLevel++;
+        if (oathShieldAvailableRef.current) {
+          oathShieldAvailableRef.current = false;
+          getSoundEngine().uiClick();
+          mutated = true;
+          continue;
+        }
+
+        let delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
+        if (themeIdRef.current === "graveyard-shift" && !firstFastRespawnUsedRef.current) {
+          delay *= 0.75;
+          firstFastRespawnUsedRef.current = true;
+        }
+        if (!hardcoreMode) ghostDeathsThisLevel++;
         newGhosts[i] = {
           ...g,
           alive: false,
-          respawnAt: now + delay,
+          permaDead: hardcoreMode,
+          respawnAt: hardcoreMode ? Number.POSITIVE_INFINITY : now + delay,
           vulnerable: false,
           vulnerableUntil: 0,
         };
@@ -667,6 +821,7 @@ export function useGhostMaze(opts?: {
           }
 
           if (g.vulnerable) {
+            if (effectsNext.teamPhaseUntil > now) continue;
             // Shield blocks one chomp
             if (effectsNext.shieldGhostId === g.id) {
               effectsNext = { ...effectsNext, shieldGhostId: null };
@@ -675,19 +830,32 @@ export function useGhostMaze(opts?: {
               mutated = true;
               continue;
             }
+            if (oathShieldAvailableRef.current) {
+              oathShieldAvailableRef.current = false;
+              newGhosts[i] = { ...g, vulnerable: false, vulnerableUntil: 0 };
+              getSoundEngine().uiClick();
+              mutated = true;
+              continue;
+            }
             // Pellet guy eats ghost
-            const delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
-            ghostDeathsThisLevel++;
+            let delay = computeRespawnDelay(ghostDeathsThisLevel, effects.fastRespawn);
+            if (themeIdRef.current === "graveyard-shift" && !firstFastRespawnUsedRef.current) {
+              delay *= 0.75;
+              firstFastRespawnUsedRef.current = true;
+            }
+            if (!hardcoreMode) ghostDeathsThisLevel++;
             newGhosts[i] = {
               ...g,
               alive: false,
-              respawnAt: now + delay,
+              permaDead: hardcoreMode,
+              respawnAt: hardcoreMode ? Number.POSITIVE_INFINITY : now + delay,
               vulnerable: false,
               vulnerableUntil: 0,
             };
             mutated = true;
             getSoundEngine().ghostEaten();
           } else {
+            if (effectsNext.teamPhaseUntil > now) continue;
             // ------------------------------------------------------------
             // Ghost catches Pellet Guy. On boss levels each catch deals
             // 1 HP — third catch (HP=0) is treated as a level win with a
@@ -735,7 +903,13 @@ export function useGhostMaze(opts?: {
               getSoundEngine().levelWin();
 
               // Award level coins (base + 1 coin per 5% pellets remaining)
-              const lvlCoins = COIN_REWARD.levelClear + Math.floor(pctRemaining * COIN_REWARD.perPercentRemaining);
+              let lvlCoins = COIN_REWARD.levelClear + Math.floor(pctRemaining * COIN_REWARD.perPercentRemaining);
+              if (themeIdRef.current === "sweet-chaos") {
+                lvlCoins = Math.ceil(lvlCoins * 1.05);
+              }
+              if (themeIdRef.current === "jackpot-crew" && Math.random() < 0.05) {
+                lvlCoins *= 2;
+              }
               onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
 
               // Persist progress
@@ -772,7 +946,9 @@ export function useGhostMaze(opts?: {
     if (status === "playing") {
       if (pelletsRemaining <= 0) {
         // Pellet guy ate all pellets - lose life
-        lives--;
+        if (!hardcoreMode) {
+          lives--;
+        }
         if (lives <= 0) {
           status = "gameOver";
           message = "GAME OVER\nPellet Guy ate everything!";
@@ -787,16 +963,28 @@ export function useGhostMaze(opts?: {
           }
         } else {
           status = "levelLost";
-          message = "PELLET GUY WINS!\nHe ate all the pellets!";
+          message = hardcoreMode
+            ? "LEVEL FAILED\nPellet Guy ate all the pellets!"
+            : "PELLET GUY WINS!\nHe ate all the pellets!";
           getSoundEngine().levelLose();
         }
       } else {
         const aliveGhosts = newGhosts.filter((g) => g.alive).length;
+        if (hardcoreMode) {
+          lives = aliveGhosts;
+          hardcoreEliminatedRef.current = newGhosts
+            .filter((g) => g.permaDead)
+            .map((g) => g.id);
+        }
         if (aliveGhosts === 0) {
-          lives--;
+          if (!hardcoreMode) {
+            lives--;
+          }
           if (lives <= 0) {
             status = "gameOver";
-            message = "GAME OVER\nAll ghosts devoured!";
+            message = hardcoreMode
+              ? "GAME OVER\nYour squad was wiped out!"
+              : "GAME OVER\nAll ghosts devoured!";
             getSoundEngine().levelLose();
             getSoundEngine().stopMusic();
             if (progressRef.current) {
@@ -807,7 +995,9 @@ export function useGhostMaze(opts?: {
             }
           } else {
             status = "levelLost";
-            message = "PELLET GUY WINS!\nHe ate all your ghosts!";
+            message = hardcoreMode
+              ? "LEVEL FAILED\nYour squad is down!"
+              : "PELLET GUY WINS!\nHe ate all your ghosts!";
             getSoundEngine().levelLose();
           }
         }
@@ -821,6 +1011,9 @@ export function useGhostMaze(opts?: {
     }
 
     if (mutated || status !== prev.status || effectsNext !== effects || bonusGame !== prev.bonusGame) {
+      const selectedGhostId = newGhosts[prev.selectedGhostId]?.alive
+        ? prev.selectedGhostId
+        : (newGhosts.find((ghost) => ghost.alive)?.id ?? prev.selectedGhostId);
       nextState = {
         ...prev,
         ghosts: newGhosts,
@@ -834,6 +1027,7 @@ export function useGhostMaze(opts?: {
         lives,
         status,
         message,
+        selectedGhostId,
         barricades,
         ghostDeathsThisLevel,
         effects: effectsNext,
@@ -875,7 +1069,7 @@ export function useGhostMaze(opts?: {
       }
     };
   }, [tick, applyInput]); const advanceLevel = useCallback(() => {
-    if (state.level >= MAX_LEVELS) {
+    if (modeRef.current !== "endless" && state.level >= MAX_LEVELS) {
       // All 50 levels cleared — game complete!
       setState((prev) => ({
         ...prev,
@@ -906,6 +1100,7 @@ export function useGhostMaze(opts?: {
       const { submitScore } = await import("./api");
       const isDaily = modeRef.current === "daily" && dailyRef.current?.seedDate;
       const isSpeedrun = modeRef.current === "speedrun";
+      const isEndless = modeRef.current === "endless";
       return submitScore({
         player_name: playerName,
         score: state.score,
@@ -913,7 +1108,7 @@ export function useGhostMaze(opts?: {
         catches: state.catches,
         theme_id: themeIdRef.current,
         // Custom challenges score against classic leaderboard (no daily date)
-        mode: isDaily ? "daily" : isSpeedrun ? "speedrun" : "classic",
+        mode: isDaily ? "daily" : isSpeedrun ? "speedrun" : isEndless ? "classic" : "classic",
         daily_seed_date: isDaily ? dailyRef.current?.seedDate : undefined,
         run_time_ms: isSpeedrun ? Math.max(0, Math.floor(runTimeMs ?? 0)) : undefined,
       });
@@ -938,9 +1133,13 @@ export function useGhostMaze(opts?: {
         break;
       }
       case "freeze": {
+        const duration = themeIdRef.current === "frostbyte" && !firstFreezeBoostUsedRef.current
+          ? 5000
+          : 4000;
+        if (themeIdRef.current === "frostbyte") firstFreezeBoostUsedRef.current = true;
         nextState = {
           ...cur,
-          effects: { ...cur.effects, freezeUntil: now + 4000 },
+          effects: { ...cur.effects, freezeUntil: now + duration },
         };
         break;
       }
@@ -1089,6 +1288,36 @@ export function useGhostMaze(opts?: {
             alive: true,
             respawnAt: 0,
           },
+        };
+        break;
+      }
+      case "hardcoreRevive": {
+        if (modeRef.current !== "hardcore") return false;
+        const deadGhost = cur.ghosts.find((ghost) => ghost.permaDead);
+        if (!deadGhost) return false;
+        const ghosts = cur.ghosts.map((ghost) =>
+          ghost.id === deadGhost.id
+            ? {
+                ...ghost,
+                alive: true,
+                permaDead: false,
+                x: ghost.spawnX,
+                y: ghost.spawnY,
+                respawnAt: 0,
+                vulnerable: false,
+                vulnerableUntil: 0,
+              }
+            : ghost,
+        );
+        hardcoreEliminatedRef.current = ghosts
+          .filter((ghost) => ghost.permaDead)
+          .map((ghost) => ghost.id);
+        nextState = {
+          ...cur,
+          ghosts,
+          lives: ghosts.filter((ghost) => ghost.alive).length,
+          selectedGhostId: deadGhost.id,
+          message: `${deadGhost.name.toUpperCase()} RETURNS!`,
         };
         break;
       }

@@ -17,6 +17,7 @@ import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
+import { loadProgress } from "@/src/game/progress";
 import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
@@ -24,6 +25,8 @@ import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
 import {
   queueAchievementUnlock,
   recordSpeedrunLevelBest,
+  submitEndlessRun,
+  submitHardcoreRun,
   syncPlayGames,
 } from "@/src/game/playGames";
 
@@ -44,7 +47,11 @@ export default function GameScreen() {
     seedDate?: string;
     level?: string;
   }>();
-  const mode = params.mode === "custom" || params.mode === "speedrun"
+  const mode =
+    params.mode === "custom" ||
+    params.mode === "speedrun" ||
+    params.mode === "hardcore" ||
+    params.mode === "endless"
     ? params.mode
     : "classic";
   const seed = params.seed != null ? Number(params.seed) : undefined;
@@ -80,9 +87,11 @@ export default function GameScreen() {
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [bestRunMs, setBestRunMs] = useState(0);
+  const [themeId, setThemeId] = useState("classic");
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
+  const submittedModeLeaderboardRef = useRef(false);
   const recordedSpeedrunLevelsRef = useRef<Record<number, true>>({});
   const previousLevelRef = useRef(state.level);
   const previousStatusRef = useRef(state.status);
@@ -93,6 +102,7 @@ export default function GameScreen() {
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
+    loadProgress().then((p) => setThemeId(p.selectedThemeId));
     void syncPlayGames();
   }, []);
 
@@ -139,6 +149,7 @@ export default function GameScreen() {
       timerRunningFromRef.current = null;
       setElapsedMs(0);
       submittedSpeedrunRef.current = false;
+      submittedModeLeaderboardRef.current = false;
       recordedSpeedrunLevelsRef.current = {};
       previousLevelRef.current = state.level;
       levelStartElapsedRef.current = 0;
@@ -160,11 +171,33 @@ export default function GameScreen() {
   }, [computeTimerMs, mode, state.level]);
 
   useEffect(() => {
+    if (state.status !== "gameOver" || submittedModeLeaderboardRef.current) return;
+    if (mode === "hardcore") {
+      submittedModeLeaderboardRef.current = true;
+      void submitHardcoreRun(state.level);
+      return;
+    }
+    if (mode === "endless") {
+      submittedModeLeaderboardRef.current = true;
+      void submitEndlessRun(state.level);
+    }
+  }, [mode, state.level, state.status]);
+
+  useEffect(() => {
     if (armedGhosts.length === 4) {
       void queueAchievementUnlock("friends");
       void recordDailyMissionProgress({ armAllEvents: 1 });
     }
   }, [armedGhosts]);
+
+  useEffect(() => {
+    const livingGhosts = state.ghosts.filter((ghost) => ghost.alive).map((ghost) => ghost.id);
+    setArmedGhosts((prev) => {
+      const filtered = prev.filter((id) => livingGhosts.includes(id));
+      if (filtered.length > 0) return filtered;
+      return livingGhosts.length > 0 ? [livingGhosts[0]] : prev;
+    });
+  }, [state.ghosts]);
 
   useEffect(() => {
     const previousCatches = previousCatchesRef.current;
@@ -224,7 +257,31 @@ export default function GameScreen() {
     onSelect: (id) => {
       syncSelection([id]);
     },
+    onPause: () => {
+      const current = stateRef.current.status;
+      if (current === "playing" || current === "paused") togglePause();
+    },
+    onAction: () => {
+      const current = stateRef.current;
+      if (
+        current.bonusGame &&
+        !current.bonusGame.complete &&
+        (current.bonusGame.type === "galagaBlitz" || current.bonusGame.type === "digDugDash")
+      ) {
+        bonusAction();
+        return;
+      }
+      if (
+        mode === "hardcore" &&
+        current.status === "playing" &&
+        (inventory.hardcoreRevive ?? 0) > 0 &&
+        current.ghosts.some((ghost) => ghost.permaDead)
+      ) {
+        activatePowerUp("hardcoreRevive");
+      }
+    },
     getSelectedGhostId: () => stateRef.current.selectedGhostId,
+    isGhostSelectable: (id) => stateRef.current.ghosts[id]?.alive ?? false,
   });
 
   const SWIPE_THRESHOLD = 25;
@@ -297,7 +354,7 @@ export default function GameScreen() {
     return list;
   }, [state.effects]);
   const inventoryItems = useMemo(
-    () => POWER_UP_ORDER.slice(0, 8).map((id) => ({
+    () => POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
       id,
       def: POWER_UPS[id],
       count: inventory[id] ?? 0,
@@ -331,8 +388,16 @@ export default function GameScreen() {
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
     if (!applied) return;
+    if (themeId === "blood-moon" && id !== "hardcoreRevive" && Math.random() < 0.1) return;
     consumeInventory(id);
-  }, [applyPowerUp, consumeInventory]);
+  }, [applyPowerUp, consumeInventory, themeId]);
+  const reviveToken = POWER_UPS.hardcoreRevive;
+  const reviveTokenCount = inventory.hardcoreRevive ?? 0;
+  const canUseReviveToken =
+    mode === "hardcore" &&
+    state.status === "playing" &&
+    reviveTokenCount > 0 &&
+    state.ghosts.some((ghost) => ghost.permaDead);
 
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
@@ -488,12 +553,28 @@ export default function GameScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+            {mode === "hardcore" && (
+              <TouchableOpacity
+                onPress={() => activatePowerUp("hardcoreRevive")}
+                style={[
+                  styles.actionBtn,
+                  { borderColor: reviveToken.color },
+                  !canUseReviveToken && styles.slotDim,
+                ]}
+                disabled={!canUseReviveToken}
+                testID="hardcore-revive-btn"
+              >
+                <Text style={[styles.pauseText, { color: reviveToken.color }]}>
+                  {reviveToken.icon} REVIVE {reviveTokenCount}
+                </Text>
+              </TouchableOpacity>
+            )}
             {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
               <View style={styles.stateActions}>
                 {state.status === "levelWon" && (
                   <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
                     <Text style={styles.stateBtnText}>
-                      {state.level >= MAX_LEVELS ? "FINISH!" : "NEXT LEVEL"}
+                      {mode !== "endless" && state.level >= MAX_LEVELS ? "FINISH!" : "NEXT LEVEL"}
                     </Text>
                   </TouchableOpacity>
                 )}

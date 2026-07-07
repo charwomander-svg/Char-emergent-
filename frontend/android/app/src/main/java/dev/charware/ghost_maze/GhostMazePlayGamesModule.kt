@@ -46,6 +46,20 @@ class GhostMazePlayGamesModule(
   }
 
   @ReactMethod
+  fun isSignedIn(promise: Promise) {
+    val activity = getActivityOrNull()
+    if (activity == null || !hasProjectId()) {
+      promise.resolve(false)
+      return
+    }
+
+    PlayGames.getGamesSignInClient(activity)
+      .isAuthenticated()
+      .addOnSuccessListener { auth -> promise.resolve(auth.isAuthenticated) }
+      .addOnFailureListener { promise.resolve(false) }
+  }
+
+  @ReactMethod
   fun unlockAchievement(achievementId: String, promise: Promise) {
     val activity = getActivityOrNull()
     if (activity == null || !hasProjectId()) {
@@ -53,9 +67,18 @@ class GhostMazePlayGamesModule(
       return
     }
 
-    PlayGames.getAchievementsClient(activity)
-      .unlockImmediate(achievementId)
-      .addOnSuccessListener { promise.resolve(true) }
+    PlayGames.getGamesSignInClient(activity)
+      .isAuthenticated()
+      .addOnSuccessListener { auth ->
+        if (!auth.isAuthenticated) {
+          promise.resolve(false)
+          return@addOnSuccessListener
+        }
+        PlayGames.getAchievementsClient(activity)
+          .unlockImmediate(achievementId)
+          .addOnSuccessListener { promise.resolve(true) }
+          .addOnFailureListener { promise.resolve(false) }
+      }
       .addOnFailureListener { promise.resolve(false) }
   }
 
@@ -67,9 +90,18 @@ class GhostMazePlayGamesModule(
       return
     }
 
-    PlayGames.getLeaderboardsClient(activity)
-      .submitScoreImmediate(leaderboardId, score.toLong())
-      .addOnSuccessListener { promise.resolve(true) }
+    PlayGames.getGamesSignInClient(activity)
+      .isAuthenticated()
+      .addOnSuccessListener { auth ->
+        if (!auth.isAuthenticated) {
+          promise.resolve(false)
+          return@addOnSuccessListener
+        }
+        PlayGames.getLeaderboardsClient(activity)
+          .submitScoreImmediate(leaderboardId, score.toLong())
+          .addOnSuccessListener { promise.resolve(true) }
+          .addOnFailureListener { promise.resolve(false) }
+      }
       .addOnFailureListener { promise.resolve(false) }
   }
 

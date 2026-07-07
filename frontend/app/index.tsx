@@ -171,6 +171,30 @@ export default function MainMenu() {
           <Text style={styles.dailyDate}>Best time wins • Ascending leaderboard</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.dailyBtn, { borderColor: "#FF477E" }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/game?mode=hardcore");
+          }}
+          testID="hardcore-btn"
+        >
+          <Text style={[styles.dailyBtnText, { color: "#FF477E" }]}>☠ HARDCORE MODE</Text>
+          <Text style={styles.dailyDate}>No respawns • Dead ghosts are gone for the run</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.dailyBtn, { borderColor: "#9CFF57" }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/game?mode=endless");
+          }}
+          testID="endless-btn"
+        >
+          <Text style={[styles.dailyBtnText, { color: "#9CFF57" }]}>∞ ENDLESS MODE</Text>
+          <Text style={styles.dailyDate}>Keep climbing past level 50 until the run ends</Text>
+        </TouchableOpacity>
+
         {/* Leaderboard */}
         <TouchableOpacity
           style={styles.charactersBtn}
@@ -217,6 +241,8 @@ export default function MainMenu() {
             • Ghosts keep moving until you change direction{"\n"}
             • Catch Pellet Guy 3 times to win the level{"\n"}
             • Arm multiple ghosts to redirect them together{"\n"}
+            • HARDCORE mode removes ghost respawns for the whole run{"\n"}
+            • ENDLESS mode keeps going after level 50{"\n"}
             • Every 5th level is a BONUS stage — Speed Rally, Star Blitz, or Inflator{"\n"}
             • In SPEEDRUN, pick any level and race for the fastest clear time{"\n"}
             • Don&apos;t let him eat all pellets or all ghosts!{"\n"}

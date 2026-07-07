@@ -19,6 +19,260 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
   return a;
 }
 
+function createWalledGrid(): CellType[][] {
+  return Array.from({ length: MAZE_ROWS }, (_, y) =>
+    Array.from({ length: MAZE_COLS }, (_, x) =>
+      x === 0 || y === 0 || x === MAZE_COLS - 1 || y === MAZE_ROWS - 1
+        ? (1 as CellType)
+        : (0 as CellType),
+    ),
+  );
+}
+
+function carveLine(grid: CellType[][], x1: number, y1: number, x2: number, y2: number) {
+  const minX = Math.max(1, Math.min(x1, x2));
+  const maxX = Math.min(MAZE_COLS - 2, Math.max(x1, x2));
+  const minY = Math.max(1, Math.min(y1, y2));
+  const maxY = Math.min(MAZE_ROWS - 2, Math.max(y1, y2));
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      grid[y][x] = 1;
+    }
+  }
+}
+
+function makeStaticBase(level: number): CellType[][] {
+  const grid = createWalledGrid();
+  const template = (level - 1) % 6;
+
+  switch (template) {
+    case 0:
+      for (let y = 3; y <= 15; y += 4) carveLine(grid, 2, y, 12, y);
+      for (let x = 4; x <= 10; x += 6) carveLine(grid, x, 2, x, 16);
+      break;
+    case 1:
+      carveLine(grid, 3, 2, 3, 7);
+      carveLine(grid, 11, 2, 11, 7);
+      carveLine(grid, 3, 11, 3, 16);
+      carveLine(grid, 11, 11, 11, 16);
+      carveLine(grid, 5, 4, 9, 4);
+      carveLine(grid, 5, 14, 9, 14);
+      break;
+    case 2:
+      for (let y = 2; y <= 16; y += 2) {
+        const left = y % 4 === 0 ? 2 : 5;
+        const right = y % 4 === 0 ? 9 : 12;
+        carveLine(grid, left, y, right, y);
+      }
+      break;
+    case 3:
+      carveLine(grid, 2, 2, 5, 5);
+      carveLine(grid, 9, 2, 12, 5);
+      carveLine(grid, 2, 13, 5, 16);
+      carveLine(grid, 9, 13, 12, 16);
+      carveLine(grid, 6, 3, 8, 15);
+      break;
+    case 4:
+      for (let y = 2; y <= 16; y++) {
+        if (y !== 5 && y !== 9 && y !== 13) {
+          carveLine(grid, 4, y, 4, y);
+          carveLine(grid, 10, y, 10, y);
+        }
+      }
+      for (let x = 2; x <= 12; x++) {
+        if (x !== 4 && x !== 7 && x !== 10) {
+          carveLine(grid, x, 6, x, 6);
+          carveLine(grid, x, 12, x, 12);
+        }
+      }
+      break;
+    default:
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 5, 6, 9, 6);
+      carveLine(grid, 5, 12, 9, 12);
+      break;
+  }
+
+  return grid;
+}
+
+function reachableFrom(
+  grid: CellType[][],
+  start: { x: number; y: number },
+  forPelletGuy = false,
+): Set<string> {
+  const seen = new Set<string>();
+  const stack = [start];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    const key = `${cur.x},${cur.y}`;
+    if (seen.has(key) || !inBounds(cur.x, cur.y)) continue;
+    const cell = grid[cur.y][cur.x];
+    if (cell === 1 || (forPelletGuy && cell === 4)) continue;
+    seen.add(key);
+    stack.push(
+      { x: cur.x + 1, y: cur.y },
+      { x: cur.x - 1, y: cur.y },
+      { x: cur.x, y: cur.y + 1 },
+      { x: cur.x, y: cur.y - 1 },
+    );
+  }
+  return seen;
+}
+
+function repairConnectivity(grid: CellType[][], start: { x: number; y: number }) {
+  for (let attempt = 0; attempt < MAZE_COLS * MAZE_ROWS; attempt++) {
+    const reachable = reachableFrom(grid, start);
+    let target: { x: number; y: number } | null = null;
+    let best = Infinity;
+
+    for (let y = 1; y < MAZE_ROWS - 1; y++) {
+      for (let x = 1; x < MAZE_COLS - 1; x++) {
+        if (grid[y][x] === 1 || reachable.has(`${x},${y}`)) continue;
+        const dist = Math.abs(x - start.x) + Math.abs(y - start.y);
+        if (dist < best) {
+          best = dist;
+          target = { x, y };
+        }
+      }
+    }
+
+    if (!target) return;
+
+    let x = target.x;
+    let y = target.y;
+    while (!reachable.has(`${x},${y}`)) {
+      grid[y][x] = 0;
+      if (x !== start.x) x += x < start.x ? 1 : -1;
+      else if (y !== start.y) y += y < start.y ? 1 : -1;
+    }
+  }
+}
+
+function decorateMaze(
+  grid: CellType[][],
+  level: number,
+  rand: () => number,
+): {
+  maze: CellType[][];
+  ghostSpawns: { x: number; y: number }[];
+  pelletGuySpawn: { x: number; y: number };
+  totalPellets: number;
+} {
+  const cols = MAZE_COLS;
+  const rows = MAZE_ROWS;
+  const ghostHouseX = Math.floor(cols / 2);
+  const ghostHouseY = Math.floor(rows / 2);
+
+  for (let y = 1; y < rows - 1; y++) {
+    grid[y][ghostHouseX] = 0;
+  }
+  for (let x = 1; x < cols - 1; x++) {
+    grid[ghostHouseY][x] = 0;
+  }
+
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const x = ghostHouseX + dx;
+      const y = ghostHouseY + dy;
+      if (inBounds(x, y)) grid[y][x] = 4 as CellType;
+    }
+  }
+
+  for (const [x, y] of [
+    [ghostHouseX, ghostHouseY - 2],
+    [ghostHouseX - 1, ghostHouseY - 2],
+    [ghostHouseX + 1, ghostHouseY - 2],
+    [ghostHouseX, ghostHouseY + 2],
+  ] as [number, number][]) {
+    if (inBounds(x, y)) grid[y][x] = 0;
+  }
+
+  repairConnectivity(grid, { x: ghostHouseX, y: ghostHouseY - 2 });
+
+  let totalPellets = 0;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (grid[y][x] === 0) {
+        grid[y][x] = 2 as CellType;
+        totalPellets++;
+      }
+    }
+  }
+
+  const superPelletCount = Math.min(2 + Math.floor(level / 2), 6);
+  const cornerPositions: [number, number][] = [
+    [1, 1],
+    [cols - 2, 1],
+  ];
+  if (level >= 3) cornerPositions.push([1, rows - 2]);
+  if (level >= 4) cornerPositions.push([cols - 2, rows - 2]);
+  for (const [cx, cy] of cornerPositions) {
+    let nearest: [number, number] | null = null;
+    let bestDist = Infinity;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (grid[y][x] === 2) {
+          const d = Math.abs(x - cx) + Math.abs(y - cy);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = [x, y];
+          }
+        }
+      }
+    }
+    if (nearest) {
+      grid[nearest[1]][nearest[0]] = 3 as CellType;
+      totalPellets--;
+    }
+  }
+
+  for (let i = 4; i < superPelletCount; i++) {
+    const pelletCells: [number, number][] = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (grid[y][x] === 2) pelletCells.push([x, y]);
+      }
+    }
+    if (pelletCells.length === 0) break;
+    const [px, py] = pelletCells[Math.floor(rand() * pelletCells.length)];
+    grid[py][px] = 3 as CellType;
+    totalPellets--;
+  }
+
+  const ghostSpawns = [
+    { x: ghostHouseX - 1, y: ghostHouseY },
+    { x: ghostHouseX + 1, y: ghostHouseY },
+    { x: ghostHouseX, y: ghostHouseY - 1 },
+    { x: ghostHouseX, y: ghostHouseY + 1 },
+  ];
+
+  const findWalkable = (sx: number, sy: number) => {
+    for (let r = 0; r < Math.max(cols, rows); r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const x = sx + dx;
+          const y = sy + dy;
+          if (inBounds(x, y) && (grid[y][x] === 2 || grid[y][x] === 3 || grid[y][x] === 0)) {
+            return { x, y };
+          }
+        }
+      }
+    }
+    return { x: sx, y: sy };
+  };
+
+  return {
+    maze: grid,
+    ghostSpawns,
+    pelletGuySpawn: findWalkable(Math.floor(cols / 2), rows - 2),
+    totalPellets,
+  };
+}
+
 /**
  * Generate a randomized maze.
  * @param level Difficulty level (affects loop density + super pellet count)
@@ -35,6 +289,10 @@ export function generateMaze(
 } {
   const rand =
     seed !== undefined ? makeRng((seed ^ (level * 0x9e3779b1)) >>> 0) : Math.random;
+
+  if (level % 5 !== 0) {
+    return decorateMaze(makeStaticBase(level), level, rand);
+  }
 
   const cols = MAZE_COLS;
   const rows = MAZE_ROWS;

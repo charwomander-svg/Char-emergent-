@@ -27,6 +27,7 @@ export interface Ghost {
   vulnerable: boolean;
   vulnerableUntil: number; // timestamp
   alive: boolean;
+  permaDead?: boolean;
   respawnAt: number;
   spawnX: number;
   spawnY: number;
@@ -63,6 +64,8 @@ export interface ActiveEffects {
   fastRespawn: boolean;
   // optional decoy ghost the AI treats as a threat to evade
   decoy: { x: number; y: number; until: number; ghostId: GhostId } | null;
+  teamPhaseUntil: number;
+  spikeArmUntilByCell: Record<string, number>;
 }
 
 export interface GameState {

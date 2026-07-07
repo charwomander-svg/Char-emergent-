@@ -6,6 +6,8 @@ import { storage } from "@/src/utils/storage";
 
 const CLASSIC_AGGREGATE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQAQ0";
 const SPEEDRUN_AGGREGATE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQAg";
+const HARDCORE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQEw";
+const ENDLESS_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQFA";
 const KEY = "ghostMaze.playGames.v1";
 
 export const ACHIEVEMENT_IDS = {
@@ -46,6 +48,7 @@ type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
 
 interface PlayGamesModuleShape {
   isConfigured?: () => Promise<boolean>;
+  isSignedIn?: () => Promise<boolean>;
   signIn?: () => Promise<boolean>;
   unlockAchievement?: (achievementId: string) => Promise<boolean>;
   submitLeaderboardScore?: (leaderboardId: string, score: number) => Promise<boolean>;
@@ -133,6 +136,22 @@ async function ensureSignedIn(): Promise<boolean> {
   return signInPromise;
 }
 
+async function isSignedInSilently(): Promise<boolean> {
+  if (signedInThisSession) return true;
+  const native = getNativeModule();
+  if (!native?.isSignedIn) return false;
+  if (!(await isConfigured())) return false;
+  try {
+    const signedIn = !!(await native.isSignedIn());
+    if (signedIn) {
+      signedInThisSession = true;
+    }
+    return signedIn;
+  } catch {
+    return false;
+  }
+}
+
 async function unlockAchievementNow(key: AchievementKey): Promise<boolean> {
   const native = getNativeModule();
   if (!native?.unlockAchievement) return false;
@@ -164,8 +183,14 @@ function hasAllLevels(values: Record<string, number>): boolean {
   return true;
 }
 
-async function syncUnlockedAchievements(data: PlayGamesData): Promise<PlayGamesData> {
-  if (!(await ensureSignedIn())) return data;
+async function syncUnlockedAchievements(
+  data: PlayGamesData,
+  allowInteractiveSignIn = false,
+): Promise<PlayGamesData> {
+  const signedIn = allowInteractiveSignIn
+    ? await ensureSignedIn()
+    : await isSignedInSilently();
+  if (!signedIn) return data;
 
   const remaining: AchievementKey[] = [];
   for (const key of data.unlockedAchievements) {
@@ -212,7 +237,7 @@ async function syncUnlockedAchievements(data: PlayGamesData): Promise<PlayGamesD
   }
 
   if (next.unlockedAchievements.length > 0 && next !== data) {
-    return syncUnlockedAchievements(next);
+    return syncUnlockedAchievements(next, false);
   }
 
   return next;
@@ -224,12 +249,12 @@ export async function queueAchievementUnlock(key: AchievementKey): Promise<void>
     data.unlockedAchievements = [...data.unlockedAchievements, key];
     await savePlayGamesData(data);
   }
-  await syncUnlockedAchievements(data);
+  await syncUnlockedAchievements(data, false);
 }
 
 export async function syncPlayGames(): Promise<void> {
   const data = await loadPlayGamesData();
-  await syncUnlockedAchievements(data);
+  await syncUnlockedAchievements(data, true);
 }
 
 export async function recordClassicLevelBest(level: number, score: number): Promise<void> {
@@ -245,7 +270,7 @@ export async function recordClassicLevelBest(level: number, score: number): Prom
     data.classicAggregateSubmitted = false;
     await savePlayGamesData(data);
   }
-  await syncUnlockedAchievements(data);
+  await syncUnlockedAchievements(data, false);
 }
 
 export async function recordSpeedrunLevelBest(level: number, runMs: number): Promise<void> {
@@ -261,7 +286,19 @@ export async function recordSpeedrunLevelBest(level: number, runMs: number): Pro
     data.speedrunAggregateSubmitted = false;
     await savePlayGamesData(data);
   }
-  await syncUnlockedAchievements(data);
+  await syncUnlockedAchievements(data, false);
+}
+
+export async function submitHardcoreRun(level: number): Promise<boolean> {
+  if (level < 1) return false;
+  if (!(await ensureSignedIn())) return false;
+  return submitLeaderboardNow(HARDCORE_LEADERBOARD_ID, Math.floor(level));
+}
+
+export async function submitEndlessRun(level: number): Promise<boolean> {
+  if (level < 1) return false;
+  if (!(await ensureSignedIn())) return false;
+  return submitLeaderboardNow(ENDLESS_LEADERBOARD_ID, Math.floor(level));
 }
 
 export async function syncProgressAchievements(progress: ProgressData): Promise<void> {

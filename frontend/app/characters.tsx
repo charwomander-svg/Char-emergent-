@@ -134,6 +134,11 @@ export default function CharactersScreen() {
               <Text style={styles.unlockText}>
                 {unlocked ? "✓ Unlocked" : `🔒 ${t.unlockHint}`}
               </Text>
+              {t.passive && (
+                <Text style={styles.passiveText}>
+                  {unlocked ? t.passive : "Passive: ???"}
+                </Text>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -248,5 +253,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     letterSpacing: 0.5,
+  },
+  passiveText: {
+    color: "#C7D2FE",
+    fontSize: 11,
+    marginTop: 6,
+    lineHeight: 16,
   },
 });

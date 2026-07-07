@@ -16,6 +16,22 @@ interface Props {
   bonusGame?: BonusGameState | null;
 }
 
+function getWallPalette(level: number) {
+  const tier = Math.floor((Math.max(1, level) - 1) / 10) % 5;
+  switch (tier) {
+    case 1:
+      return { wall: "#0E8A2D", wallInner: "#42D96B" };
+    case 2:
+      return { wall: "#9E1A1A", wallInner: "#FF5A5A" };
+    case 3:
+      return { wall: "#5A22A6", wallInner: "#B47CFF" };
+    case 4:
+      return { wall: "#121212", wallInner: "#555555" };
+    default:
+      return { wall: COLORS.wall, wallInner: COLORS.wallInner };
+  }
+}
+
 // Smooth position hook — interpolates grid coords to pixel coords with
 // Animated.Value. Falls back to snap for non-adjacent jumps (respawn).
 function useSmoothPosition(
@@ -88,9 +104,13 @@ function useChompAnimation(duration = 120) {
 const Cell = React.memo(function Cell({
   type,
   size,
+  wallColor,
+  wallInnerColor,
 }: {
   type: CellType;
   size: number;
+  wallColor: string;
+  wallInnerColor: string;
 }) {
   if (type === 1) {
     // wall
@@ -98,7 +118,13 @@ const Cell = React.memo(function Cell({
       <View
         style={[
           styles.wall,
-          { width: size, height: size, borderRadius: Math.max(2, size * 0.18) },
+          {
+            width: size,
+            height: size,
+            borderRadius: Math.max(2, size * 0.18),
+            backgroundColor: wallColor,
+            borderColor: wallInnerColor,
+          },
         ]}
       />
     );
@@ -608,6 +634,7 @@ export default function MazeRenderer({
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
+  const wallPalette = getWallPalette(level);
 
   return (
     <View
@@ -624,7 +651,13 @@ export default function MazeRenderer({
       {maze.map((row, y) => (
         <View key={y} style={{ flexDirection: "row" }}>
           {row.map((cell, x) => (
-            <Cell key={x} type={cell} size={cellSize} />
+            <Cell
+              key={x}
+              type={cell}
+              size={cellSize}
+              wallColor={wallPalette.wall}
+              wallInnerColor={wallPalette.wallInner}
+            />
           ))}
         </View>
       ))}

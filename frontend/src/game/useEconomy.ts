@@ -48,6 +48,8 @@ export function useEconomy() {
       const cur = econRef.current;
       if (!cur) return false;
       const def = POWER_UPS[id];
+      const owned = cur.inventory[id] ?? 0;
+      if (def.maxOwned != null && owned + qty > def.maxOwned) return false;
       const cost = def.cost * qty;
       const spent = _spendCoins(cur, cost);
       if (!spent) return false;

@@ -4,6 +4,8 @@
 //   D-pad up/down/left/right OR Left stick → directional input for selected ghost
 //   A/B/X/Y face buttons → select ghost 0/1/2/3 (Ember/Blush/Rime/Rust)
 //   LB/RB → cycle selected ghost prev/next
+//   Start/Menu → pause/resume
+//   LT/RT or Back/View → primary action (bonus action / contextual game action)
 //
 // Native (iOS/Android): Web Gamepad API not available. Hook gracefully no-ops.
 
@@ -17,7 +19,10 @@ const DEBOUNCE_MS = 110;
 interface Callbacks {
   onDirection: (ghostId: GhostId, dir: Direction) => void;
   onSelect: (ghostId: GhostId) => void;
+  onPause?: () => void;
+  onAction?: () => void;
   getSelectedGhostId: () => GhostId;
+  isGhostSelectable?: (ghostId: GhostId) => boolean;
   enabled?: boolean;
 }
 
@@ -32,11 +37,16 @@ interface ButtonState {
   y: boolean;
   lb: boolean;
   rb: boolean;
+  lt: boolean;
+  rt: boolean;
+  back: boolean;
+  start: boolean;
 }
 
 const emptyState = (): ButtonState => ({
   dpadUp: false, dpadDown: false, dpadLeft: false, dpadRight: false,
   a: false, b: false, x: false, y: false, lb: false, rb: false,
+  lt: false, rt: false, back: false, start: false,
 });
 
 export function useGamepad(cb: Callbacks) {
@@ -57,6 +67,8 @@ export function useGamepad(cb: Callbacks) {
         const pads = navigator.getGamepads ? navigator.getGamepads() : [];
         const gp = Array.from(pads).find((p) => p && p.connected);
         if (gp && enabledRef.current) {
+          const isSelectable = (ghostId: GhostId) =>
+            cbRef.current.isGhostSelectable?.(ghostId) ?? true;
           const buttons = gp.buttons;
           const axes = gp.axes;
 
@@ -97,18 +109,34 @@ export function useGamepad(cb: Callbacks) {
             y: !!buttons[3]?.pressed,
             lb: !!buttons[4]?.pressed,
             rb: !!buttons[5]?.pressed,
+            lt: !!buttons[6]?.pressed,
+            rt: !!buttons[7]?.pressed,
+            back: !!buttons[8]?.pressed,
+            start: !!buttons[9]?.pressed,
           };
-          if (cur.a && !prev.a) cbRef.current.onSelect(0);
-          if (cur.b && !prev.b) cbRef.current.onSelect(1);
-          if (cur.x && !prev.x) cbRef.current.onSelect(2);
-          if (cur.y && !prev.y) cbRef.current.onSelect(3);
+          if (cur.a && !prev.a && isSelectable(0)) cbRef.current.onSelect(0);
+          if (cur.b && !prev.b && isSelectable(1)) cbRef.current.onSelect(1);
+          if (cur.x && !prev.x && isSelectable(2)) cbRef.current.onSelect(2);
+          if (cur.y && !prev.y && isSelectable(3)) cbRef.current.onSelect(3);
           if (cur.lb && !prev.lb) {
-            const id = ((cbRef.current.getSelectedGhostId() + 3) % 4) as GhostId;
+            let id = cbRef.current.getSelectedGhostId();
+            for (let step = 0; step < 4; step++) {
+              id = ((id + 3) % 4) as GhostId;
+              if (isSelectable(id)) break;
+            }
             cbRef.current.onSelect(id);
           }
           if (cur.rb && !prev.rb) {
-            const id = ((cbRef.current.getSelectedGhostId() + 1) % 4) as GhostId;
+            let id = cbRef.current.getSelectedGhostId();
+            for (let step = 0; step < 4; step++) {
+              id = ((id + 1) % 4) as GhostId;
+              if (isSelectable(id)) break;
+            }
             cbRef.current.onSelect(id);
+          }
+          if (cur.start && !prev.start) cbRef.current.onPause?.();
+          if ((cur.rt && !prev.rt) || (cur.lt && !prev.lt) || (cur.back && !prev.back)) {
+            cbRef.current.onAction?.();
           }
           lastButtonStateRef.current = cur;
         }
