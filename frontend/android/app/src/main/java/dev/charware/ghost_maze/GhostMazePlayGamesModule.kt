@@ -14,7 +14,7 @@ class GhostMazePlayGamesModule(
   override fun getName(): String = "GhostMazePlayGames"
 
   private fun getActivityOrNull(): Activity? {
-    val activity = currentActivity
+    val activity = reactApplicationContext.currentActivity
     return if (activity is Activity) activity else null
   }
 
