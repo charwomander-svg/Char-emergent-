@@ -1,4 +1,4 @@
-name: Build Android AAB (Production)
+name: Build Android Release Artifacts
 
 on:
   workflow_dispatch:
@@ -38,18 +38,25 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x frontend/android/gradlew
 
-      - name: Build signed Android AAB
+      - name: Build signed Android AAB and APK
         working-directory: frontend/android
         env:
           EXPO_PUBLIC_BACKEND_URL: https://ghost-maze-backend.onrender.com
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease
+        run: ./gradlew bundleRelease assembleRelease
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghost-maze-production-aab
           path: frontend/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghost-maze-production-apk
+          path: frontend/android/app/build/outputs/apk/release/*.apk
           retention-days: 30
