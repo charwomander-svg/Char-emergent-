@@ -49,6 +49,8 @@ interface SoundEngine {
   uiClick: () => void;
   startMusic: (track?: MusicTrack) => void;
   stopMusic: () => void;
+  setVolumes: (volumes: { sfx: number; music: number }) => void;
+  fadeMusicTo: (target: number, durationMs: number) => void;
 }
 
 // --- expo-audio: pool of players per SFX so rapid retriggers don't cut off ---
@@ -57,6 +59,10 @@ type Pool = { players: AudioPlayer[]; next: number };
 const pools: Partial<Record<SfxKey, Pool>> = {};
 const musicPlayers: Partial<Record<MusicTrack, AudioPlayer>> = {};
 let activeMusicTrack: MusicTrack | null = null;
+let sfxVolume = 0.6;
+let musicBaseVolume = 0.28;
+let musicDuckUntil = 0;
+let musicFadeInterval: ReturnType<typeof setInterval> | null = null;
 
 function getPool(key: SfxKey): Pool | null {
   let p = pools[key];
@@ -65,7 +71,7 @@ function getPool(key: SfxKey): Pool | null {
     const players: AudioPlayer[] = [];
     for (let i = 0; i < POOL_SIZE; i++) {
       const player = createAudioPlayer(SFX_SOURCES[key]);
-      player.volume = 0.6;
+      player.volume = sfxVolume;
       players.push(player);
     }
     p = { players, next: 0 };
@@ -82,6 +88,10 @@ function playSfx(key: SfxKey) {
   const player = p.players[p.next];
   p.next = (p.next + 1) % p.players.length;
   try {
+    if (key === "catch" || key === "combo" || key === "ghostEaten" || key === "super") {
+      musicDuckUntil = Date.now() + 240;
+      applyMusicVolumeNow();
+    }
     player.seekTo(0);
     player.play();
   } catch {}
@@ -93,7 +103,7 @@ function getMusicPlayer(track: MusicTrack): AudioPlayer | null {
   try {
     const player = createAudioPlayer(MUSIC_SOURCES[track]);
     player.loop = true;
-    player.volume = 0.28;
+    player.volume = musicBaseVolume;
     musicPlayers[track] = player;
     return player;
   } catch {
@@ -106,6 +116,22 @@ function pausePlayer(player: AudioPlayer | null | undefined) {
   try {
     player.pause();
   } catch {}
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function getMusicTargetVolume() {
+  return (Date.now() < musicDuckUntil ? 0.5 : 1) * musicBaseVolume;
+}
+
+function applyMusicVolumeNow() {
+  const target = getMusicTargetVolume();
+  (Object.values(musicPlayers) as (AudioPlayer | undefined)[]).forEach((player) => {
+    if (!player) return;
+    player.volume = target;
+  });
 }
 
 export function createSoundEngine(): SoundEngine {
@@ -153,6 +179,40 @@ export function createSoundEngine(): SoundEngine {
     stopMusic() {
       pausePlayer(activeMusicTrack ? musicPlayers[activeMusicTrack] : null);
       activeMusicTrack = null;
+    },
+    setVolumes(volumes) {
+      sfxVolume = clamp01(volumes.sfx);
+      musicBaseVolume = clamp01(volumes.music);
+      Object.values(pools).forEach((pool) => {
+        pool?.players.forEach((player) => {
+          player.volume = sfxVolume;
+        });
+      });
+      applyMusicVolumeNow();
+    },
+    fadeMusicTo(target, durationMs) {
+      const clamped = clamp01(target);
+      if (musicFadeInterval) {
+        clearInterval(musicFadeInterval);
+        musicFadeInterval = null;
+      }
+      if (durationMs <= 0) {
+        musicBaseVolume = clamped;
+        applyMusicVolumeNow();
+        return;
+      }
+      const start = musicBaseVolume;
+      const startedAt = Date.now();
+      musicFadeInterval = setInterval(() => {
+        const elapsed = Date.now() - startedAt;
+        const t = Math.min(1, elapsed / durationMs);
+        musicBaseVolume = start + (clamped - start) * t;
+        applyMusicVolumeNow();
+        if (t >= 1) {
+          if (musicFadeInterval) clearInterval(musicFadeInterval);
+          musicFadeInterval = null;
+        }
+      }, 30);
     },
   };
 }

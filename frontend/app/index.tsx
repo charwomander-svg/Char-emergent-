@@ -1,11 +1,5 @@
-import React, { useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
@@ -14,10 +8,14 @@ import { syncPlayGames } from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
+import { computeUnlockedThemeIds, loadProgress, THEMES } from "@/src/game/progress";
 
 export default function MainMenu() {
   const router = useRouter();
   const { coins, economy, grantCoins } = useEconomy();
+  const [highestLevel, setHighestLevel] = useState(1);
+  const [totalCatches, setTotalCatches] = useState(0);
+  const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
   const { missions, completedCount, rewardClaimed, rewardCoins, dateKey } =
     useDailyMissions(economy ? grantCoins : undefined);
 
@@ -26,7 +24,17 @@ export default function MainMenu() {
     void syncPlayGames();
     loadSettings().then((s) => {
       if (!mounted) return;
+      getSoundEngine().setEnabled(!!s.soundOn);
+      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       if (s.soundOn && s.musicOn) getSoundEngine().startMusic();
+    });
+    loadProgress().then((p) => {
+      if (!mounted) return;
+      const unlocked = new Set(computeUnlockedThemeIds(p));
+      setHighestLevel(p.highestLevel);
+      setTotalCatches(p.totalCatches);
+      const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
+      setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
     });
     return () => {
       mounted = false;
@@ -34,45 +42,75 @@ export default function MainMenu() {
     };
   }, []);
 
+  const go = (route: string) => {
+    getSoundEngine().uiClick();
+    router.push(route as any);
+  };
+
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Title */}
-        <View style={styles.titleWrap}>
-          <Text style={styles.titleShadow}>GHOST</Text>
-          <Text style={styles.title}>GHOST</Text>
-        </View>
-        <View style={styles.titleWrap}>
-          <Text style={[styles.titleShadow, { color: "#FF00FF" }]}>MAZE</Text>
-          <Text style={[styles.title, { color: "#FFFF00" }]}>MAZE</Text>
-        </View>
-
-        <Text style={styles.subtitle}>Reverse Maze Chase</Text>
-
-        {/* Ghost preview row */}
-        <View style={styles.ghostRow} testID="ghost-preview-row">
-          {COLORS.ghosts.map((c, i) => (
-            <View key={i} style={styles.ghostPreviewWrap}>
-              <View style={[styles.ghostPreview, { backgroundColor: c }]}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroCard}>
+          <Text style={styles.kicker}>CHARWARE ARCADE</Text>
+          <Text style={styles.heroTitle}>GHOST MAZE</Text>
+          <Text style={styles.heroSubtitle}>Reverse Maze Chase</Text>
+          <View style={styles.heroMetaRow}>
+            <View style={styles.coinBadge} testID="menu-coin-balance">
+              <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
+              <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillLabel}>LEVEL</Text>
+              <Text style={styles.metaPillValue}>{highestLevel}</Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillLabel}>CATCHES</Text>
+              <Text style={styles.metaPillValue}>{totalCatches}</Text>
+            </View>
+          </View>
+          <View style={styles.ghostRow} testID="ghost-preview-row">
+            {COLORS.ghosts.map((c, i) => (
+              <View key={i} style={[styles.ghostPreview, { backgroundColor: c }]}>
                 <View style={styles.ghostEye} />
                 <View style={[styles.ghostEye, { right: 4, left: undefined }]} />
               </View>
-              <Text style={styles.ghostName}>{COLORS.ghostNames[i]}</Text>
-            </View>
-          ))}
+            ))}
+            <View style={styles.pelletGuyPreview} />
+          </View>
         </View>
 
-        {/* Pellet Guy preview */}
-        <View style={styles.targetWrap}>
-          <Text style={styles.vsText}>VS</Text>
-          <View style={styles.pelletGuyPreview} />
-          <Text style={styles.targetLabel}>PELLET GUY</Text>
+        <TouchableOpacity style={styles.playBtn} onPress={() => go("/game")} testID="play-btn">
+          <Text style={styles.playBtnText}>▶ START RUN</Text>
+        </TouchableOpacity>
+
+        <View style={styles.modeGrid}>
+          <TouchableOpacity style={[styles.modeCard, { borderColor: "#7FE8FF" }]} onPress={() => go("/speedrun")} testID="speedrun-btn">
+            <Text style={[styles.modeTitle, { color: "#7FE8FF" }]}>⏱ SPEEDRUN</Text>
+            <Text style={styles.modeSub}>Best time wins</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.modeCard, { borderColor: "#FF477E" }]} onPress={() => go("/game?mode=hardcore")} testID="hardcore-btn">
+            <Text style={[styles.modeTitle, { color: "#FF477E" }]}>☠ HARDCORE</Text>
+            <Text style={styles.modeSub}>No respawns</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.modeCard, { borderColor: "#9CFF57" }]} onPress={() => go("/game?mode=endless")} testID="endless-btn">
+            <Text style={[styles.modeTitle, { color: "#9CFF57" }]}>∞ ENDLESS</Text>
+            <Text style={styles.modeSub}>Past level 50</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Coin balance */}
-        <View style={styles.coinBadgeTop} testID="menu-coin-balance">
-          <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
-          <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/levels")} testID="levels-btn"><Text style={styles.actionBtnText}>🎯 LEVEL SELECT</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/shop")} testID="shop-btn"><Text style={styles.actionBtnText}>🛒 SHOP</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/characters")} testID="characters-btn"><Text style={styles.actionBtnText}>👻 CHARACTERS</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
+        </View>
+
+        <View style={styles.unlockCard} testID="next-unlock-card">
+          <Text style={styles.unlockTitle}>NEXT UNLOCK</Text>
+          <Text style={styles.unlockText}>{nextUnlockText}</Text>
+          <Text style={styles.unlockMeta}>LEVEL {highestLevel} · CATCHES {totalCatches}</Text>
         </View>
 
         <View style={styles.dailyMissionCard} testID="daily-missions-card">
@@ -81,452 +119,101 @@ export default function MainMenu() {
             <Text style={styles.dailyMissionDate}>{dateKey}</Text>
           </View>
           <Text style={styles.dailyMissionReward}>
-            {rewardClaimed
-              ? `Reward claimed · +${rewardCoins} coins`
-              : `Complete all 3 for +${rewardCoins} Ghost Coins`}
+            {rewardClaimed ? `Reward claimed · +${rewardCoins} coins` : `Complete all 3 for +${rewardCoins} Ghost Coins`}
           </Text>
           {missions.map((mission) => (
             <View key={mission.id} style={styles.dailyMissionRow}>
               <Text style={styles.dailyMissionBullet}>{mission.completed ? "✓" : "○"}</Text>
               <View style={styles.dailyMissionTextWrap}>
-                <Text
-                  style={[
-                    styles.dailyMissionText,
-                    mission.completed && styles.dailyMissionTextDone,
-                  ]}
-                >
-                  {mission.title}
-                </Text>
-                <Text style={styles.dailyMissionProgress}>
-                  {mission.progress}/{mission.target}
-                </Text>
+                <Text style={[styles.dailyMissionText, mission.completed && styles.dailyMissionTextDone]}>{mission.title}</Text>
+                <Text style={styles.dailyMissionProgress}>{mission.progress}/{mission.target}</Text>
               </View>
             </View>
           ))}
-          <Text style={styles.dailyMissionFooter}>
-            {completedCount}/3 complete
-          </Text>
+          <Text style={styles.dailyMissionFooter}>{completedCount}/3 complete</Text>
         </View>
 
-        {/* Play Button */}
-        <TouchableOpacity
-          style={styles.playBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/game");
-          }}
-          testID="play-btn"
-        >
-          <Text style={styles.playBtnText}>▶ START GAME</Text>
-        </TouchableOpacity>
-
-        {/* Levels Button */}
-        <TouchableOpacity
-          style={styles.charactersBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/levels");
-          }}
-          testID="levels-btn"
-        >
-          <Text style={styles.charactersBtnText}>🎯 LEVEL SELECT</Text>
-        </TouchableOpacity>
-
-        {/* Shop Button */}
-        <TouchableOpacity
-          style={[styles.charactersBtn, { borderColor: "#FFD23F" }]}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/shop");
-          }}
-          testID="shop-btn"
-        >
-          <Text style={[styles.charactersBtnText, { color: "#FFD23F" }]}>
-            🛒 SHOP & POWER-UPS
-          </Text>
-        </TouchableOpacity>
-
-        {/* Characters Button */}
-        <TouchableOpacity
-          style={styles.charactersBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/characters");
-          }}
-          testID="characters-btn"
-        >
-          <Text style={styles.charactersBtnText}>👻 CHARACTERS</Text>
-        </TouchableOpacity>
-
-        {/* Speedrun */}
-        <TouchableOpacity
-          style={[styles.dailyBtn, { borderColor: "#7FE8FF" }]}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/speedrun");
-          }}
-          testID="speedrun-btn"
-        >
-          <Text style={[styles.dailyBtnText, { color: "#7FE8FF" }]}>⏱ SPEEDRUN MODE</Text>
-          <Text style={styles.dailyDate}>Best time wins • Ascending leaderboard</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.dailyBtn, { borderColor: "#FF477E" }]}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/game?mode=hardcore");
-          }}
-          testID="hardcore-btn"
-        >
-          <Text style={[styles.dailyBtnText, { color: "#FF477E" }]}>☠ HARDCORE MODE</Text>
-          <Text style={styles.dailyDate}>No respawns • Dead ghosts are gone for the run</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.dailyBtn, { borderColor: "#9CFF57" }]}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/game?mode=endless");
-          }}
-          testID="endless-btn"
-        >
-          <Text style={[styles.dailyBtnText, { color: "#9CFF57" }]}>∞ ENDLESS MODE</Text>
-          <Text style={styles.dailyDate}>Keep climbing past level 50 until the run ends</Text>
-        </TouchableOpacity>
-
-        {/* Leaderboard */}
-        <TouchableOpacity
-          style={styles.charactersBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/leaderboard");
-          }}
-          testID="leaderboard-btn"
-        >
-          <Text style={styles.charactersBtnText}>🏆 LEADERBOARD</Text>
-        </TouchableOpacity>
-
-        {/* Settings */}
-        <TouchableOpacity
-          style={styles.charactersBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/settings");
-          }}
-          testID="settings-btn"
-        >
-          <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
-        </TouchableOpacity>
-
-        {/* Credits */}
-        <TouchableOpacity
-          style={styles.charactersBtn}
-          onPress={() => {
-            getSoundEngine().uiClick();
-            router.push("/credits");
-          }}
-          testID="credits-btn"
-        >
-          <Text style={styles.charactersBtnText}>🎬 CREDITS</Text>
-        </TouchableOpacity>
-
-        {/* How to play */}
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
-            • Control ghosts to corner and catch Pellet Guy{"\n"}
-            • Swipe anywhere on screen to set the selected ghost's direction{"\n"}
-            • Tap a ghost's toggle button (footer) to switch which ghost you control{"\n"}
-            • Ghosts keep moving until you change direction{"\n"}
-            • Catch Pellet Guy 3 times to win the level{"\n"}
-            • Arm multiple ghosts to redirect them together{"\n"}
-            • HARDCORE mode removes ghost respawns for the whole run{"\n"}
-            • ENDLESS mode keeps going after level 50{"\n"}
-            • Every 5th level is a BONUS stage — Speed Rally, Star Blitz, or Inflator{"\n"}
-            • In SPEEDRUN, pick any level and race for the fastest clear time{"\n"}
-            • Don&apos;t let him eat all pellets or all ghosts!{"\n"}
-            • Watch out for super pellets — he&apos;ll eat you!
+            • Catch Pellet Guy 3 times to clear{"\n"}
+            • Swipe to direct armed ghosts{"\n"}
+            • Every 5th level is a bonus stage{"\n"}
+            • Don&apos;t lose all ghosts or all pellets
           </Text>
         </View>
 
-        <Text style={styles.footer}>v1.0 · MVP</Text>
+        <Text style={styles.footer}>v1.0 · HUDFD</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.uiBg,
+  container: { flex: 1, backgroundColor: COLORS.uiBg },
+  scrollContent: { paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  heroCard: {
+    borderRadius: 16, borderWidth: 1, borderColor: "#3f4f88", backgroundColor: "#0f1428", padding: 14, gap: 10,
   },
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+  kicker: { color: "#7ca4ff", fontSize: 11, fontWeight: "800", letterSpacing: 1.6 },
+  heroTitle: { color: "#ffff66", fontSize: 38, fontWeight: "900", letterSpacing: 2.4 },
+  heroSubtitle: { color: "#ffb897", fontSize: 13, fontWeight: "700", letterSpacing: 0.8 },
+  heroMetaRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  coinBadge: {
+    flex: 1.25, backgroundColor: "#1f1f3a", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#FFD23F", alignItems: "center", justifyContent: "center",
   },
-  titleWrap: {
-    position: "relative",
-    alignItems: "center",
+  coinBadgeText: { color: "#FFD23F", fontWeight: "900", fontSize: 18, letterSpacing: 1 },
+  coinBadgeLabel: { color: "#FFB897", fontSize: 9, letterSpacing: 1.2, fontWeight: "bold", marginTop: 2 },
+  metaPill: {
+    flex: 1, borderRadius: 10, borderWidth: 1, borderColor: "#39466f", backgroundColor: "#171f39", alignItems: "center", justifyContent: "center", paddingVertical: 6,
   },
-  title: {
-    fontSize: 56,
-    fontWeight: "900",
-    color: "#FF0000",
-    letterSpacing: 4,
-    textAlign: "center",
-  },
-  titleShadow: {
-    position: "absolute",
-    top: 4,
-    left: 4,
-    fontSize: 56,
-    fontWeight: "900",
-    color: "#00FFFF",
-    letterSpacing: 4,
-    opacity: 0.7,
-  },
-  subtitle: {
-    color: "#FFB897",
-    fontSize: 14,
-    letterSpacing: 2,
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  ghostRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginVertical: 16,
-  },
-  ghostPreviewWrap: {
-    alignItems: "center",
-  },
+  metaPillLabel: { color: "#9fb2e6", fontSize: 9, fontWeight: "800", letterSpacing: 1 },
+  metaPillValue: { color: "#f7faff", fontSize: 14, fontWeight: "900", marginTop: 2 },
+  ghostRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 6 },
   ghostPreview: {
-    width: 44,
-    height: 44,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    position: "relative",
-    justifyContent: "center",
+    width: 36, height: 36, borderTopLeftRadius: 18, borderTopRightRadius: 18, position: "relative", justifyContent: "center",
   },
-  ghostEye: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FFFFFF",
-    top: 12,
-    left: 4,
-  },
-  ghostName: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    marginTop: 6,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  targetWrap: {
-    alignItems: "center",
-    marginVertical: 16,
-  },
-  vsText: {
-    color: "#FF00FF",
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: 4,
-    marginBottom: 8,
-  },
-  pelletGuyPreview: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.pelletGuy,
-  },
-  targetLabel: {
-    color: COLORS.pelletGuy,
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
+  ghostEye: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "#FFFFFF", top: 10, left: 4 },
+  pelletGuyPreview: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.pelletGuy },
   playBtn: {
-    marginTop: 28,
-    backgroundColor: "#FFFF00",
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 3,
-    borderColor: "#FF0000",
+    backgroundColor: "#FFFF00", paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: "#ff5f74", alignItems: "center",
   },
-  playBtnText: {
-    color: "#000000",
-    fontWeight: "900",
-    fontSize: 20,
-    letterSpacing: 2,
+  playBtnText: { color: "#000000", fontWeight: "900", fontSize: 18, letterSpacing: 1.3 },
+  modeGrid: { flexDirection: "row", gap: 8 },
+  modeCard: { flex: 1, borderRadius: 10, borderWidth: 1, backgroundColor: "#121a31", paddingHorizontal: 10, paddingVertical: 10 },
+  modeTitle: { fontSize: 12, fontWeight: "900", letterSpacing: 0.7 },
+  modeSub: { color: "#b3c1e6", fontSize: 10, marginTop: 4, fontWeight: "700" },
+  quickActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  actionBtn: {
+    borderRadius: 9, borderWidth: 1, borderColor: "#4a5f96", backgroundColor: "#121b35", paddingVertical: 9, paddingHorizontal: 10, minWidth: "31%",
   },
-  charactersBtn: {
-    marginTop: 14,
-    backgroundColor: COLORS.uiPanel,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#FFFF00",
+  actionBtnText: { color: "#ecf2ff", fontWeight: "800", fontSize: 12, letterSpacing: 0.5 },
+  unlockCard: {
+    width: "100%", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#9f8bff", backgroundColor: "#17142b",
   },
-  charactersBtnText: {
-    color: "#FFFF00",
-    fontWeight: "bold",
-    fontSize: 14,
-    letterSpacing: 2,
+  unlockTitle: { color: "#c8bcff", fontWeight: "900", letterSpacing: 1.2, fontSize: 12 },
+  unlockText: { color: "#ffffff", marginTop: 4, fontWeight: "800", fontSize: 13 },
+  unlockMeta: { color: "#bba9f5", marginTop: 6, fontSize: 10, letterSpacing: 1, fontWeight: "700" },
+  dailyMissionCard: {
+    width: "100%", padding: 14, borderRadius: 12, borderWidth: 2, borderColor: "#57e8ff", backgroundColor: "#101a2c", gap: 8,
   },
-  dailyBtn: {
-    marginTop: 14,
-    backgroundColor: "#1a1a2e",
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#FF00FF",
-    alignItems: "center",
-  },
-  dailyBtnText: {
-    color: "#FF00FF",
-    fontWeight: "bold",
-    fontSize: 14,
-    letterSpacing: 2,
-  },
-  dailyDate: {
-    color: "#FFB897",
-    fontSize: 10,
-    marginTop: 2,
-    letterSpacing: 1,
-  },
+  dailyMissionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dailyMissionTitle: { color: "#57e8ff", fontWeight: "900", fontSize: 15, letterSpacing: 1.5 },
+  dailyMissionDate: { color: "#FFB897", fontSize: 10, letterSpacing: 1, fontWeight: "bold" },
+  dailyMissionReward: { color: "#FFF4A3", fontSize: 12, fontWeight: "bold", letterSpacing: 0.5 },
+  dailyMissionRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  dailyMissionBullet: { color: "#57e8ff", fontSize: 14, fontWeight: "900", marginTop: 1 },
+  dailyMissionTextWrap: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  dailyMissionText: { flex: 1, color: "#FFFFFF", fontSize: 13, lineHeight: 18 },
+  dailyMissionTextDone: { color: "#9fffa9" },
+  dailyMissionProgress: { color: "#FFB897", fontSize: 12, fontWeight: "900", minWidth: 34, textAlign: "right" },
+  dailyMissionFooter: { color: "#9eb3d8", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textAlign: "right" },
   howToWrap: {
-    marginTop: 32,
-    width: "100%",
-    padding: 16,
-    backgroundColor: COLORS.uiPanel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.uiBorder,
+    width: "100%", padding: 12, backgroundColor: COLORS.uiPanel, borderRadius: 8, borderWidth: 1, borderColor: COLORS.uiBorder,
   },
   howToTitle: {
-    color: "#FFFF00",
-    fontWeight: "900",
-    fontSize: 14,
-    letterSpacing: 2,
-    marginBottom: 8,
-    textAlign: "center",
+    color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 8, textAlign: "center",
   },
-  howToText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  footer: {
-    color: "#444466",
-    fontSize: 11,
-    marginTop: 24,
-    letterSpacing: 1,
-  },
-  coinBadgeTop: {
-    marginTop: 16,
-    backgroundColor: "#1f1f3a",
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderWidth: 2,
-    borderColor: "#FFD23F",
-    alignItems: "center",
-  },
-  coinBadgeText: {
-    color: "#FFD23F",
-    fontWeight: "900",
-    fontSize: 22,
-    letterSpacing: 1,
-  },
-  coinBadgeLabel: {
-    color: "#FFB897",
-    fontSize: 9,
-    letterSpacing: 2,
-    fontWeight: "bold",
-    marginTop: 2,
-  },
-  dailyMissionCard: {
-    width: "100%",
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#57e8ff",
-    backgroundColor: "#101a2c",
-    gap: 8,
-  },
-  dailyMissionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dailyMissionTitle: {
-    color: "#57e8ff",
-    fontWeight: "900",
-    fontSize: 15,
-    letterSpacing: 1.5,
-  },
-  dailyMissionDate: {
-    color: "#FFB897",
-    fontSize: 10,
-    letterSpacing: 1,
-    fontWeight: "bold",
-  },
-  dailyMissionReward: {
-    color: "#FFF4A3",
-    fontSize: 12,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  dailyMissionRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  dailyMissionBullet: {
-    color: "#57e8ff",
-    fontSize: 14,
-    fontWeight: "900",
-    marginTop: 1,
-  },
-  dailyMissionTextWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  dailyMissionText: {
-    flex: 1,
-    color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  dailyMissionTextDone: {
-    color: "#9fffa9",
-  },
-  dailyMissionProgress: {
-    color: "#FFB897",
-    fontSize: 12,
-    fontWeight: "900",
-    minWidth: 34,
-    textAlign: "right",
-  },
-  dailyMissionFooter: {
-    color: "#9eb3d8",
-    fontSize: 11,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    textAlign: "right",
-  },
+  howToText: { color: "#FFFFFF", fontSize: 12, lineHeight: 18 },
+  footer: { color: "#444466", fontSize: 11, marginTop: 4, marginBottom: 8, letterSpacing: 1, textAlign: "center" },
 });

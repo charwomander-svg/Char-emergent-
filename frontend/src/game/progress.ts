@@ -238,3 +238,14 @@ export const THEMES: Theme[] = [
 export function getTheme(id: string): Theme {
   return THEMES.find((t) => t.id === id) || THEMES[0];
 }
+
+export function computeUnlockedThemeIds(progress: ProgressData): string[] {
+  return THEMES.filter((theme) => theme.unlockedAt(progress)).map((theme) => theme.id);
+}
+
+export function withUnlockedThemes(progress: ProgressData): ProgressData {
+  return {
+    ...progress,
+    unlockedThemes: computeUnlockedThemeIds(progress),
+  };
+}

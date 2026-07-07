@@ -23,6 +23,8 @@ interface Callbacks {
   onAction?: () => void;
   getSelectedGhostId: () => GhostId;
   isGhostSelectable?: (ghostId: GhostId) => boolean;
+  deadzone?: number;
+  invertY?: boolean;
   enabled?: boolean;
 }
 
@@ -80,8 +82,9 @@ export function useGamepad(cb: Callbacks) {
           else if (buttons[15]?.pressed) dir = "right";
           else {
             const ax = axes[0] ?? 0;
-            const ay = axes[1] ?? 0;
-            if (Math.abs(ax) > STICK_THRESHOLD || Math.abs(ay) > STICK_THRESHOLD) {
+            const ay = (axes[1] ?? 0) * (cbRef.current.invertY ? -1 : 1);
+            const deadzone = cbRef.current.deadzone ?? STICK_THRESHOLD;
+            if (Math.abs(ax) > deadzone || Math.abs(ay) > deadzone) {
               if (Math.abs(ax) > Math.abs(ay)) {
                 dir = ax > 0 ? "right" : "left";
               } else {

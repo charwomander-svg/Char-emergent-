@@ -26,7 +26,51 @@ export default function Settings() {
       if (v && settings.soundOn) getSoundEngine().startMusic();
       if (!v) getSoundEngine().stopMusic();
     }
+    if (k === "sfxVolume" || k === "musicVolume") {
+      getSoundEngine().setVolumes({
+        sfx: k === "sfxVolume" ? Number(v) : next.sfxVolume,
+        music: k === "musicVolume" ? Number(v) : next.musicVolume,
+      });
+    }
   };
+
+  const NumberRow = ({
+    label,
+    desc,
+    value,
+    step,
+    min,
+    max,
+    onChange,
+    valueText,
+    testID,
+  }: {
+    label: string;
+    desc: string;
+    value: number;
+    step: number;
+    min: number;
+    max: number;
+    onChange: (v: number) => void;
+    valueText: string;
+    testID?: string;
+  }) => (
+    <View style={styles.row} testID={testID}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowDesc}>{desc}</Text>
+      </View>
+      <View style={styles.stepper}>
+        <TouchableOpacity onPress={() => onChange(Math.max(min, Number((value - step).toFixed(2))))} style={styles.stepBtn}>
+          <Text style={styles.stepBtnText}>-</Text>
+        </TouchableOpacity>
+        <Text style={styles.stepValue}>{valueText}</Text>
+        <TouchableOpacity onPress={() => onChange(Math.min(max, Number((value + step).toFixed(2))))} style={styles.stepBtn}>
+          <Text style={styles.stepBtnText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   const Row = ({
     label,
@@ -75,10 +119,50 @@ export default function Settings() {
         />
         <Row
           label="Background Music"
-          desc="Chiptune loop while playing"
+          desc="Main and bonus stage tracks"
           value={settings.musicOn}
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
+        />
+        <NumberRow
+          label="SFX Volume"
+          desc="Catch, combo, and gameplay sound levels"
+          value={settings.sfxVolume}
+          step={0.05}
+          min={0}
+          max={1}
+          onChange={(v) => update("sfxVolume", v)}
+          valueText={`${Math.round(settings.sfxVolume * 100)}%`}
+          testID="sfx-volume"
+        />
+        <NumberRow
+          label="Music Volume"
+          desc="Background track loudness"
+          value={settings.musicVolume}
+          step={0.05}
+          min={0}
+          max={1}
+          onChange={(v) => update("musicVolume", v)}
+          valueText={`${Math.round(settings.musicVolume * 100)}%`}
+          testID="music-volume"
+        />
+        <Row
+          label="Invert Stick Y"
+          desc="Invert vertical controller stick direction"
+          value={settings.gamepadInvertY}
+          onChange={(v) => update("gamepadInvertY", v)}
+          testID="toggle-invert-y"
+        />
+        <NumberRow
+          label="Controller Deadzone"
+          desc="How far stick must move before input triggers"
+          value={settings.gamepadDeadzone}
+          step={0.05}
+          min={0.2}
+          max={0.9}
+          onChange={(v) => update("gamepadDeadzone", v)}
+          valueText={settings.gamepadDeadzone.toFixed(2)}
+          testID="gamepad-deadzone"
         />
         <Row
           label="Haptics"
@@ -134,4 +218,17 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: "#FFFFFF", fontWeight: "bold", fontSize: 15 },
   rowDesc: { color: "#CCCCDD", fontSize: 11, marginTop: 2 },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#121a32",
+  },
+  stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
+  stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
 });

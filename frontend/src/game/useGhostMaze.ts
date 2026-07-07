@@ -34,7 +34,7 @@ import {
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
 import { getSoundEngine } from "./sounds";
-import { loadProgress, saveProgress, getTheme, ProgressData } from "./progress";
+import { loadProgress, saveProgress, getTheme, ProgressData, withUnlockedThemes } from "./progress";
 import type { PowerUpId } from "./powerups";
 import { COIN_REWARD } from "./economy";
 import type { ActiveEffects } from "./types";
@@ -241,6 +241,7 @@ export function useGhostMaze(opts?: {
   const firstFreezeBoostUsedRef = useRef(false);
   const lastSpectreRollRef = useRef(0);
   const lastMonoRollRef = useRef(0);
+  const lastCatchAtRef = useRef(performance.now());
   const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
     opts?.dailySeed != null
       ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
@@ -276,6 +277,8 @@ export function useGhostMaze(opts?: {
 
   useEffect(() => {
     loadSettings().then((s) => {
+      getSoundEngine().setEnabled(!!s.soundOn);
+      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
     });
   }, []);
@@ -311,6 +314,7 @@ export function useGhostMaze(opts?: {
     firstFreezeBoostUsedRef.current = false;
     lastSpectreRollRef.current = 0;
     lastMonoRollRef.current = 0;
+    lastCatchAtRef.current = performance.now();
     setState(fresh);
   }, []);
 
@@ -355,7 +359,8 @@ export function useGhostMaze(opts?: {
   const togglePause = useCallback(() => {
     setState((prev) => {
       if (prev.status === "playing") {
-        getSoundEngine().stopMusic();
+        getSoundEngine().fadeMusicTo(0, 160);
+        setTimeout(() => getSoundEngine().stopMusic(), 180);
         return { ...prev, status: "paused" };
       }
       if (prev.status === "paused") {
@@ -397,7 +402,9 @@ export function useGhostMaze(opts?: {
     const ghostSpeedMult = speedBoostActive ? 0.6 : 1.0;
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
-    const pelletGuyPanicMultiplier = prev.catches >= 2 ? 0.7 : prev.catches >= 1 ? 0.85 : 1;
+    const idleMs = now - lastCatchAtRef.current;
+    const idlePressure = modeRef.current !== "hardcore" && !prev.bonusGame && idleMs > 18000 ? 0.9 : 1;
+    const pelletGuyPanicMultiplier = (prev.catches >= 2 ? 0.7 : prev.catches >= 1 ? 0.85 : 1) * idlePressure;
     const pgInterval = SPEED.pelletGuy * scale * pelletGuyPanicMultiplier;
 
     let nextState: GameState = prev;
@@ -590,9 +597,10 @@ export function useGhostMaze(opts?: {
             const p = { ...progressRef.current };
             p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
             p.highScore = Math.max(p.highScore, score);
-            progressRef.current = p;
-            saveProgress(p);
-            void syncProgressAchievements(p);
+            const normalized = withUnlockedThemes(p);
+            progressRef.current = normalized;
+            saveProgress(normalized);
+            void syncProgressAchievements(normalized);
           }
           if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
           onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
@@ -685,7 +693,8 @@ export function useGhostMaze(opts?: {
               TRAP_DROP_MAX_CHANCE,
               TRAP_DROP_BASE_CHANCE +
                 (prev.level - 1) * TRAP_DROP_LEVEL_BOOST +
-                prev.catches * 0.025,
+              prev.catches * 0.025 +
+              (modeRef.current !== "hardcore" && idleMs > 18000 ? 0.03 : 0),
             );
             if (Math.random() < dropChance) {
               const isSpike = Math.random() < SPIKE_PROBABILITY;
@@ -866,6 +875,7 @@ export function useGhostMaze(opts?: {
             // big bonus.
             // ------------------------------------------------------------
             catches++;
+            lastCatchAtRef.current = now;
             let triggeredCombo = false;
             if (now - lastComboTime < COMBO_WINDOW_MS) {
               comboCount++;
@@ -923,9 +933,10 @@ export function useGhostMaze(opts?: {
                 p.totalCatches = p.totalCatches + CATCH_TO_WIN;
                 p.highScore = Math.max(p.highScore, score);
                 // Auto-unlock theme entries by re-scanning
-                progressRef.current = p;
-                saveProgress(p);
-                void syncProgressAchievements(p);
+                const normalized = withUnlockedThemes(p);
+                progressRef.current = normalized;
+                saveProgress(normalized);
+                void syncProgressAchievements(normalized);
               }
               if (modeRef.current === "classic") {
                 void recordClassicLevelBest(
@@ -957,13 +968,15 @@ export function useGhostMaze(opts?: {
           status = "gameOver";
           message = "GAME OVER\nPellet Guy ate everything!";
           getSoundEngine().levelLose();
-          getSoundEngine().stopMusic();
+          getSoundEngine().fadeMusicTo(0, 240);
+          setTimeout(() => getSoundEngine().stopMusic(), 260);
           // Save high score
           if (progressRef.current) {
             const p = { ...progressRef.current };
             p.highScore = Math.max(p.highScore, score);
-            progressRef.current = p;
-            saveProgress(p);
+            const normalized = withUnlockedThemes(p);
+            progressRef.current = normalized;
+            saveProgress(normalized);
           }
         } else {
           status = "levelLost";
@@ -990,12 +1003,14 @@ export function useGhostMaze(opts?: {
               ? "GAME OVER\nYour squad was wiped out!"
               : "GAME OVER\nAll ghosts devoured!";
             getSoundEngine().levelLose();
-            getSoundEngine().stopMusic();
+            getSoundEngine().fadeMusicTo(0, 240);
+            setTimeout(() => getSoundEngine().stopMusic(), 260);
             if (progressRef.current) {
               const p = { ...progressRef.current };
               p.highScore = Math.max(p.highScore, score);
-              progressRef.current = p;
-              saveProgress(p);
+              const normalized = withUnlockedThemes(p);
+              progressRef.current = normalized;
+              saveProgress(normalized);
             }
           } else {
             status = "levelLost";
@@ -1084,9 +1099,10 @@ export function useGhostMaze(opts?: {
         const p = { ...progressRef.current };
         p.highScore = Math.max(p.highScore, state.score);
         p.highestLevel = Math.max(p.highestLevel, MAX_LEVELS);
-        progressRef.current = p;
-        saveProgress(p);
-        void syncProgressAchievements(p);
+        const normalized = withUnlockedThemes(p);
+        progressRef.current = normalized;
+        saveProgress(normalized);
+        void syncProgressAchievements(normalized);
       }
       void queueAchievementUnlock("chardcore");
       getSoundEngine().levelWin();

@@ -17,11 +17,13 @@ import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
-import { loadProgress } from "@/src/game/progress";
+import { loadProgress, computeUnlockedThemeIds, THEMES, withUnlockedThemes, saveProgress } from "@/src/game/progress";
 import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
+import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
+import { getSoundEngine } from "@/src/game/sounds";
 import {
   queueAchievementUnlock,
   recordSpeedrunLevelBest,
@@ -38,6 +40,14 @@ function fmtMs(ms: number): string {
   const seconds = totalSeconds % 60;
   const millis = totalMs % 1000;
   return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+}
+
+interface RunStats {
+  catches: number;
+  longestCombo: number;
+  ghostLosses: number;
+  powerUpsUsed: number;
+  bonusClears: number;
 }
 
 export default function GameScreen() {
@@ -88,6 +98,18 @@ export default function GameScreen() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [bestRunMs, setBestRunMs] = useState(0);
   const [themeId, setThemeId] = useState("classic");
+  const [gamepadDeadzone, setGamepadDeadzone] = useState(DEFAULT_SETTINGS.gamepadDeadzone);
+  const [gamepadInvertY, setGamepadInvertY] = useState(DEFAULT_SETTINGS.gamepadInvertY);
+  const [pulseCatch, setPulseCatch] = useState(false);
+  const [pulseCombo, setPulseCombo] = useState(false);
+  const [unlockToast, setUnlockToast] = useState<string | null>(null);
+  const [runStats, setRunStats] = useState<RunStats>({
+    catches: 0,
+    longestCombo: 0,
+    ghostLosses: 0,
+    powerUpsUsed: 0,
+    bonusClears: 0,
+  });
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
@@ -97,14 +119,49 @@ export default function GameScreen() {
   const previousStatusRef = useRef(state.status);
   const levelStartElapsedRef = useRef(0);
   const previousCatchesRef = useRef(state.catches);
+  const previousComboRef = useRef(state.comboCount);
+  const previousAliveCountRef = useRef(state.ghosts.filter((ghost) => ghost.alive).length);
+  const previousUnlockedThemesRef = useRef<string[]>([]);
   const stateRef = useRef(state);
   stateRef.current = state;
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
-    loadProgress().then((p) => setThemeId(p.selectedThemeId));
+    loadProgress().then((p) => {
+      const normalized = withUnlockedThemes(p);
+      previousUnlockedThemesRef.current = normalized.unlockedThemes;
+      setThemeId(normalized.selectedThemeId);
+      void saveProgress(normalized);
+    });
+    loadSettings().then((s) => {
+      setGamepadDeadzone(s.gamepadDeadzone);
+      setGamepadInvertY(s.gamepadInvertY);
+    });
     void syncPlayGames();
   }, []);
+
+  useEffect(() => {
+    loadSettings().then((s) => {
+      getSoundEngine().setEnabled(!!s.soundOn);
+      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (state.status === "paused") {
+      getSoundEngine().fadeMusicTo(0.08, 180);
+      return;
+    }
+    if (state.status === "gameOver") {
+      getSoundEngine().fadeMusicTo(0.05, 240);
+      return;
+    }
+    if (state.status === "playing" || state.status === "ready") {
+      loadSettings().then((s) => {
+        getSoundEngine().fadeMusicTo(s.musicVolume, 180);
+      });
+    }
+  }, [state.status]);
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
@@ -153,6 +210,10 @@ export default function GameScreen() {
       recordedSpeedrunLevelsRef.current = {};
       previousLevelRef.current = state.level;
       levelStartElapsedRef.current = 0;
+      previousComboRef.current = 0;
+      previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
+      setRunStats({ catches: 0, longestCombo: 0, ghostLosses: 0, powerUpsUsed: 0, bonusClears: 0 });
+      setUnlockToast(null);
     }
   }, [state.status, state.level, state.score]);
 
@@ -203,9 +264,33 @@ export default function GameScreen() {
     const previousCatches = previousCatchesRef.current;
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
+      setPulseCatch(true);
+      setTimeout(() => setPulseCatch(false), 180);
+      setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
     }
     previousCatchesRef.current = state.catches;
   }, [state.catches]);
+
+  useEffect(() => {
+    if (state.comboCount > previousComboRef.current) {
+      setPulseCombo(true);
+      setTimeout(() => setPulseCombo(false), 180);
+      setRunStats((stats) => ({
+        ...stats,
+        longestCombo: Math.max(stats.longestCombo, state.comboCount),
+      }));
+    }
+    previousComboRef.current = state.comboCount;
+  }, [state.comboCount]);
+
+  useEffect(() => {
+    const alive = state.ghosts.filter((ghost) => ghost.alive).length;
+    const prevAlive = previousAliveCountRef.current;
+    if (alive < prevAlive) {
+      setRunStats((stats) => ({ ...stats, ghostLosses: stats.ghostLosses + (prevAlive - alive) }));
+    }
+    previousAliveCountRef.current = alive;
+  }, [state.ghosts]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -218,6 +303,21 @@ export default function GameScreen() {
         progress.bonusPerfectClears = 1;
       }
       void recordDailyMissionProgress(progress);
+      if (state.bonusGame) {
+        setRunStats((stats) => ({ ...stats, bonusClears: stats.bonusClears + 1 }));
+      }
+      loadProgress().then((p) => {
+        const unlockedNow = computeUnlockedThemeIds(p);
+        const newThemeIds = unlockedNow.filter((id) => !previousUnlockedThemesRef.current.includes(id));
+        if (newThemeIds.length > 0) {
+          const firstName = THEMES.find((theme) => theme.id === newThemeIds[0])?.name ?? "NEW TEAM";
+          setUnlockToast(`UNLOCKED: ${firstName.toUpperCase()}`);
+          previousUnlockedThemesRef.current = unlockedNow;
+          const normalized = { ...p, unlockedThemes: unlockedNow };
+          void saveProgress(normalized);
+          setTimeout(() => setUnlockToast(null), 2400);
+        }
+      });
     }
     previousStatusRef.current = state.status;
   }, [state.bonusGame, state.status]);
@@ -282,6 +382,8 @@ export default function GameScreen() {
     },
     getSelectedGhostId: () => stateRef.current.selectedGhostId,
     isGhostSelectable: (id) => stateRef.current.ghosts[id]?.alive ?? false,
+    deadzone: gamepadDeadzone,
+    invertY: gamepadInvertY,
   });
 
   const SWIPE_THRESHOLD = 25;
@@ -337,6 +439,13 @@ export default function GameScreen() {
         color: "#00ffff",
       });
     }
+    if (state.effects.teamPhaseUntil > now) {
+      list.push({
+        key: "phase",
+        label: `PHASE ${Math.ceil((state.effects.teamPhaseUntil - now) / 1000)}s`,
+        color: "#c084fc",
+      });
+    }
     if (state.effects.shieldGhostId != null) {
       list.push({
         key: "shield",
@@ -351,8 +460,15 @@ export default function GameScreen() {
         color: "#ff9f1c",
       });
     }
+    if (themeId === "dark-knights") {
+      list.push({
+        key: "oath",
+        label: "OATH",
+        color: "#facc15",
+      });
+    }
     return list;
-  }, [state.effects]);
+  }, [state.effects, themeId]);
   const inventoryItems = useMemo(
     () => POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
       id,
@@ -388,6 +504,7 @@ export default function GameScreen() {
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
     if (!applied) return;
+    setRunStats((stats) => ({ ...stats, powerUpsUsed: stats.powerUpsUsed + 1 }));
     if (themeId === "blood-moon" && id !== "hardcoreRevive" && Math.random() < 0.1) return;
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory, themeId]);
@@ -430,7 +547,9 @@ export default function GameScreen() {
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
             <Text style={styles.statusLabel}>CATCH</Text>
-            <Text style={styles.statusValue}>{state.catches}</Text>
+            <Text style={[styles.statusValue, pulseCatch && styles.statPulse]}>{state.catches}</Text>
+            <Text style={styles.statusLabel}>COMBO</Text>
+            <Text style={[styles.statusValue, pulseCombo && styles.statPulse]}>{state.comboCount}</Text>
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
               <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
@@ -480,7 +599,7 @@ export default function GameScreen() {
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
                 <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
-                <View style={styles.lifeHearts} testID="hud-lives">
+                <View style={[styles.lifeHearts, state.lives <= 1 && styles.lowLivesWarning]} testID="hud-lives">
                   {lifeDots.map((filled, index) => (
                     <Text key={index} style={[styles.lifeHeart, !filled && styles.lifeHeartEmpty]}>
                       ♥
@@ -590,10 +709,25 @@ export default function GameScreen() {
                 )}
               </View>
             )}
+            {state.status === "gameOver" && (
+              <View style={styles.runStatsCard} testID="run-stats">
+                <Text style={styles.runStatsTitle}>RUN STATS</Text>
+                <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
+                <Text style={styles.runStatsText}>Longest Combo: {runStats.longestCombo}</Text>
+                <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
+                <Text style={styles.runStatsText}>Power-ups Used: {runStats.powerUpsUsed}</Text>
+                <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
 
+      {unlockToast && (
+        <View style={styles.unlockToast} pointerEvents="none">
+          <Text style={styles.unlockToastText}>{unlockToast}</Text>
+        </View>
+      )}
       {(state.message || state.status === "paused") && (
         <View style={styles.messageOverlay} pointerEvents="none" testID="status-message">
           <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : state.message}</Text>
@@ -627,6 +761,7 @@ const styles = StyleSheet.create({
   },
   statusLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   statusValue: { color: "#f7fbff", fontSize: 14, fontWeight: "900", marginRight: 6 },
+  statPulse: { color: "#fff59d" },
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 8,
@@ -678,6 +813,7 @@ const styles = StyleSheet.create({
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   lifeHearts: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 2 },
+  lowLivesWarning: { backgroundColor: "#4a1020", borderRadius: 999, paddingHorizontal: 4, paddingVertical: 1 },
   lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
   lifeHeartEmpty: { color: "#5d3550" },
   ghostToggleRow: { flexDirection: "row", gap: 6 },
@@ -755,6 +891,18 @@ const styles = StyleSheet.create({
   },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8 },
+  runStatsCard: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#3e4b79",
+    backgroundColor: "#11162a",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 180,
+  },
+  runStatsTitle: { color: "#9fc4ff", fontWeight: "900", fontSize: 11, marginBottom: 4, letterSpacing: 0.8 },
+  runStatsText: { color: "#d7def3", fontWeight: "800", fontSize: 10, lineHeight: 15 },
   stateBtn: {
     borderWidth: 1,
     borderColor: "#FFD23F",
@@ -771,6 +919,25 @@ const styles = StyleSheet.create({
     top: "44%",
     alignItems: "center",
     paddingHorizontal: 16,
+  },
+  unlockToast: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 18,
+    alignItems: "center",
+  },
+  unlockToastText: {
+    color: "#fef9c3",
+    fontWeight: "900",
+    fontSize: 13,
+    letterSpacing: 1.1,
+    backgroundColor: "#2b1a40f0",
+    borderColor: "#f0abfc",
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   messageText: {
     color: "#fff",

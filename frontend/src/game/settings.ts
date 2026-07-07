@@ -9,6 +9,10 @@ export interface SettingsData {
   haptics: boolean;
   soundOn: boolean;
   musicOn: boolean;
+  sfxVolume: number;
+  musicVolume: number;
+  gamepadInvertY: boolean;
+  gamepadDeadzone: number;
   reducedMotion: boolean;
 }
 
@@ -17,6 +21,10 @@ export const DEFAULT_SETTINGS: SettingsData = {
   haptics: true,
   soundOn: true,
   musicOn: true,
+  sfxVolume: 0.6,
+  musicVolume: 0.28,
+  gamepadInvertY: false,
+  gamepadDeadzone: 0.55,
   reducedMotion: false,
 };
 
