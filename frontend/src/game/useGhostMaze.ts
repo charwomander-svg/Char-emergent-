@@ -359,7 +359,9 @@ export function useGhostMaze(opts?: {
         return { ...prev, status: "paused" };
       }
       if (prev.status === "paused") {
-        if (musicEnabledRef.current) getSoundEngine().startMusic();
+        if (musicEnabledRef.current) {
+          getSoundEngine().startMusic(prev.bonusGame ? "bonus" : "main");
+        }
         return { ...prev, status: "playing" };
       }
       return prev;
@@ -377,7 +379,9 @@ export function useGhostMaze(opts?: {
         lastPelletGuyMoveRef.current = now;
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
-        if (musicEnabledRef.current) getSoundEngine().startMusic();
+        if (musicEnabledRef.current) {
+          getSoundEngine().startMusic(prev.bonusGame ? "bonus" : "main");
+        }
       }
       return;
     }
