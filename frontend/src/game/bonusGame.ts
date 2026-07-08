@@ -4,8 +4,8 @@
 // Every 5 levels (5, 10, 15 …) triggers a carefree bonus stage instead of
 // a boss fight. Three types rotate in order:
 //   1. SPEED RALLY  — collect flags before time runs out
-//   2. STAR BLITZ   — destroy target formations
-//   3. INFLATOR     — pump up and pop roaming enemies
+//   2. CHERRY CHASE — collect bonus cherries fast
+//   3. TIME ATTACK  — collect clocks to extend time
 //
 // Bonus rounds have NO lives at risk. Pellet Guy is frozen. Ghosts are fully
 // player-controlled. A countdown timer drives tension; collecting items adds
@@ -16,7 +16,7 @@ import type { CellType } from "./types";
 
 export const BONUS_LEVEL_INTERVAL = 5;
 
-export type BonusGameType = "rallyRound" | "galagaBlitz" | "digDugDash";
+export type BonusGameType = "rallyRound" | "cherryChase" | "timeAttack";
 export type BonusDir = "up" | "down" | "left" | "right";
 
 export interface BonusItem {
@@ -33,15 +33,9 @@ export interface BonusItem {
   deflateAt?: number;
 }
 
-export interface BonusProjectile {
-  x: number;
-  y: number;
-  dir: BonusDir;
-}
-
 export interface BonusGameState {
   type: BonusGameType;
-  label: string;       // "RALLY ROUND" / "GALAGA BLITZ" / "DIG DUG DASH"
+  label: string;       // "SPEED RALLY" / "CHERRY CHASE" / "TIME ATTACK"
   subtitle: string;    // one-line flavor text shown at round start
   endsAt: number;      // performance.now() when the timer expires
   durationMs: number;  // original duration for display purposes
@@ -50,8 +44,6 @@ export interface BonusGameState {
   collectedItems: number;
   bonusScore: number;
   complete: boolean;
-  /** Active projectile for galagaBlitz (null = none in flight). */
-  projectile?: BonusProjectile | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,23 +60,23 @@ export const BONUS_CONFIG = {
     scorePerSecondRemaining: 75,
     emoji: "🚩",
   },
-  galagaBlitz: {
-    label: "STAR BLITZ",
-    subtitle: "DESTROY ALL TARGETS!",
-    durationMs: 25_000,
+  cherryChase: {
+    label: "CHERRY CHASE",
+    subtitle: "COLLECT ALL CHERRIES!",
+    durationMs: 24_000,
     itemCount: 10,
-    scorePerItem: 300,
-    scorePerSecondRemaining: 100,
-    emoji: "🎯",
+    scorePerItem: 350,
+    scorePerSecondRemaining: 80,
+    emoji: "🍒",
   },
-  digDugDash: {
-    label: "INFLATOR",
-    subtitle: "SQUASH THE POOKAS!",
-    durationMs: 20_000,
-    itemCount: 6,
-    scorePerItem: 500,
-    scorePerSecondRemaining: 50,
-    emoji: "👾",
+  timeAttack: {
+    label: "TIME ATTACK",
+    subtitle: "GRAB CLOCKS TO EXTEND TIME!",
+    durationMs: 18_000,
+    itemCount: 12,
+    scorePerItem: 260,
+    scorePerSecondRemaining: 65,
+    emoji: "⏰",
   },
 } as const satisfies Record<
   BonusGameType,
@@ -109,11 +101,11 @@ export function isBonusLevel(level: number): boolean {
 
 /**
  * Rotate through three types as bonus encounters accumulate.
- * Encounter 1 → rallyRound, 2 → galagaBlitz, 3 → digDugDash, 4 → rallyRound …
+ * Encounter 1 → rallyRound, 2 → cherryChase, 3 → timeAttack, 4 → rallyRound …
  */
 export function getBonusGameType(level: number): BonusGameType {
   const encounterIndex = Math.floor(level / BONUS_LEVEL_INTERVAL); // 1-based
-  const order: BonusGameType[] = ["rallyRound", "galagaBlitz", "digDugDash"];
+  const order: BonusGameType[] = ["rallyRound", "cherryChase", "timeAttack"];
   return order[(encounterIndex - 1) % order.length];
 }
 
@@ -160,8 +152,7 @@ export function createBonusGame(
   now: number,
 ): BonusGameState {
   const config = BONUS_CONFIG[type];
-  const moving = type === "digDugDash";
-  const items = pickItemPositions(maze, config.itemCount, now, moving);
+  const items = pickItemPositions(maze, config.itemCount, now, false);
   return {
     type,
     label: config.label,
@@ -249,70 +240,19 @@ function movePookaItem(
 }
 
 // ---------------------------------------------------------------------------
-// Player action: FIRE (galagaBlitz) or PUMP (digDugDash)
+// Player action hook retained for compatibility; bonus stages are walk-over only.
 // ---------------------------------------------------------------------------
 
 const DELTA: Record<BonusDir, [number, number]> = {
   up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
 };
 
-/**
- * Called when the player presses the action button during a bonus stage.
- * - galagaBlitz: spawns a projectile at the ghost's position facing its direction.
- * - digDugDash:  pops any Pooka on the same cell or adjacent to the ghost.
- * - rallyRound:  no-op (collection is by walking).
- */
 export function fireBonusAction(
   bonus: BonusGameState,
-  ghostX: number,
-  ghostY: number,
-  ghostDir: string,
+  _ghostX: number,
+  _ghostY: number,
+  _ghostDir: string,
 ): BonusGameState {
-  if (bonus.complete) return bonus;
-
-  if (bonus.type === "galagaBlitz") {
-    const dir = (["up", "down", "left", "right"] as BonusDir[]).includes(ghostDir as BonusDir)
-      ? (ghostDir as BonusDir)
-      : "up";
-    return {
-      ...bonus,
-      projectile: { x: ghostX, y: ghostY, dir },
-    };
-  }
-
-  if (bonus.type === "digDugDash") {
-    const PUMP_TO_POP = 2;
-    const DEFLATE_DELAY_MS = 2000;
-    let popped = 0;
-    let bonusPointsEarned = 0;
-    const config = BONUS_CONFIG[bonus.type];
-    const now = performance.now();
-    const items = bonus.items.map((item) => {
-      if (item.collected) return item;
-      const adjacent =
-        (item.x === ghostX && item.y === ghostY) ||
-        (Math.abs(item.x - ghostX) + Math.abs(item.y - ghostY) === 1);
-      if (!adjacent) return item;
-      const newCount = (item.pumpCount ?? 0) + 1;
-      if (newCount >= PUMP_TO_POP) {
-        popped++;
-        bonusPointsEarned += config.scorePerItem;
-        return { ...item, collected: true, pumpCount: PUMP_TO_POP };
-      }
-      return { ...item, pumpCount: newCount, deflateAt: now + DEFLATE_DELAY_MS };
-    });
-    if (popped === 0 && items === bonus.items) return bonus;
-    const collectedItems = bonus.collectedItems + popped;
-    const allCollected = collectedItems >= bonus.totalItems;
-    return {
-      ...bonus,
-      items,
-      collectedItems,
-      bonusScore: bonus.bonusScore + bonusPointsEarned,
-      complete: allCollected,
-    };
-  }
-
   return bonus;
 }
 
@@ -329,61 +269,19 @@ export function tickBonusGame(
   const config = BONUS_CONFIG[bonus.type];
   const timedOut = now >= bonus.endsAt;
 
-  // Move Pookas first (digDugDash only), then check collection.
-  let items = bonus.type === "digDugDash"
-    ? bonus.items.map((item) => movePookaItem(item, maze, now))
-    : bonus.items;
+  let items = bonus.items;
 
   let collectedNow = 0;
   let bonusPointsEarned = 0;
 
-  // --- Advance Galaga projectile one cell; collect any target it lands on ---
-  let projectile = bonus.projectile ?? null;
-  if (bonus.type === "galagaBlitz" && projectile) {
-    const [dx, dy] = DELTA[projectile.dir];
-    const nx = projectile.x + dx;
-    const ny = projectile.y + dy;
-    if (!isWalkableCell(maze, nx, ny)) {
-      // Hit a wall — deactivate.
-      projectile = null;
-    } else {
-      projectile = { ...projectile, x: nx, y: ny };
-      // Check if it hit any uncollected target.
-      items = items.map((item) => {
-        if (item.collected || item.x !== nx || item.y !== ny) return item;
-        collectedNow++;
-        bonusPointsEarned += config.scorePerItem;
-        projectile = null; // projectile consumed
-        return { ...item, collected: true };
-      });
-    }
-  }
-
-  // --- Rally Round / remaining Galaga walk-over collection ---
-  // (Dig Dug collection is handled via fireBonusAction; walk-over disabled there)
-  if (bonus.type !== "digDugDash") {
-    items = items.map((item) => {
-      if (item.collected) return item;
-      const touched = ghostPositions.some((g) => g.x === item.x && g.y === item.y);
-      if (touched) {
-        collectedNow++;
-        bonusPointsEarned += config.scorePerItem;
-        return { ...item, collected: true };
-      }
-      return item;
-    });
-  }
-
-  // --- Dig Dug: deflate Pookas that haven't been pumped recently ---
-  if (bonus.type === "digDugDash") {
-    items = items.map((item) => {
-      if (item.collected || !item.pumpCount || !item.deflateAt) return item;
-      if (now >= item.deflateAt) {
-        return { ...item, pumpCount: 0, deflateAt: undefined };
-      }
-      return item;
-    });
-  }
+  items = items.map((item) => {
+    if (item.collected) return item;
+    const touched = ghostPositions.some((g) => g.x === item.x && g.y === item.y);
+    if (!touched) return item;
+    collectedNow++;
+    bonusPointsEarned += config.scorePerItem;
+    return { ...item, collected: true };
+  });
 
   const collectedItems = bonus.collectedItems + collectedNow;
   const allCollected = collectedItems >= bonus.totalItems;
@@ -394,16 +292,21 @@ export function tickBonusGame(
     bonusPointsEarned += secsLeft * config.scorePerSecondRemaining;
   }
 
-  const complete = allCollected || timedOut;
+  let endsAt = bonus.endsAt;
+  // Time Attack extends timer on pickup for intuitive "chase the clock" play.
+  if (bonus.type === "timeAttack" && collectedNow > 0 && !timedOut) {
+    endsAt = Math.min(bonus.endsAt + collectedNow * 1000, now + 8000);
+  }
+  const complete = allCollected || now >= endsAt;
 
   return {
     next: {
       ...bonus,
       items,
+      endsAt,
       collectedItems,
       bonusScore: bonus.bonusScore + bonusPointsEarned,
       complete,
-      projectile,
     },
     collectedNow,
     bonusPointsEarned,

@@ -681,45 +681,21 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        {/* Bonus game items — enemy Pellet Guys (flags stay as emoji) */}
+        {/* Bonus game items */}
         {bonusGame &&
           bonusGame.items
             .filter((item) => !item.collected)
-            .map((item, idx) =>
-              bonusGame.type === "rallyRound" ? (
-                <BonusItemSprite
-                  key={idx}
-                  x={item.x}
-                  y={item.y}
-                  size={cellSize}
-                  emoji={BONUS_CONFIG.rallyRound.emoji}
-                  moveDuration={pgDuration}
-                  moving={false}
-                />
-              ) : (
-                <EnemyPelletGuySprite
-                  key={idx}
-                  x={item.x}
-                  y={item.y}
-                  dir={item.dir ?? "left"}
-                  size={cellSize}
-                  moveDuration={bonusGame.type === "digDugDash" ? pgDuration : ghostNormalDuration}
-                  pumpCount={item.pumpCount ?? 0}
-                />
-              )
-            )}
-        {/* Galaga projectile */}
-        {bonusGame?.projectile && (
-          <BonusItemSprite
-            key="projectile"
-            x={bonusGame.projectile.x}
-            y={bonusGame.projectile.y}
-            size={cellSize}
-            emoji="⚡"
-            moveDuration={ghostNormalDuration}
-            moving={false}
-          />
-        )}
+            .map((item, idx) => (
+              <BonusItemSprite
+                key={idx}
+                x={item.x}
+                y={item.y}
+                size={cellSize}
+                emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                moveDuration={pgDuration}
+                moving={false}
+              />
+            ))}
         {/* Pellet Guy — hidden during bonus rounds */}
         {!bonusGame && (
           <PelletGuySprite

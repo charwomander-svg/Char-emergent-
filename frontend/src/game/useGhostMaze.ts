@@ -46,7 +46,6 @@ import {
   getBonusGameType,
   createBonusGame,
   tickBonusGame,
-  fireBonusAction,
   BONUS_CONFIG,
 } from "./bonusGame";
 import {
@@ -1382,16 +1381,8 @@ export function useGhostMaze(opts?: {
   }, []);
 
   const bonusAction = useCallback(() => {
-    setState((prev) => {
-      const bonus = prev.bonusGame;
-      if (!bonus || bonus.complete) return prev;
-      if (bonus.type !== "galagaBlitz" && bonus.type !== "digDugDash") return prev;
-      const ghost = prev.ghosts[prev.selectedGhostId];
-      if (!ghost?.alive) return prev;
-      const nextBonus = fireBonusAction(bonus, ghost.x, ghost.y, ghost.direction);
-      if (nextBonus === bonus) return prev;
-      return { ...prev, bonusGame: nextBonus };
-    });
+    // Bonus stages are walk-over collection only.
+    return;
   }, []);
 
   return {

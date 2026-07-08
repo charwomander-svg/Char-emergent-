@@ -78,7 +78,6 @@ export default function GameScreen() {
     startNewGame,
     submitFinalScore,
     applyPowerUp,
-    bonusAction,
   } = useGhostMaze({
     mode,
     dailySeed: Number.isFinite(seed) ? seed : undefined,
@@ -393,14 +392,6 @@ export default function GameScreen() {
     onAction: () => {
       const current = stateRef.current;
       if (
-        current.bonusGame &&
-        !current.bonusGame.complete &&
-        (current.bonusGame.type === "galagaBlitz" || current.bonusGame.type === "digDugDash")
-      ) {
-        bonusAction();
-        return;
-      }
-      if (
         mode === "hardcore" &&
         current.status === "playing" &&
         (inventory.hardcoreRevive ?? 0) > 0 &&
@@ -696,18 +687,6 @@ export default function GameScreen() {
                 testID="pause-btn"
               >
                 <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
-              </TouchableOpacity>
-            )}
-            {state.bonusGame && !state.bonusGame.complete &&
-              (state.bonusGame.type === "galagaBlitz" || state.bonusGame.type === "digDugDash") && (
-              <TouchableOpacity
-                onPress={bonusAction}
-                style={[styles.actionBtn, isCompactHud && styles.compactBtn]}
-                testID="bonus-action-btn"
-              >
-                <Text style={styles.pauseText}>
-                  {state.bonusGame.type === "galagaBlitz" ? "🔥 FIRE" : "💨 PUMP"}
-                </Text>
               </TouchableOpacity>
             )}
             {mode === "hardcore" && (
