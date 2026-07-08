@@ -53,6 +53,12 @@ import {
   recordClassicLevelBest,
   syncProgressAchievements,
 } from "./playGames";
+
+export type EndlessBlessingId = "hunterInstinct" | "slowArena" | "extraLife";
+export interface EndlessBlessingsState {
+  hunterInstinct: number;
+  slowArena: number;
+}
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -297,6 +303,10 @@ export function useGhostMaze(opts?: {
   // Ghost-house exit stagger
   const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
   const levelStartScoreRef = useRef<number>(0);
+  const endlessBlessingsRef = useRef<EndlessBlessingsState>({
+    hunterInstinct: 0,
+    slowArena: 0,
+  });
 
   const startLevel = useCallback((level: number, lives: number, score: number) => {
     const fresh = buildInitialState(
@@ -327,6 +337,10 @@ export function useGhostMaze(opts?: {
   const startNewGame = useCallback(() => {
     hardcoreEliminatedRef.current = [];
     oathShieldAvailableRef.current = themeIdRef.current === "dark-knights";
+    endlessBlessingsRef.current = {
+      hunterInstinct: 0,
+      slowArena: 0,
+    };
     startLevel(1, STARTING_LIVES, 0);
   }, [startLevel]);
 
@@ -414,7 +428,8 @@ export function useGhostMaze(opts?: {
     const modeSpeedMult =
       modeRef.current === "hardcore" ? 0.92
       : modeRef.current === "speedrun" ? 0.95
-      : modeRef.current === "endless" ? 0.97
+      : modeRef.current === "endless"
+        ? 0.97 + Math.min(0.18, endlessBlessingsRef.current.slowArena * 0.06)
       : 1.0;
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult * modeSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult * modeSpeedMult;
@@ -906,7 +921,7 @@ export function useGhostMaze(opts?: {
               comboCount = 0;
             }
             lastComboTime = now;
-            score += SCORE_CATCH;
+            score += SCORE_CATCH + (modeRef.current === "endless" ? endlessBlessingsRef.current.hunterInstinct * 50 : 0);
             if (shinyPelletUntilRef.current > now) {
               score += SCORE_SHINY_CATCH;
               shinyPelletUntilRef.current = 0;
@@ -1368,6 +1383,34 @@ export function useGhostMaze(opts?: {
     return;
   }, []);
 
+  const grantEndlessBlessing = useCallback((id: EndlessBlessingId): boolean => {
+    const cur = stateRef.current;
+    if (modeRef.current !== "endless") return false;
+    if (cur.status !== "levelWon" && cur.status !== "playing" && cur.status !== "ready") return false;
+
+    if (id === "hunterInstinct") {
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        hunterInstinct: Math.min(4, endlessBlessingsRef.current.hunterInstinct + 1),
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: HUNTER INSTINCT (+CATCH SCORE)" }));
+      return true;
+    }
+    if (id === "slowArena") {
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        slowArena: Math.min(3, endlessBlessingsRef.current.slowArena + 1),
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: SLOW ARENA (GHOSTS SLOWED)" }));
+      return true;
+    }
+    if (id === "extraLife") {
+      setState((prev) => ({ ...prev, lives: Math.min(5, prev.lives + 1), message: "BLESSING: +1 LIFE" }));
+      return true;
+    }
+    return false;
+  }, []);
+
   return {
     state,
     mode: modeRef.current,
@@ -1382,5 +1425,7 @@ export function useGhostMaze(opts?: {
     submitFinalScore,
     applyPowerUp,
     bonusAction,
+    grantEndlessBlessing,
+    getEndlessBlessings: () => endlessBlessingsRef.current,
   };
 }

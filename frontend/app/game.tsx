@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 
-import { useGhostMaze } from "@/src/game/useGhostMaze";
+import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
 import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
 import type { Direction, GhostId } from "@/src/game/types";
@@ -57,6 +57,12 @@ interface RunStats {
   hardcoreRevivesUsed: number;
 }
 
+interface EndlessBlessingChoice {
+  id: EndlessBlessingId;
+  label: string;
+  description: string;
+}
+
 export default function GameScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
@@ -84,6 +90,8 @@ export default function GameScreen() {
     startNewGame,
     submitFinalScore,
     applyPowerUp,
+    grantEndlessBlessing,
+    getEndlessBlessings,
   } = useGhostMaze({
     mode,
     dailySeed: Number.isFinite(seed) ? seed : undefined,
@@ -138,6 +146,8 @@ export default function GameScreen() {
   const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
   const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
+  const [endlessBlessingChoices, setEndlessBlessingChoices] = useState<EndlessBlessingChoice[]>([]);
+  const [endlessBlessingSummary, setEndlessBlessingSummary] = useState("");
   const seenBonusTutorialsRef = useRef<Set<string>>(new Set());
   const criticalPelletPingedLevelRef = useRef<number>(0);
   const previousPelletsRef = useRef(state.pelletsRemaining);
@@ -245,6 +255,8 @@ export default function GameScreen() {
       setHardcoreDeltaMs(null);
       seenBonusTutorialsRef.current.clear();
       setBonusTutorialText(null);
+      setEndlessBlessingChoices([]);
+      setEndlessBlessingSummary("");
       criticalPelletPingedLevelRef.current = 0;
       setRunStats({
         catches: 0,
@@ -293,6 +305,23 @@ export default function GameScreen() {
   }, [state.bonusGame?.type]);
 
   useEffect(() => {
+    if (mode !== "endless") return;
+    const shouldOffer = state.status === "levelWon" && state.level > 0 && state.level % 5 === 0;
+    if (!shouldOffer || endlessBlessingChoices.length > 0) return;
+    const pool: EndlessBlessingChoice[] = [
+      { id: "hunterInstinct", label: "HUNTER INSTINCT", description: "+50 catch score (stacking)." },
+      { id: "slowArena", label: "SLOW ARENA", description: "Ghost speed reduced (stacking)." },
+      { id: "extraLife", label: "SECOND WIND", description: "+1 life (max 5)." },
+    ];
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setEndlessBlessingChoices(shuffled.slice(0, 3));
+  }, [endlessBlessingChoices.length, mode, state.level, state.status]);
+
+  useEffect(() => {
     if (state.status !== "playing" || state.bonusGame) {
       previousPelletsRef.current = state.pelletsRemaining;
       return;
@@ -313,6 +342,15 @@ export default function GameScreen() {
     }
     previousPelletsRef.current = state.pelletsRemaining;
   }, [state.bonusGame, state.level, state.pelletsRemaining, state.status]);
+
+  useEffect(() => {
+    if (mode !== "endless") return;
+    const buffs = getEndlessBlessings();
+    const parts: string[] = [];
+    if (buffs.hunterInstinct > 0) parts.push(`HUNT x${buffs.hunterInstinct}`);
+    if (buffs.slowArena > 0) parts.push(`SLOW x${buffs.slowArena}`);
+    setEndlessBlessingSummary(parts.join(" · "));
+  }, [getEndlessBlessings, mode, state.level, state.status]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
@@ -658,6 +696,11 @@ export default function GameScreen() {
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
               <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
             </View>
+            {mode === "endless" && endlessBlessingSummary && (
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>BUILD {endlessBlessingSummary}</Text>
+              </View>
+            )}
             {mode === "speedrun" && (
               <View style={styles.statusPill}>
                 <Text style={styles.statusPillText}>TIME {fmtMs(elapsedMs)}</Text>
@@ -797,9 +840,20 @@ export default function GameScreen() {
             {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
               <View style={styles.stateActions}>
                 {state.status === "levelWon" && (
-                  <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (mode === "endless" && endlessBlessingChoices.length > 0) return;
+                      advanceLevel();
+                    }}
+                    style={styles.stateBtn}
+                    testID="next-level-btn"
+                  >
                     <Text style={styles.stateBtnText}>
-                      {mode !== "endless" && state.level >= MAX_LEVELS ? "FINISH!" : "NEXT LEVEL"}
+                      {mode === "endless" && endlessBlessingChoices.length > 0
+                        ? "CHOOSE BLESSING"
+                        : mode !== "endless" && state.level >= MAX_LEVELS
+                          ? "FINISH!"
+                          : "NEXT LEVEL"}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -809,10 +863,45 @@ export default function GameScreen() {
                   </TouchableOpacity>
                 )}
                 {state.status === "gameOver" && (
-                  <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
-                    <Text style={styles.stateBtnText}>NEW GAME</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
+                      <Text style={styles.stateBtnText}>NEW GAME</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="one-more-run-btn">
+                      <Text style={styles.stateBtnText}>ONE MORE RUN</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
+              </View>
+            )}
+            {mode === "endless" && state.status === "levelWon" && endlessBlessingChoices.length > 0 && (
+              <View style={styles.blessingPanel}>
+                <Text style={styles.blessingTitle}>MILESTONE BLESSING — PICK ONE</Text>
+                {endlessBlessingChoices.map((choice) => (
+                  <TouchableOpacity
+                    key={choice.id}
+                    style={styles.blessingBtn}
+                    onPress={() => {
+                      const ok = grantEndlessBlessing(choice.id);
+                      if (!ok) return;
+                      setEndlessBlessingChoices([]);
+                      advanceLevel();
+                    }}
+                    testID={`endless-blessing-${choice.id}`}
+                  >
+                    <Text style={styles.blessingBtnLabel}>{choice.label}</Text>
+                    <Text style={styles.blessingBtnSub}>{choice.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {state.status === "gameOver" && (state.pelletsRemaining <= 12 || state.catches >= 2) && (
+              <View style={styles.almostCard}>
+                <Text style={styles.almostText}>
+                  {state.pelletsRemaining <= 12
+                    ? `ALMOST HAD IT — ${state.pelletsRemaining} PELLETS LEFT`
+                    : `${Math.max(0, 3 - state.catches)} CATCH FROM CLEAR`}
+                </Text>
               </View>
             )}
           </View>
@@ -1052,6 +1141,37 @@ const styles = StyleSheet.create({
   },
   runStatsTitle: { color: "#9fc4ff", fontWeight: "900", fontSize: 11, marginBottom: 4, letterSpacing: 0.8 },
   runStatsText: { color: "#d7def3", fontWeight: "800", fontSize: 10, lineHeight: 15 },
+  blessingPanel: {
+    marginTop: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#4c5fb8",
+    backgroundColor: "#121a34",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  blessingTitle: { color: "#d8e2ff", fontWeight: "900", fontSize: 10, letterSpacing: 0.8 },
+  blessingBtn: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#6f86ff",
+    backgroundColor: "#1a2550",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  blessingBtnLabel: { color: "#f0f4ff", fontWeight: "900", fontSize: 10, letterSpacing: 0.6 },
+  blessingBtnSub: { color: "#b7c4ea", fontWeight: "700", fontSize: 9, marginTop: 1 },
+  almostCard: {
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#8a6d28",
+    backgroundColor: "#2a220f",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  almostText: { color: "#ffe7a4", fontWeight: "900", fontSize: 10, letterSpacing: 0.4 },
   stateBtn: {
     borderWidth: 1,
     borderColor: "#FFD23F",
