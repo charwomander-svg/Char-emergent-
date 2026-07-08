@@ -49,6 +49,7 @@ interface RunStats {
   ghostLosses: number;
   powerUpsUsed: number;
   bonusClears: number;
+  hardcoreRevivesUsed: number;
 }
 
 export default function GameScreen() {
@@ -112,6 +113,7 @@ export default function GameScreen() {
     ghostLosses: 0,
     powerUpsUsed: 0,
     bonusClears: 0,
+    hardcoreRevivesUsed: 0,
   });
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
@@ -226,7 +228,14 @@ export default function GameScreen() {
       levelStartElapsedRef.current = 0;
       previousComboRef.current = 0;
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
-      setRunStats({ catches: 0, longestCombo: 0, ghostLosses: 0, powerUpsUsed: 0, bonusClears: 0 });
+      setRunStats({
+        catches: 0,
+        longestCombo: 0,
+        ghostLosses: 0,
+        powerUpsUsed: 0,
+        bonusClears: 0,
+        hardcoreRevivesUsed: 0,
+      });
       setUnlockToast(null);
     }
   }, [state.status, state.level, state.score]);
@@ -524,7 +533,11 @@ export default function GameScreen() {
   const activatePowerUp = useCallback((id: PowerUpId) => {
     const applied = applyPowerUp(id);
     if (!applied) return;
-    setRunStats((stats) => ({ ...stats, powerUpsUsed: stats.powerUpsUsed + 1 }));
+    setRunStats((stats) => ({
+      ...stats,
+      powerUpsUsed: stats.powerUpsUsed + 1,
+      hardcoreRevivesUsed: stats.hardcoreRevivesUsed + (id === "hardcoreRevive" ? 1 : 0),
+    }));
     if (themeId === "blood-moon" && id !== "hardcoreRevive" && Math.random() < 0.1) return;
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory, themeId]);
@@ -756,12 +769,26 @@ export default function GameScreen() {
           pointerEvents="none"
         >
           <View style={styles.runStatsCard} testID="hud-run-stats">
-            <Text style={styles.runStatsTitle}>RUN STATS</Text>
-            <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
-            <Text style={styles.runStatsText}>Longest Combo: {runStats.longestCombo}</Text>
-            <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
-            <Text style={styles.runStatsText}>Power-Ups: {runStats.powerUpsUsed}</Text>
-            <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+            {mode === "hardcore" ? (
+              <>
+                <Text style={styles.runStatsTitle}>HARDCORE RUN</Text>
+                <Text style={styles.runStatsText}>Level Reached: {state.level}</Text>
+                <Text style={styles.runStatsText}>Final Score: {state.score}</Text>
+                <Text style={styles.runStatsText}>Squad Losses: {runStats.ghostLosses}</Text>
+                <Text style={styles.runStatsText}>Revives Used: {runStats.hardcoreRevivesUsed}</Text>
+                <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
+                <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.runStatsTitle}>RUN STATS</Text>
+                <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
+                <Text style={styles.runStatsText}>Longest Combo: {runStats.longestCombo}</Text>
+                <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
+                <Text style={styles.runStatsText}>Power-Ups: {runStats.powerUpsUsed}</Text>
+                <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+              </>
+            )}
           </View>
         </Animated.View>
       )}
