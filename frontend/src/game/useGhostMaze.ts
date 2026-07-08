@@ -36,7 +36,7 @@ import {
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, choosePelletGuyDirection, opposite } from "./ai";
-import { getSoundEngine } from "./sounds";
+import { getMusicTrackForLevel, getSoundEngine } from "./sounds";
 import { loadProgress, saveProgress, getTheme, ProgressData, withUnlockedThemes } from "./progress";
 import type { PowerUpId } from "./powerups";
 import { COIN_REWARD } from "./economy";
@@ -395,7 +395,7 @@ export function useGhostMaze(opts?: {
       }
       if (prev.status === "paused") {
         if (musicEnabledRef.current) {
-          getSoundEngine().startMusic(prev.bonusGame ? "bonus" : "main");
+          getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, !!prev.bonusGame));
         }
         return { ...prev, status: "playing" };
       }
@@ -415,7 +415,7 @@ export function useGhostMaze(opts?: {
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
         if (musicEnabledRef.current) {
-          getSoundEngine().startMusic(prev.bonusGame ? "bonus" : "main");
+          getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, !!prev.bonusGame));
         }
       }
       return;

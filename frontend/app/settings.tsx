@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { getSoundEngine } from "@/src/game/sounds";
+import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -20,11 +21,17 @@ export default function Settings() {
     saveSettings(next);
     if (k === "soundOn") {
       getSoundEngine().setEnabled(Boolean(v));
-      if (!v) getSoundEngine().stopMusic();
+      if (!v) {
+        getSoundEngine().stopMusic();
+        setActiveSoundTestTrack(null);
+      }
     }
     if (k === "musicOn") {
       if (v && settings.soundOn) getSoundEngine().startMusic();
-      if (!v) getSoundEngine().stopMusic();
+      if (!v) {
+        getSoundEngine().stopMusic();
+        setActiveSoundTestTrack(null);
+      }
     }
     if (k === "sfxVolume" || k === "musicVolume") {
       getSoundEngine().setVolumes({
@@ -32,6 +39,15 @@ export default function Settings() {
         music: k === "musicVolume" ? Number(v) : next.musicVolume,
       });
     }
+  };
+
+  const openExternal = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert("Link unavailable", url);
+      return;
+    }
+    await Linking.openURL(url);
   };
 
   const NumberRow = ({
@@ -199,6 +215,60 @@ export default function Settings() {
           onChange={(v) => update("largeHud", v)}
           testID="toggle-large-hud"
         />
+        <View style={styles.musicCard}>
+          <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
+          <Text style={styles.musicCardBody}>
+            Enjoying the music? Chardcore is a musical artist with 8 albums released. You might like it, so we are
+            providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
+            free. She is awesome like that.
+          </Text>
+          <View style={styles.musicLinkRow}>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://charware.dev/instrumetal")}
+              testID="instrumetal-link"
+            >
+              <Text style={styles.musicLinkBtnText}>INSTRUMETAL (FREE)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://open.spotify.com/artist/23uBgaylUzFwSFkLRPxX80")}
+              testID="spotify-link"
+            >
+              <Text style={styles.musicLinkBtnText}>SPOTIFY</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://charware.dev")}
+              testID="charware-link"
+            >
+              <Text style={styles.musicLinkBtnText}>CHARWARE.DEV</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.musicCardSub}>Tap a track to preview your favorites.</Text>
+          {SOUND_TEST_TRACKS.map((entry) => (
+            <TouchableOpacity
+              key={entry.id}
+              style={[
+                styles.soundTestBtn,
+                activeSoundTestTrack === entry.id && styles.soundTestBtnActive,
+              ]}
+              onPress={() => {
+                if (activeSoundTestTrack === entry.id) {
+                  getSoundEngine().stopMusic();
+                  setActiveSoundTestTrack(null);
+                  return;
+                }
+                getSoundEngine().startMusic(entry.track);
+                setActiveSoundTestTrack(entry.id);
+              }}
+              testID={`sound-test-${entry.id}`}
+            >
+              <Text style={styles.soundTestTitle}>{entry.label}</Text>
+              <Text style={styles.soundTestSub}>{entry.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -245,4 +315,41 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
   stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
+  musicCard: {
+    backgroundColor: COLORS.uiPanel,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    gap: 8,
+  },
+  musicCardTitle: { color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 1 },
+  musicCardBody: { color: "#d9def8", fontSize: 12, lineHeight: 18 },
+  musicCardSub: { color: "#aeb9e8", fontSize: 11, fontWeight: "700" },
+  musicLinkRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  musicLinkBtn: {
+    borderWidth: 1,
+    borderColor: "#5f6aa0",
+    borderRadius: 8,
+    backgroundColor: "#121a32",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  musicLinkBtnText: { color: "#e7edff", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+  soundTestBtn: {
+    borderWidth: 1,
+    borderColor: "#394572",
+    borderRadius: 8,
+    backgroundColor: "#10172d",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  soundTestBtnActive: {
+    borderColor: "#FFD23F",
+    backgroundColor: "#202b4f",
+  },
+  soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
+  soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
 });

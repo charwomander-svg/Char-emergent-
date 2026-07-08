@@ -13,7 +13,14 @@ type SfxKey =
   | "win"
   | "lose"
   | "uiClick";
-type MusicTrack = "main" | "bonus";
+export type MusicTrack =
+  | "main"
+  | "tier2"
+  | "tier3"
+  | "tier4"
+  | "bonus"
+  | "instrumetalA"
+  | "instrumetalB";
 
 // Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
 const SFX_SOURCES: Record<SfxKey, number> = {
@@ -31,8 +38,32 @@ const SFX_SOURCES: Record<SfxKey, number> = {
 
 const MUSIC_SOURCES: Record<MusicTrack, number> = {
   main: require("@/assets/sounds/blinky_revenge.mp3"),
+  tier2: require("@/assets/sounds/Ghost Maze song 2.mp3"),
+  tier3: require("@/assets/sounds/song3.mp3"),
+  tier4: require("@/assets/sounds/Ghost Maze (Corrupted Nightmare Edit).mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
+  instrumetalA: require("@/assets/sounds/chardcore/instrumetal/cloudy.mp3"),
+  instrumetalB: require("@/assets/sounds/chardcore/instrumetal/Hypervelocity.mp3"),
 };
+
+const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
+
+export function getMusicTrackForLevel(level: number, isBonusStage: boolean): MusicTrack {
+  if (isBonusStage) return "bonus";
+  const safeLevel = Math.max(1, Math.floor(level));
+  const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
+  return LEVEL_MUSIC_ROTATION[tierIndex];
+}
+
+export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
+  { id: "arcade-1", label: "Arcade: Blinky's Revenge", track: "main", description: "Levels 1–10" },
+  { id: "arcade-2", label: "Arcade: Ghost Maze Song 2", track: "tier2", description: "Levels 11–20" },
+  { id: "arcade-3", label: "Arcade: Song 3", track: "tier3", description: "Levels 21–30" },
+  { id: "arcade-4", label: "Arcade: Corrupted Nightmare", track: "tier4", description: "Levels 31+" },
+  { id: "bonus", label: "Bonus Stage Theme", track: "bonus", description: "Dedicated bonus music" },
+  { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
+  { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
+];
 
 interface SoundEngine {
   enabled: boolean;
