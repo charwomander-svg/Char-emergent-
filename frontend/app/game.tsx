@@ -204,8 +204,15 @@ export default function GameScreen() {
 
   useEffect(() => {
     if (mode !== "speedrun") return;
-    const id = setInterval(() => setElapsedMs(computeTimerMs()), 16);
-    return () => clearInterval(id);
+    let raf = 0;
+    const frame = () => {
+      if (stateRef.current.status === "playing") {
+        setElapsedMs(computeTimerMs());
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
   }, [mode, computeTimerMs]);
 
   useEffect(() => {
@@ -540,6 +547,7 @@ export default function GameScreen() {
 
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
+  const isCompactHud = width < 390;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -566,10 +574,10 @@ export default function GameScreen() {
           />
         </View>
         <View
-          style={[styles.footerHud, largeHud && { transform: [{ scale: 1.08 }] }]}
+          style={[styles.footerHud, isCompactHud && styles.footerHudCompact]}
           testID="hud-bottom"
         >
-          <View style={styles.statusLine}>
+          <View style={[styles.statusLine, isCompactHud && styles.statusLineCompact]}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
             <View style={styles.statusPill}>
@@ -653,7 +661,7 @@ export default function GameScreen() {
               ))}
             </View>
           </View>
-          <View style={styles.slotRow} testID="hud-items">
+          <View style={[styles.slotRow, isCompactHud && styles.slotRowCompact]} testID="hud-items">
             {inventoryItems.map(({ id, def, count }) => {
               const playable = state.status === "playing" && count > 0;
               return (
@@ -676,19 +684,27 @@ export default function GameScreen() {
               );
             })}
           </View>
-          <View style={styles.controlRow}>
-            <View style={styles.scorePill} testID="hud-score">
-              <Text style={styles.scorePillLabel}>SCORE</Text>
-              <Text style={styles.scorePillValue}>{state.score}</Text>
+          <View style={[styles.controlRow, isCompactHud && styles.controlRowCompact]} testID="hud-controls">
+            <View style={[styles.scorePill, isCompactHud && styles.scorePillCompact]} testID="hud-score">
+              <Text style={[styles.scorePillLabel, largeHud && styles.scorePillLabelLarge]}>SCORE</Text>
+              <Text style={[styles.scorePillValue, largeHud && styles.scorePillValueLarge]}>{state.score}</Text>
             </View>
             {(state.status === "playing" || state.status === "paused" || state.status === "ready") && (
-              <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
+              <TouchableOpacity
+                onPress={togglePause}
+                style={[styles.pauseBtn, isCompactHud && styles.compactBtn]}
+                testID="pause-btn"
+              >
                 <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
               </TouchableOpacity>
             )}
             {state.bonusGame && !state.bonusGame.complete &&
               (state.bonusGame.type === "galagaBlitz" || state.bonusGame.type === "digDugDash") && (
-              <TouchableOpacity onPress={bonusAction} style={styles.actionBtn} testID="bonus-action-btn">
+              <TouchableOpacity
+                onPress={bonusAction}
+                style={[styles.actionBtn, isCompactHud && styles.compactBtn]}
+                testID="bonus-action-btn"
+              >
                 <Text style={styles.pauseText}>
                   {state.bonusGame.type === "galagaBlitz" ? "🔥 FIRE" : "💨 PUMP"}
                 </Text>
@@ -699,6 +715,7 @@ export default function GameScreen() {
                 onPress={() => activatePowerUp("hardcoreRevive")}
                 style={[
                   styles.actionBtn,
+                  isCompactHud && styles.compactBtn,
                   { borderColor: reviveToken.color },
                   !canUseReviveToken && styles.slotDim,
                 ]}
@@ -783,6 +800,10 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     gap: 6,
   },
+  footerHudCompact: {
+    paddingHorizontal: 6,
+    gap: 5,
+  },
   statusLine: {
     flexDirection: "row",
     alignItems: "center",
@@ -794,6 +815,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#101426dd",
     borderWidth: 1,
     borderColor: "#2b3357",
+  },
+  statusLineCompact: {
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   statusLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   statusValue: { color: "#f7fbff", fontSize: 14, fontWeight: "900", marginRight: 6 },
@@ -869,6 +895,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 5,
   },
+  slotRowCompact: {
+    gap: 4,
+  },
   slot: {
     flex: 1,
     height: 52,
@@ -882,6 +911,7 @@ const styles = StyleSheet.create({
   slotIcon: { fontSize: 18, lineHeight: 18 },
   slotCount: { fontSize: 10, fontWeight: "900", marginTop: 3 },
   controlRow: { flexDirection: "row", alignItems: "stretch", justifyContent: "center", gap: 8 },
+  controlRowCompact: { flexWrap: "wrap", justifyContent: "flex-start", gap: 6 },
   scorePill: {
     minWidth: 124,
     borderWidth: 1,
@@ -892,7 +922,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#1d1d2f",
     justifyContent: "center",
   },
+  scorePillCompact: { minWidth: 108, paddingHorizontal: 10, paddingVertical: 6 },
   scorePillLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  scorePillLabelLarge: { fontSize: 11 },
   scorePillValue: {
     color: "#FFD23F",
     fontSize: 18,
@@ -900,6 +932,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontVariant: ["tabular-nums"],
   },
+  scorePillValueLarge: { fontSize: 21 },
   pauseBtn: {
     borderWidth: 1,
     borderColor: "#ffff66",
@@ -908,6 +941,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#1d1d2f",
   },
+  compactBtn: { paddingHorizontal: 12, paddingVertical: 7 },
   actionBtn: {
     borderWidth: 2,
     borderColor: "#ff4466",
