@@ -19,6 +19,7 @@ import {
   SCORE_CATCH,
   SCORE_COMBO_BONUS,
   SCORE_PER_PERCENT_REMAINING,
+  SCORE_GHOST_EAT,
   SPEED,
   STARTING_LIVES,
   SUPER_PELLET_DURATION_MS,
@@ -353,6 +354,9 @@ export function useGhostMaze(opts?: {
   );
 
   const selectGhost = useCallback((ghostId: GhostId) => {
+    // Selecting a ghost should not reset its position or trigger spawns.
+    // During bonus rounds, only change the selectedGhostId so the active ghost
+    // switches without altering any ghost coordinates.
     setState((prev) => ({ ...prev, selectedGhostId: ghostId }));
   }, []);
 
@@ -561,7 +565,7 @@ export function useGhostMaze(opts?: {
       // Bonus game tick: runs regardless of whether PG moves this frame.
       // Pookas (digDugDash) move on their own timers inside tickBonusGame.
       // -----------------------------------------------------------------
-      if (bonusGame && !bonusGame.complete) {
+      if (bonusGame && !bonusGame.complete && prev.status === "playing") {
         // Only the selected ghost participates in bonus stages.
         const activeGhost = newGhosts[prev.selectedGhostId];
         const ghostPos = activeGhost?.alive
@@ -867,6 +871,8 @@ export function useGhostMaze(opts?: {
             };
             mutated = true;
             getSoundEngine().ghostEaten();
+            // Award points when Pellet Guy eats a vulnerable ghost
+            score += SCORE_GHOST_EAT;
           } else {
             if (effectsNext.teamPhaseUntil > now) continue;
             // ------------------------------------------------------------

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
@@ -109,7 +109,7 @@ export default function Settings() {
         <View style={{ width: 60 }} />
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={true}>
         <Row
           label="Sound Effects"
           desc="Pellet chomps, catches, level fanfare"
@@ -185,7 +185,7 @@ export default function Settings() {
           onChange={(v) => update("reducedMotion", v)}
           testID="toggle-reduced-motion"
         />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

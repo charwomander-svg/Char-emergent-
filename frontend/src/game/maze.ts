@@ -43,7 +43,7 @@ function carveLine(grid: CellType[][], x1: number, y1: number, x2: number, y2: n
 
 function makeStaticBase(level: number): CellType[][] {
   const grid = createWalledGrid();
-  const template = (level - 1) % 6;
+  const template = (level - 1) % 15;
 
   switch (template) {
     case 0:
@@ -85,6 +85,78 @@ function makeStaticBase(level: number): CellType[][] {
           carveLine(grid, x, 12, x, 12);
         }
       }
+      break;
+    case 5:
+      // Open plaza style: large central open area with sparse corridors
+      carveLine(grid, 2, 6, 12, 6);
+      carveLine(grid, 2, 10, 12, 10);
+      carveLine(grid, 6, 2, 6, 16);
+      carveLine(grid, 8, 2, 8, 16);
+      break;
+    case 6:
+      // Tight maze: many short walls to create narrow corridors
+      for (let y = 2; y <= 16; y += 2) {
+        for (let x = 2; x <= 12; x += 3) {
+          carveLine(grid, x, y, x + 1, y);
+        }
+      }
+      break;
+    case 7:
+      // Asymmetric: heavy left-side carving, sparse right side
+      carveLine(grid, 2, 2, 7, 2);
+      carveLine(grid, 2, 4, 7, 4);
+      carveLine(grid, 2, 6, 7, 6);
+      carveLine(grid, 9, 9, 12, 9);
+      carveLine(grid, 9, 11, 12, 11);
+      carveLine(grid, 5, 12, 9, 12);
+      break;
+    case 8:
+      // Diagonal-ish corridors (stair-step) for varied flow
+      for (let i = 0; i < 5; i++) {
+        const y = 2 + i * 3;
+        carveLine(grid, 2 + i, y, 6 + i, y + 2);
+      }
+      break;
+    case 9:
+      // Ring and spokes: concentric rings connected by spokes
+      carveLine(grid, 3, 3, 11, 3);
+      carveLine(grid, 3, 13, 11, 13);
+      carveLine(grid, 3, 3, 3, 13);
+      carveLine(grid, 11, 3, 11, 13);
+      carveLine(grid, 7, 3, 7, 13);
+      carveLine(grid, 3, 8, 11, 8);
+      break;
+    case 10:
+      // Scattered pockets: small enclosed rooms interconnected
+      carveLine(grid, 2, 2, 4, 4);
+      carveLine(grid, 6, 2, 8, 4);
+      carveLine(grid, 10, 2, 12, 4);
+      carveLine(grid, 2, 10, 4, 12);
+      carveLine(grid, 6, 10, 8, 12);
+      carveLine(grid, 10, 10, 12, 12);
+      break;
+    case 11:
+      // Narrow winding corridor across the map
+      for (let x = 2; x <= 12; x++) {
+        if (x % 2 === 0) carveLine(grid, x, 2, x, 14);
+      }
+      carveLine(grid, 2, 14, 12, 14);
+      break;
+    case 12:
+      // Large empty with a few obstacles (good for open play)
+      carveLine(grid, 5, 5, 9, 5);
+      carveLine(grid, 5, 11, 9, 11);
+      carveLine(grid, 5, 5, 5, 11);
+      carveLine(grid, 9, 5, 9, 11);
+      break;
+    case 13:
+      // Maze with central mazelet and corner mazes
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 4, 6, 8, 6);
+      carveLine(grid, 6, 8, 6, 12);
       break;
     default:
       carveLine(grid, 2, 3, 12, 3);

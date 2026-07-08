@@ -546,10 +546,8 @@ export default function GameScreen() {
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
-            <Text style={styles.statusLabel}>CATCH</Text>
+            <Text style={styles.statusLabel}>CTCH</Text>
             <Text style={[styles.statusValue, pulseCatch && styles.statPulse]}>{state.catches}</Text>
-            <Text style={styles.statusLabel}>COMBO</Text>
-            <Text style={[styles.statusValue, pulseCombo && styles.statPulse]}>{state.comboCount}</Text>
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
               <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
@@ -731,6 +729,20 @@ export default function GameScreen() {
       {(state.message || state.status === "paused") && (
         <View style={styles.messageOverlay} pointerEvents="none" testID="status-message">
           <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : state.message}</Text>
+        </View>
+      )}
+
+      {/* Run-stats HUD: shown inline with the "squad wiped" game-over toast */}
+      {state.status === "gameOver" && (
+        <View style={[styles.unlockToast, { top: 80 }]} pointerEvents="none">
+          <View style={styles.runStatsCard} testID="hud-run-stats">
+            <Text style={styles.runStatsTitle}>RUN STATS</Text>
+            <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
+            <Text style={styles.runStatsText}>Longest Combo: {runStats.longestCombo}</Text>
+            <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
+            <Text style={styles.runStatsText}>Power-Ups: {runStats.powerUpsUsed}</Text>
+            <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+          </View>
         </View>
       )}
     </SafeAreaView>
