@@ -127,9 +127,11 @@ export default function GameScreen() {
   const previousComboRef = useRef(state.comboCount);
   const previousAliveCountRef = useRef(state.ghosts.filter((ghost) => ghost.alive).length);
   const previousUnlockedThemesRef = useRef<string[]>([]);
+  const hardcoreStartAtRef = useRef<number | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const runStatsAnim = useRef(new Animated.Value(0)).current;
+  const [hardcoreSurvivalMs, setHardcoreSurvivalMs] = useState(0);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -228,6 +230,8 @@ export default function GameScreen() {
       levelStartElapsedRef.current = 0;
       previousComboRef.current = 0;
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
+      hardcoreStartAtRef.current = null;
+      setHardcoreSurvivalMs(0);
       setRunStats({
         catches: 0,
         longestCombo: 0,
@@ -239,6 +243,16 @@ export default function GameScreen() {
       setUnlockToast(null);
     }
   }, [state.status, state.level, state.score]);
+
+  useEffect(() => {
+    if (mode !== "hardcore") return;
+    if (state.status === "playing" && hardcoreStartAtRef.current == null) {
+      hardcoreStartAtRef.current = performance.now();
+    }
+    if (state.status === "gameOver" && hardcoreStartAtRef.current != null) {
+      setHardcoreSurvivalMs(Math.max(0, performance.now() - hardcoreStartAtRef.current));
+    }
+  }, [mode, state.status]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
@@ -774,7 +788,7 @@ export default function GameScreen() {
                 <Text style={styles.runStatsTitle}>HARDCORE RUN</Text>
                 <Text style={styles.runStatsText}>Level Reached: {state.level}</Text>
                 <Text style={styles.runStatsText}>Final Score: {state.score}</Text>
-                <Text style={styles.runStatsText}>Squad Losses: {runStats.ghostLosses}</Text>
+                <Text style={styles.runStatsText}>Time Survived: {fmtMs(hardcoreSurvivalMs)}</Text>
                 <Text style={styles.runStatsText}>Revives Used: {runStats.hardcoreRevivesUsed}</Text>
                 <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
                 <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
