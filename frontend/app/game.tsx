@@ -43,6 +43,11 @@ function fmtMs(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
+function fmtDeltaMs(ms: number): string {
+  const sign = ms >= 0 ? "+" : "-";
+  return `${sign}${fmtMs(Math.abs(ms))}`;
+}
+
 interface RunStats {
   catches: number;
   longestCombo: number;
@@ -130,6 +135,12 @@ export default function GameScreen() {
   stateRef.current = state;
   const runStatsAnim = useRef(new Animated.Value(0)).current;
   const [hardcoreSurvivalMs, setHardcoreSurvivalMs] = useState(0);
+  const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
+  const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
+  const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
+  const seenBonusTutorialsRef = useRef<Set<string>>(new Set());
+  const criticalPelletPingedLevelRef = useRef<number>(0);
+  const previousPelletsRef = useRef(state.pelletsRemaining);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -137,6 +148,7 @@ export default function GameScreen() {
       const normalized = withUnlockedThemes(p);
       previousUnlockedThemesRef.current = normalized.unlockedThemes;
       setThemeId(normalized.selectedThemeId);
+      setBestHardcoreSurvivalMs(normalized.bestHardcoreSurvivalMs ?? 0);
       void saveProgress(normalized);
     });
     loadSettings().then((s) => {
@@ -230,6 +242,10 @@ export default function GameScreen() {
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
       hardcoreStartAtRef.current = null;
       setHardcoreSurvivalMs(0);
+      setHardcoreDeltaMs(null);
+      seenBonusTutorialsRef.current.clear();
+      setBonusTutorialText(null);
+      criticalPelletPingedLevelRef.current = 0;
       setRunStats({
         catches: 0,
         longestCombo: 0,
@@ -248,9 +264,55 @@ export default function GameScreen() {
       hardcoreStartAtRef.current = performance.now();
     }
     if (state.status === "gameOver" && hardcoreStartAtRef.current != null) {
-      setHardcoreSurvivalMs(Math.max(0, performance.now() - hardcoreStartAtRef.current));
+      const survivalMs = Math.max(0, performance.now() - hardcoreStartAtRef.current);
+      const previousBest = bestHardcoreSurvivalMs;
+      setHardcoreSurvivalMs(survivalMs);
+      setHardcoreDeltaMs(previousBest > 0 ? survivalMs - previousBest : null);
+      if (survivalMs > previousBest) {
+        setBestHardcoreSurvivalMs(survivalMs);
+        loadProgress().then((progress) => {
+          const normalized = withUnlockedThemes(progress);
+          void saveProgress({ ...normalized, bestHardcoreSurvivalMs: survivalMs });
+        });
+      }
     }
-  }, [mode, state.status]);
+  }, [bestHardcoreSurvivalMs, mode, state.status]);
+
+  useEffect(() => {
+    const type = state.bonusGame?.type;
+    if (!type || seenBonusTutorialsRef.current.has(type)) return;
+    seenBonusTutorialsRef.current.add(type);
+    const hintByType: Record<string, string> = {
+      rallyRound: "TIP: Sweep flags fast with your lead ghost.",
+      cherryChase: "TIP: Cut corners and chain cherries.",
+      timeAttack: "TIP: Prioritize clocks to extend time.",
+    };
+    setBonusTutorialText(hintByType[type] ?? "TIP: Collect bonus items before time runs out.");
+    const timer = setTimeout(() => setBonusTutorialText(null), 2600);
+    return () => clearTimeout(timer);
+  }, [state.bonusGame?.type]);
+
+  useEffect(() => {
+    if (state.status !== "playing" || state.bonusGame) {
+      previousPelletsRef.current = state.pelletsRemaining;
+      return;
+    }
+    const crossedCritical =
+      previousPelletsRef.current > 10 &&
+      state.pelletsRemaining <= 10 &&
+      criticalPelletPingedLevelRef.current !== state.level;
+    if (crossedCritical) {
+      criticalPelletPingedLevelRef.current = state.level;
+      setBonusTutorialText(`⚠ ${state.pelletsRemaining} PELLETS LEFT`);
+      getSoundEngine().uiClick();
+      setTimeout(() => {
+        setBonusTutorialText((current) =>
+          current?.includes("PELLETS LEFT") ? null : current,
+        );
+      }, 1800);
+    }
+    previousPelletsRef.current = state.pelletsRemaining;
+  }, [state.bonusGame, state.level, state.pelletsRemaining, state.status]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
@@ -612,6 +674,11 @@ export default function GameScreen() {
                 </Text>
               </View>
             )}
+            {bonusTutorialText && (
+              <View style={[styles.statusPill, styles.tutorialPill]}>
+                <Text style={styles.statusPillText}>{bonusTutorialText}</Text>
+              </View>
+            )}
             {activeEffects.length > 0 && (
               <View style={styles.effectRow}>
                 {activeEffects.map((effect) => (
@@ -783,6 +850,10 @@ export default function GameScreen() {
                 <Text style={styles.runStatsText}>Level Reached: {state.level}</Text>
                 <Text style={styles.runStatsText}>Final Score: {state.score}</Text>
                 <Text style={styles.runStatsText}>Time Survived: {fmtMs(hardcoreSurvivalMs)}</Text>
+                <Text style={styles.runStatsText}>Best Survival: {fmtMs(bestHardcoreSurvivalMs)}</Text>
+                <Text style={styles.runStatsText}>
+                  PB Delta: {hardcoreDeltaMs == null ? "NEW RUN" : fmtDeltaMs(hardcoreDeltaMs)}
+                </Text>
                 <Text style={styles.runStatsText}>Revives Used: {runStats.hardcoreRevivesUsed}</Text>
                 <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
                 <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
@@ -847,6 +918,10 @@ const styles = StyleSheet.create({
   },
   statusPillText: { color: "#f1f4ff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   statusPillSub: { color: "#9aa6ca", fontSize: 9, fontWeight: "800", marginTop: 2 },
+  tutorialPill: {
+    backgroundColor: "#2b1a40",
+    borderColor: "#f0abfc",
+  },
   effectRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   effectChip: {
     borderRadius: 999,

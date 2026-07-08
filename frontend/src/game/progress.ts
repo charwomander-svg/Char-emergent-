@@ -13,6 +13,7 @@ export interface ProgressData {
   selectedThemeId: string;
   unlockedThemes: string[]; // theme IDs unlocked
   highScore: number;
+  bestHardcoreSurvivalMs?: number;
 }
 
 const DEFAULT_PROGRESS: ProgressData = {
@@ -22,6 +23,7 @@ const DEFAULT_PROGRESS: ProgressData = {
   selectedThemeId: "classic",
   unlockedThemes: ["classic"],
   highScore: 0,
+  bestHardcoreSurvivalMs: 0,
 };
 
 export async function loadProgress(): Promise<ProgressData> {
