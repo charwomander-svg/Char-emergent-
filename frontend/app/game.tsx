@@ -67,6 +67,10 @@ interface RunTitle {
   emoji: string;
   label: string;
 }
+interface HiddenMedal {
+  emoji: string;
+  label: string;
+}
 
 export default function GameScreen() {
   const params = useLocalSearchParams<{
@@ -97,6 +101,7 @@ export default function GameScreen() {
     applyPowerUp,
     grantEndlessBlessing,
     getEndlessBlessings,
+    getRunHazardStats,
   } = useGhostMaze({
     mode,
     dailySeed: Number.isFinite(seed) ? seed : undefined,
@@ -147,6 +152,7 @@ export default function GameScreen() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const runStatsAnim = useRef(new Animated.Value(0)).current;
+  const runMedalAnim = useRef(new Animated.Value(0)).current;
   const [hardcoreSurvivalMs, setHardcoreSurvivalMs] = useState(0);
   const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
@@ -156,6 +162,8 @@ export default function GameScreen() {
   const seenBonusTutorialsRef = useRef<Set<string>>(new Set());
   const criticalPelletPingedLevelRef = useRef<number>(0);
   const previousPelletsRef = useRef(state.pelletsRemaining);
+  const levelStartAtRef = useRef<number>(performance.now());
+  const bestLevelClearMsRef = useRef<number | null>(null);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -254,6 +262,8 @@ export default function GameScreen() {
       previousLevelRef.current = state.level;
       levelStartElapsedRef.current = 0;
       previousComboRef.current = 0;
+      levelStartAtRef.current = performance.now();
+      bestLevelClearMsRef.current = null;
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
       hardcoreStartAtRef.current = null;
       setHardcoreSurvivalMs(0);
@@ -432,19 +442,36 @@ export default function GameScreen() {
     if (state.status !== "gameOver") return;
     if (reducedMotion) {
       runStatsAnim.setValue(1);
+      runMedalAnim.setValue(1);
+      getSoundEngine().uiClick();
       return;
     }
     runStatsAnim.setValue(0);
-    Animated.timing(runStatsAnim, {
-      toValue: 1,
-      duration: 240,
-      useNativeDriver: true,
-    }).start();
-  }, [state.status, reducedMotion, runStatsAnim]);
+    runMedalAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(runStatsAnim, {
+        toValue: 1,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+      Animated.spring(runMedalAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      getSoundEngine().uiClick();
+    });
+  }, [state.status, reducedMotion, runStatsAnim, runMedalAnim]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
     if (state.status === "levelWon" && previousStatus !== "levelWon") {
+      const clearMs = Math.max(0, performance.now() - levelStartAtRef.current);
+      bestLevelClearMsRef.current = bestLevelClearMsRef.current == null
+        ? clearMs
+        : Math.min(bestLevelClearMsRef.current, clearMs);
       const progress: Parameters<typeof recordDailyMissionProgress>[0] = { levelsCleared: 1 };
       if (
         state.bonusGame &&
@@ -468,6 +495,9 @@ export default function GameScreen() {
           setTimeout(() => setUnlockToast(null), 2400);
         }
       });
+    }
+    if ((state.status === "ready" || state.status === "playing") && previousStatus === "levelWon") {
+      levelStartAtRef.current = performance.now();
     }
     previousStatusRef.current = state.status;
   }, [state.bonusGame, state.status]);
@@ -675,6 +705,18 @@ export default function GameScreen() {
     if (state.score >= 10000) return { emoji: "🥈", label: "Master Haunter" };
     return { emoji: "🥉", label: "Restless Spirit" };
   }, [runStats.ghostLosses, state.message, state.score, state.status]);
+  const hiddenMedals: HiddenMedal[] = useMemo(() => {
+    if (state.status !== "gameOver") return [];
+    const medals: HiddenMedal[] = [];
+    if (getRunHazardStats().spikeTriggers === 0) medals.push({ emoji: "🧨", label: "Mine Sweeper" });
+    if (runStats.ghostLosses === 0) medals.push({ emoji: "👻", label: "Untouchable" });
+    if ((bestLevelClearMsRef.current ?? Number.POSITIVE_INFINITY) <= 45000) {
+      medals.push({ emoji: "⚡", label: "Speed Haunt" });
+    }
+    if (runStats.catches > 0 && runStats.powerUpsUsed === 0) medals.push({ emoji: "🎯", label: "Efficient Evil" });
+    if (state.lives === 1 && state.message?.includes("YOU BEAT ALL")) medals.push({ emoji: "💀", label: "Last Stand" });
+    return medals;
+  }, [getRunHazardStats, runStats.catches, runStats.ghostLosses, runStats.powerUpsUsed, state.lives, state.message, state.status]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -948,7 +990,16 @@ export default function GameScreen() {
           pointerEvents="none"
         >
           <View style={styles.runStatsCard} testID="hud-run-stats">
-            <Text style={styles.runStatsMedal}>{runTitle.emoji} {runTitle.label}</Text>
+            <Animated.View
+              style={{
+                transform: [
+                  { scale: runMedalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) },
+                  { rotate: runMedalAnim.interpolate({ inputRange: [0, 1], outputRange: ["-240deg", "0deg"] }) },
+                ],
+              }}
+            >
+              <Text style={styles.runStatsMedal}>{runTitle.emoji} {runTitle.label}</Text>
+            </Animated.View>
             {mode === "hardcore" ? (
               <>
                 <Text style={styles.runStatsTitle}>HARDCORE RUN</Text>
@@ -971,6 +1022,14 @@ export default function GameScreen() {
                 <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
                 <Text style={styles.runStatsText}>Power-Ups: {runStats.powerUpsUsed}</Text>
                 <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
+              </>
+            )}
+            {hiddenMedals.length > 0 && (
+              <>
+                <Text style={styles.hiddenMedalTitle}>HIDDEN MEDALS</Text>
+                <Text style={styles.hiddenMedalText}>
+                  {hiddenMedals.map((medal) => `${medal.emoji} ${medal.label}`).join("  ·  ")}
+                </Text>
               </>
             )}
           </View>
@@ -1158,6 +1217,8 @@ const styles = StyleSheet.create({
   runStatsTitle: { color: "#9fc4ff", fontWeight: "900", fontSize: 11, marginBottom: 4, letterSpacing: 0.8 },
   runStatsMedal: { color: "#ffe08a", fontWeight: "900", fontSize: 11, marginBottom: 6, letterSpacing: 0.6 },
   runStatsText: { color: "#d7def3", fontWeight: "800", fontSize: 10, lineHeight: 15 },
+  hiddenMedalTitle: { color: "#d9c7ff", fontWeight: "900", fontSize: 9, marginTop: 6, marginBottom: 2, letterSpacing: 0.7 },
+  hiddenMedalText: { color: "#f3e8ff", fontWeight: "800", fontSize: 9, lineHeight: 14 },
   blessingPanel: {
     marginTop: 6,
     borderRadius: 10,

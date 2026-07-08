@@ -59,6 +59,9 @@ export interface EndlessBlessingsState {
   hunterInstinct: number;
   slowArena: number;
 }
+export interface RunHazardStats {
+  spikeTriggers: number;
+}
 const EMPTY_EFFECTS: ActiveEffects = {
   speedBoostUntil: 0,
   freezeUntil: 0,
@@ -303,6 +306,7 @@ export function useGhostMaze(opts?: {
   // Ghost-house exit stagger
   const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
   const levelStartScoreRef = useRef<number>(0);
+  const runHazardStatsRef = useRef<RunHazardStats>({ spikeTriggers: 0 });
   const endlessBlessingsRef = useRef<EndlessBlessingsState>({
     hunterInstinct: 0,
     slowArena: 0,
@@ -341,6 +345,7 @@ export function useGhostMaze(opts?: {
       hunterInstinct: 0,
       slowArena: 0,
     };
+    runHazardStatsRef.current = { spikeTriggers: 0 };
     startLevel(1, STARTING_LIVES, 0);
   }, [startLevel]);
 
@@ -805,6 +810,10 @@ export function useGhostMaze(opts?: {
         const spikeArmUntil = effectsNext.spikeArmUntilByCell[`${g.x},${g.y}`] ?? 0;
         if (effectsNext.teamPhaseUntil > now || spikeArmUntil > now) continue;
         // Spike triggered. Consume the spike either way.
+        runHazardStatsRef.current = {
+          ...runHazardStatsRef.current,
+          spikeTriggers: runHazardStatsRef.current.spikeTriggers + 1,
+        };
         maze = maze.map((row, ry) =>
           ry === g.y
             ? row.map((c, cx) => (cx === g.x ? (0 as CellType) : c))
@@ -1427,5 +1436,6 @@ export function useGhostMaze(opts?: {
     bonusAction,
     grantEndlessBlessing,
     getEndlessBlessings: () => endlessBlessingsRef.current,
+    getRunHazardStats: () => runHazardStatsRef.current,
   };
 }
