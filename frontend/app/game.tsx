@@ -63,6 +63,11 @@ interface EndlessBlessingChoice {
   description: string;
 }
 
+interface RunTitle {
+  emoji: string;
+  label: string;
+}
+
 export default function GameScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
@@ -424,7 +429,7 @@ export default function GameScreen() {
   }, [state.ghosts]);
 
   useEffect(() => {
-    if (!(state.status === "gameOver" && state.message?.toLowerCase().includes("wiped"))) return;
+    if (state.status !== "gameOver") return;
     if (reducedMotion) {
       runStatsAnim.setValue(1);
       return;
@@ -435,7 +440,7 @@ export default function GameScreen() {
       duration: 240,
       useNativeDriver: true,
     }).start();
-  }, [state.status, state.message, reducedMotion, runStatsAnim]);
+  }, [state.status, reducedMotion, runStatsAnim]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -660,6 +665,16 @@ export default function GameScreen() {
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
   const isCompactHud = width < 390;
+  const runTitle: RunTitle = useMemo(() => {
+    const perfectRun =
+      state.status === "gameOver" &&
+      state.message?.includes("YOU BEAT ALL") &&
+      runStats.ghostLosses === 0;
+    if (perfectRun) return { emoji: "👑", label: "Ghost King" };
+    if (state.score >= 25000) return { emoji: "🥇", label: "Nightmare Incarnate" };
+    if (state.score >= 10000) return { emoji: "🥈", label: "Master Haunter" };
+    return { emoji: "🥉", label: "Restless Spirit" };
+  }, [runStats.ghostLosses, state.message, state.score, state.status]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -919,8 +934,8 @@ export default function GameScreen() {
         </View>
       )}
 
-      {/* Run-stats HUD: shown inline with the "squad wiped" game-over toast */}
-      {state.status === "gameOver" && state.message?.toLowerCase().includes('wiped') && (
+      {/* Run-stats HUD: shown inline on game-over toast */}
+      {state.status === "gameOver" && (
         <Animated.View
           style={[
             styles.unlockToast,
@@ -933,6 +948,7 @@ export default function GameScreen() {
           pointerEvents="none"
         >
           <View style={styles.runStatsCard} testID="hud-run-stats">
+            <Text style={styles.runStatsMedal}>{runTitle.emoji} {runTitle.label}</Text>
             {mode === "hardcore" ? (
               <>
                 <Text style={styles.runStatsTitle}>HARDCORE RUN</Text>
@@ -1140,6 +1156,7 @@ const styles = StyleSheet.create({
     minWidth: 180,
   },
   runStatsTitle: { color: "#9fc4ff", fontWeight: "900", fontSize: 11, marginBottom: 4, letterSpacing: 0.8 },
+  runStatsMedal: { color: "#ffe08a", fontWeight: "900", fontSize: 11, marginBottom: 6, letterSpacing: 0.6 },
   runStatsText: { color: "#d7def3", fontWeight: "800", fontSize: 10, lineHeight: 15 },
   blessingPanel: {
     marginTop: 6,
