@@ -195,9 +195,13 @@ function reachableFrom(
   return seen;
 }
 
-function repairConnectivity(grid: CellType[][], start: { x: number; y: number }) {
+function repairConnectivity(
+  grid: CellType[][],
+  start: { x: number; y: number },
+  forPelletGuy = false,
+) {
   for (let attempt = 0; attempt < MAZE_COLS * MAZE_ROWS; attempt++) {
-    const reachable = reachableFrom(grid, start);
+    const reachable = reachableFrom(grid, start, forPelletGuy);
     let target: { x: number; y: number } | null = null;
     let best = Infinity;
 
@@ -263,7 +267,7 @@ function decorateMaze(
     if (inBounds(x, y)) grid[y][x] = 0;
   }
 
-  repairConnectivity(grid, { x: ghostHouseX, y: ghostHouseY - 2 });
+  repairConnectivity(grid, { x: ghostHouseX, y: ghostHouseY - 2 }, true);
 
   let totalPellets = 0;
   for (let y = 0; y < rows; y++) {
@@ -469,6 +473,12 @@ export function generateMaze(
   if (inBounds(ghostHouseX + 1, ghostHouseY - 2)) {
     grid[ghostHouseY - 2][ghostHouseX + 1] = 0;
   }
+  if (inBounds(ghostHouseX, ghostHouseY + 2)) {
+    grid[ghostHouseY + 2][ghostHouseX] = 0;
+  }
+
+  // Ensure all walkable corridors are connected for pellet-guy pathing.
+  repairConnectivity(grid, { x: ghostHouseX, y: ghostHouseY - 2 }, true);
 
   // Fill all walkable cells (0) with pellets (2)
   let totalPellets = 0;
