@@ -14,6 +14,8 @@ export interface SettingsData {
   gamepadInvertY: boolean;
   gamepadDeadzone: number;
   reducedMotion: boolean;
+  sfxVolume: number;
+  musicVolume: number;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -26,6 +28,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
   gamepadInvertY: false,
   gamepadDeadzone: 0.55,
   reducedMotion: false,
+  sfxVolume: 0.6,
+  musicVolume: 0.45,
 };
 
 export async function loadSettings(): Promise<SettingsData> {

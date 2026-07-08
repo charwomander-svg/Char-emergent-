@@ -187,3 +187,42 @@ export function applyDirection(
 export function opposite(dir: Direction): Direction {
   return OPPOSITE[dir];
 }
+
+/**
+ * Autonomous ghost hunting AI.
+ * When no player direction is queued, ghosts use this to chase Pellet Guy.
+ * Aggression (how greedily they home in) scales from ~40% at level 1 to 85% at level 10+.
+ * Below that threshold the ghost picks a random valid non-reverse direction.
+ */
+export function chooseGhostHuntDirection(
+  maze: CellType[][],
+  ghost: Ghost,
+  pelletGuy: PelletGuy,
+  level: number,
+): Direction {
+  const validDirs = getValidDirections(maze, ghost.x, ghost.y, false);
+  if (validDirs.length === 0) return ghost.direction;
+
+  const rev = OPPOSITE[ghost.direction];
+  let candidates = validDirs.filter((d) => d !== rev);
+  if (candidates.length === 0) candidates = validDirs;
+
+  // Score by Manhattan distance to PG — lower is better
+  const scored = candidates.map((d) => {
+    const [dx, dy] = DELTAS[d];
+    const dist = Math.abs(ghost.x + dx - pelletGuy.x) + Math.abs(ghost.y + dy - pelletGuy.y);
+    return { dir: d, dist };
+  });
+  scored.sort((a, b) => a.dist - b.dist);
+
+  // Aggression ramps from 0.40 at level 1 to 0.85 at level 10+
+  const aggression = Math.min(0.85, 0.40 + (level - 1) * 0.05);
+
+  if (Math.random() < aggression) {
+    // Pick best direction (with tie-breaking randomness)
+    const best = scored[0].dist;
+    const top = scored.filter((s) => s.dist === best);
+    return top[Math.floor(Math.random() * top.length)].dir;
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
