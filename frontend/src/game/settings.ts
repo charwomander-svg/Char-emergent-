@@ -16,6 +16,8 @@ export interface SettingsData {
   reducedMotion: boolean;
   highContrast: boolean;
   largeHud: boolean;
+  soundTestFavorites: string[];
+  soundTestOrder: string[];
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -30,6 +32,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
   reducedMotion: false,
   highContrast: false,
   largeHud: false,
+  soundTestFavorites: [],
+  soundTestOrder: [],
 };
 
 export async function loadSettings(): Promise<SettingsData> {

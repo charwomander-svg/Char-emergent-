@@ -65,6 +65,14 @@ export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; 
   { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
 ];
 
+const TRACK_LABEL_BY_ID = Object.fromEntries(
+  SOUND_TEST_TRACKS.map((entry) => [entry.track, entry.label]),
+) as Record<MusicTrack, string>;
+
+export function getMusicTrackLabel(track: MusicTrack): string {
+  return TRACK_LABEL_BY_ID[track] ?? track;
+}
+
 interface SoundEngine {
   enabled: boolean;
   setEnabled: (b: boolean) => void;

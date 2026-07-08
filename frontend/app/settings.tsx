@@ -10,6 +10,21 @@ export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
+  const orderedSoundTestTracks = React.useMemo(() => {
+    const order = settings.soundTestOrder ?? [];
+    const orderMap = new Map(order.map((id, index) => [id, index]));
+    const favorites = new Set(settings.soundTestFavorites ?? []);
+    return [...SOUND_TEST_TRACKS].sort((a, b) => {
+      const favDiff = Number(favorites.has(b.id)) - Number(favorites.has(a.id));
+      if (favDiff !== 0) return favDiff;
+      const ai = orderMap.get(a.id);
+      const bi = orderMap.get(b.id);
+      if (ai != null && bi != null) return ai - bi;
+      if (ai != null) return -1;
+      if (bi != null) return 1;
+      return 0;
+    });
+  }, [settings.soundTestFavorites, settings.soundTestOrder]);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -246,7 +261,7 @@ export default function Settings() {
             </TouchableOpacity>
           </View>
           <Text style={styles.musicCardSub}>Tap a track to preview your favorites.</Text>
-          {SOUND_TEST_TRACKS.map((entry) => (
+          {orderedSoundTestTracks.map((entry) => (
             <TouchableOpacity
               key={entry.id}
               style={[
@@ -261,10 +276,28 @@ export default function Settings() {
                 }
                 getSoundEngine().startMusic(entry.track);
                 setActiveSoundTestTrack(entry.id);
+                const nextOrder = [entry.id, ...(settings.soundTestOrder ?? []).filter((id) => id !== entry.id)];
+                update("soundTestOrder", nextOrder);
               }}
               testID={`sound-test-${entry.id}`}
             >
-              <Text style={styles.soundTestTitle}>{entry.label}</Text>
+              <View style={styles.soundTestHeader}>
+                <Text style={styles.soundTestTitle}>{entry.label}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const current = new Set(settings.soundTestFavorites ?? []);
+                    if (current.has(entry.id)) current.delete(entry.id);
+                    else current.add(entry.id);
+                    update("soundTestFavorites", Array.from(current));
+                  }}
+                  style={styles.favoriteBtn}
+                  testID={`sound-test-fav-${entry.id}`}
+                >
+                  <Text style={styles.favoriteBtnText}>
+                    {(settings.soundTestFavorites ?? []).includes(entry.id) ? "★" : "☆"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.soundTestSub}>{entry.description}</Text>
             </TouchableOpacity>
           ))}
@@ -350,6 +383,16 @@ const styles = StyleSheet.create({
     borderColor: "#FFD23F",
     backgroundColor: "#202b4f",
   },
+  soundTestHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  favoriteBtn: {
+    borderWidth: 1,
+    borderColor: "#6a74ab",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#141d38",
+  },
+  favoriteBtnText: { color: "#FFE082", fontSize: 12, fontWeight: "900" },
   soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
   soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
 });

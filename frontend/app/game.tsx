@@ -24,7 +24,7 @@ import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
 import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
-import { getSoundEngine } from "@/src/game/sounds";
+import { getMusicTrackForLevel, getMusicTrackLabel, getSoundEngine } from "@/src/game/sounds";
 import {
   queueAchievementUnlock,
   recordSpeedrunLevelBest,
@@ -71,6 +71,11 @@ interface HiddenMedal {
   emoji: string;
   label: string;
 }
+
+const RUN_MEDAL_THRESHOLDS = {
+  silver: 10000,
+  gold: 25000,
+} as const;
 
 export default function GameScreen() {
   const params = useLocalSearchParams<{
@@ -695,14 +700,15 @@ export default function GameScreen() {
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
   const isCompactHud = width < 390;
+  const currentMusicLabel = getMusicTrackLabel(getMusicTrackForLevel(state.level, !!state.bonusGame));
   const runTitle: RunTitle = useMemo(() => {
     const perfectRun =
       state.status === "gameOver" &&
       state.message?.includes("YOU BEAT ALL") &&
       runStats.ghostLosses === 0;
     if (perfectRun) return { emoji: "👑", label: "Ghost King" };
-    if (state.score >= 25000) return { emoji: "🥇", label: "Nightmare Incarnate" };
-    if (state.score >= 10000) return { emoji: "🥈", label: "Master Haunter" };
+    if (state.score >= RUN_MEDAL_THRESHOLDS.gold) return { emoji: "🥇", label: "Nightmare Incarnate" };
+    if (state.score >= RUN_MEDAL_THRESHOLDS.silver) return { emoji: "🥈", label: "Master Haunter" };
     return { emoji: "🥉", label: "Restless Spirit" };
   }, [runStats.ghostLosses, state.message, state.score, state.status]);
   const hiddenMedals: HiddenMedal[] = useMemo(() => {
@@ -752,6 +758,10 @@ export default function GameScreen() {
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
               <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
+            </View>
+            <View style={styles.statusPill}>
+              <Text style={styles.statusPillText}>NOW PLAYING</Text>
+              <Text style={styles.statusPillSub}>{currentMusicLabel}</Text>
             </View>
             {mode === "endless" && endlessBlessingSummary && (
               <View style={styles.statusPill}>
