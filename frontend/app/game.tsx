@@ -705,16 +705,6 @@ export default function GameScreen() {
                 )}
               </View>
             )}
-            {state.status === "gameOver" && (
-              <View style={styles.runStatsCard} testID="run-stats">
-                <Text style={styles.runStatsTitle}>RUN STATS</Text>
-                <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
-                <Text style={styles.runStatsText}>Longest Combo: {runStats.longestCombo}</Text>
-                <Text style={styles.runStatsText}>Ghost Losses: {runStats.ghostLosses}</Text>
-                <Text style={styles.runStatsText}>Power-ups Used: {runStats.powerUpsUsed}</Text>
-                <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
-              </View>
-            )}
           </View>
         </View>
       </View>
@@ -731,7 +721,7 @@ export default function GameScreen() {
       )}
 
       {/* Run-stats HUD: shown inline with the "squad wiped" game-over toast */}
-      {state.status === "gameOver" && (
+      {state.status === "gameOver" && state.message?.toLowerCase().includes('wiped') && (
         <View style={[styles.unlockToast, { top: 80 }]} pointerEvents="none">
           <View style={styles.runStatsCard} testID="hud-run-stats">
             <Text style={styles.runStatsTitle}>RUN STATS</Text>
