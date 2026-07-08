@@ -546,8 +546,6 @@ export default function GameScreen() {
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
-            <Text style={styles.statusLabel}>CTCH</Text>
-            <Text style={[styles.statusValue, pulseCatch && styles.statPulse]}>{state.catches}</Text>
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
               <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
@@ -784,15 +782,6 @@ const styles = StyleSheet.create({
   },
   statusPillText: { color: "#f1f4ff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   statusPillSub: { color: "#9aa6ca", fontSize: 9, fontWeight: "800", marginTop: 2 },
-  bossMiniBarOuter: {
-    marginTop: 4,
-    height: 4,
-    width: 92,
-    borderRadius: 999,
-    backgroundColor: "#2f1220",
-    overflow: "hidden",
-  },
-  bossMiniBarInner: { height: 4, backgroundColor: "#ff305e", borderRadius: 999 },
   effectRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   effectChip: {
     borderRadius: 999,
