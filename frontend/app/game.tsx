@@ -104,8 +104,6 @@ export default function GameScreen() {
   const [highContrast, setHighContrast] = useState(DEFAULT_SETTINGS.highContrast);
   const [largeHud, setLargeHud] = useState(DEFAULT_SETTINGS.largeHud);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_SETTINGS.reducedMotion);
-  const [pulseCatch, setPulseCatch] = useState(false);
-  const [pulseCombo, setPulseCombo] = useState(false);
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
   const [runStats, setRunStats] = useState<RunStats>({
     catches: 0,
@@ -203,7 +201,7 @@ export default function GameScreen() {
         }
       }
     }
-  }, [mode, state.status, computeTimerMs, submitFinalScore]);
+  }, [mode, state.status, state.level, computeTimerMs, submitFinalScore]);
 
   useEffect(() => {
     if (mode !== "speedrun") return;
@@ -242,7 +240,7 @@ export default function GameScreen() {
       });
       setUnlockToast(null);
     }
-  }, [state.status, state.level, state.score]);
+  }, [state.status, state.level, state.score, state.ghosts]);
 
   useEffect(() => {
     if (mode !== "hardcore") return;
@@ -301,8 +299,6 @@ export default function GameScreen() {
     const previousCatches = previousCatchesRef.current;
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
-      setPulseCatch(true);
-      setTimeout(() => setPulseCatch(false), 180);
       setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
     }
     previousCatchesRef.current = state.catches;
@@ -310,8 +306,6 @@ export default function GameScreen() {
 
   useEffect(() => {
     if (state.comboCount > previousComboRef.current) {
-      setPulseCombo(true);
-      setTimeout(() => setPulseCombo(false), 180);
       setRunStats((stats) => ({
         ...stats,
         longestCombo: Math.max(stats.longestCombo, state.comboCount),
@@ -843,7 +837,6 @@ const styles = StyleSheet.create({
   },
   statusLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   statusValue: { color: "#f7fbff", fontSize: 14, fontWeight: "900", marginRight: 6 },
-  statPulse: { color: "#fff59d" },
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 8,

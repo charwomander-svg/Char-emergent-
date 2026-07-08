@@ -171,81 +171,9 @@ export function createBonusGame(
 // Per-tick update
 // ---------------------------------------------------------------------------
 
-const POOKA_INTERVAL_MS = 550; // how often a Pooka moves one cell
-
-function isWalkableCell(maze: CellType[][], x: number, y: number): boolean {
-  if (y < 0 || y >= maze.length || x < 0 || x >= maze[0].length) return false;
-  const c = maze[y][x];
-  return c !== 1 && c !== 7; // not a wall or barricade
-}
-
-function movePookaItem(
-  item: BonusItem,
-  maze: CellType[][],
-  now: number,
-): BonusItem {
-  if (item.collected || item.nextMoveAt == null || now < item.nextMoveAt) {
-    return item;
-  }
-
-  const DELTA: Record<string, [number, number]> = {
-    up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
-  };
-
-  let dir = item.dir ?? "right";
-
-  // Try current direction; if blocked pick a random valid direction.
-  const [dx, dy] = DELTA[dir];
-  let nx = item.x + dx;
-  let ny = item.y + dy;
-
-  if (!isWalkableCell(maze, nx, ny)) {
-    const validDirs = DIRS.filter((d) => {
-      const [vdx, vdy] = DELTA[d];
-      return isWalkableCell(maze, item.x + vdx, item.y + vdy);
-    });
-    if (validDirs.length === 0) {
-      return {
-        ...item,
-        nextMoveAt: now + POOKA_INTERVAL_MS,
-      };
-    }
-    dir = validDirs[Math.floor(Math.random() * validDirs.length)];
-    const [ndx, ndy] = DELTA[dir];
-    nx = item.x + ndx;
-    ny = item.y + ndy;
-  }
-
-  // Randomly change direction ~25% of the time even when straight is valid.
-  if (Math.random() < 0.25) {
-    const validDirs = DIRS.filter((d) => {
-      const [vdx, vdy] = DELTA[d];
-      return isWalkableCell(maze, item.x + vdx, item.y + vdy);
-    });
-    if (validDirs.length > 0) {
-      dir = validDirs[Math.floor(Math.random() * validDirs.length)];
-      const [rdx, rdy] = DELTA[dir];
-      nx = item.x + rdx;
-      ny = item.y + rdy;
-    }
-  }
-
-  return {
-    ...item,
-    x: nx,
-    y: ny,
-    dir,
-    nextMoveAt: now + POOKA_INTERVAL_MS + Math.floor(Math.random() * 150),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Player action hook retained for compatibility; bonus stages are walk-over only.
 // ---------------------------------------------------------------------------
-
-const DELTA: Record<BonusDir, [number, number]> = {
-  up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
-};
 
 export function fireBonusAction(
   bonus: BonusGameState,
