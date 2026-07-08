@@ -5,6 +5,7 @@
 
 import type { CellType, Direction, Ghost, PelletGuy } from "./types";
 import { isWalkable } from "./maze";
+import { MAZE_COLS } from "./constants";
 
 const OPPOSITE: Record<Direction, Direction> = {
   up: "down",
@@ -181,7 +182,12 @@ export function applyDirection(
   dir: Direction,
 ): { x: number; y: number } {
   const [dx, dy] = DELTAS[dir];
-  return { x: x + dx, y: y + dy };
+  let nx = x + dx;
+  const ny = y + dy;
+  // Side tunnel wrap: crossing left/right corridor edges teleports to opposite side.
+  if (dir === "left" && x <= 1) nx = MAZE_COLS - 2;
+  if (dir === "right" && x >= MAZE_COLS - 2) nx = 1;
+  return { x: nx, y: ny };
 }
 
 export function opposite(dir: Direction): Direction {

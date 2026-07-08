@@ -20,6 +20,7 @@ import {
   SCORE_COMBO_BONUS,
   SCORE_PER_PERCENT_REMAINING,
   SCORE_GHOST_EAT,
+  SCORE_SHINY_CATCH,
   SPEED,
   STARTING_LIVES,
   SUPER_PELLET_DURATION_MS,
@@ -287,6 +288,9 @@ export function useGhostMaze(opts?: {
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
   const lastPelletGuyMoveRef = useRef<number>(0);
+  const lastBonusTickRef = useRef<number>(0);
+  const shinyPelletUntilRef = useRef<number>(0);
+  const nextShinyRollAtRef = useRef<number>(0);
   const readyStartRef = useRef<number>(performance.now());
   const lastFrameRef = useRef<number>(performance.now());
   const rafRef = useRef<number | null>(null);
@@ -308,6 +312,9 @@ export function useGhostMaze(opts?: {
     readyStartRef.current = performance.now();
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
+    lastBonusTickRef.current = 0;
+    shinyPelletUntilRef.current = 0;
+    nextShinyRollAtRef.current = performance.now() + 8000;
     ghostReleaseAtRef.current = [0, 0, 0, 0];
     levelStartScoreRef.current = score;
     firstBarricadeSkippedRef.current = false;
@@ -355,9 +362,11 @@ export function useGhostMaze(opts?: {
 
   const selectGhost = useCallback((ghostId: GhostId) => {
     // Selecting a ghost should not reset its position or trigger spawns.
-    // During bonus rounds, only change the selectedGhostId so the active ghost
-    // switches without altering any ghost coordinates.
-    setState((prev) => ({ ...prev, selectedGhostId: ghostId }));
+    // Ignore selection requests for dead ghosts.
+    setState((prev) => {
+      if (!prev.ghosts[ghostId]?.alive) return prev;
+      return { ...prev, selectedGhostId: ghostId };
+    });
   }, []);
 
   const togglePause = useCallback(() => {
@@ -404,12 +413,17 @@ export function useGhostMaze(opts?: {
     const magnetActive = effects.magnetUntil > now;
     const teamPhaseActive = effects.teamPhaseUntil > now;
     const ghostSpeedMult = speedBoostActive ? 0.6 : 1.0;
-    const ghostInterval = SPEED.ghost * scale * ghostSpeedMult;
-    const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult;
+    const modeSpeedMult =
+      modeRef.current === "hardcore" ? 0.92
+      : modeRef.current === "speedrun" ? 0.95
+      : modeRef.current === "endless" ? 0.97
+      : 1.0;
+    const ghostInterval = SPEED.ghost * scale * ghostSpeedMult * modeSpeedMult;
+    const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult * modeSpeedMult;
     const idleMs = now - lastCatchAtRef.current;
     const idlePressure = modeRef.current !== "hardcore" && !prev.bonusGame && idleMs > 18000 ? 0.9 : 1;
     const pelletGuyPanicMultiplier = (prev.catches >= 2 ? 0.7 : prev.catches >= 1 ? 0.85 : 1) * idlePressure;
-    const pgInterval = SPEED.pelletGuy * scale * pelletGuyPanicMultiplier;
+    const pgInterval = SPEED.pelletGuy * scale * pelletGuyPanicMultiplier * (1 / modeSpeedMult);
 
     let nextState: GameState = prev;
     let mutated = false;
@@ -547,6 +561,56 @@ export function useGhostMaze(opts?: {
       }
     }
 
+    if (!bonusGame && pg.alive && now >= nextShinyRollAtRef.current) {
+      nextShinyRollAtRef.current = now + 10000;
+      if (Math.random() < 0.1) {
+        shinyPelletUntilRef.current = now + 5000;
+        message = "✨ SHINY PELLET GUY!";
+        mutated = true;
+      }
+    }
+
+    if (bonusGame && !bonusGame.complete && prev.status === "playing") {
+      if (lastBonusTickRef.current === 0 || now - lastBonusTickRef.current >= 110) {
+        lastBonusTickRef.current = now;
+        const activeGhost = newGhosts[prev.selectedGhostId];
+        const ghostPos = activeGhost?.alive ? [{ x: activeGhost.x, y: activeGhost.y }] : [];
+        const { next, collectedNow, bonusPointsEarned } = tickBonusGame(
+          bonusGame,
+          maze,
+          ghostPos,
+          now,
+        );
+        if (collectedNow > 0 || next.complete !== bonusGame.complete) {
+          score += bonusPointsEarned;
+          mutated = true;
+          if (collectedNow > 0) getSoundEngine().catchHit();
+        }
+        bonusGame = next;
+        if (bonusGame.complete) {
+          const allClear = bonusGame.collectedItems >= bonusGame.totalItems;
+          status = "levelWon";
+          message = allClear
+            ? `🎉 BONUS CLEAR!\n+${bonusGame.bonusScore} BONUS POINTS`
+            : `⏱ TIME UP!\n+${bonusGame.bonusScore} BONUS POINTS`;
+          if (allClear) void queueAchievementUnlock("bonus");
+          getSoundEngine().levelWin();
+          if (progressRef.current) {
+            const p = { ...progressRef.current };
+            p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
+            p.highScore = Math.max(p.highScore, score);
+            const normalized = withUnlockedThemes(p);
+            progressRef.current = normalized;
+            saveProgress(normalized);
+            void syncProgressAchievements(normalized);
+          }
+          if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
+          onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
+          mutated = true;
+        }
+      }
+    }
+
     if (!pg.alive) {
       if (now >= pg.respawnAt) {
         const respawn = findSafePelletGuyRespawn(maze, pg, newGhosts);
@@ -565,53 +629,6 @@ export function useGhostMaze(opts?: {
       // Bonus game tick: runs regardless of whether PG moves this frame.
       // Pookas (digDugDash) move on their own timers inside tickBonusGame.
       // -----------------------------------------------------------------
-      if (bonusGame && !bonusGame.complete && prev.status === "playing") {
-        // Only the selected ghost participates in bonus stages.
-        const activeGhost = newGhosts[prev.selectedGhostId];
-        const ghostPos = activeGhost?.alive
-          ? [{ x: activeGhost.x, y: activeGhost.y }]
-          : [];
-        const { next, collectedNow, bonusPointsEarned } = tickBonusGame(
-          bonusGame,
-          maze,
-          ghostPos,
-          now,
-        );
-        if (collectedNow > 0 || next.complete !== bonusGame.complete) {
-          bonusGame = next;
-          score += bonusPointsEarned;
-          mutated = true;
-          if (collectedNow > 0) getSoundEngine().catchHit();
-        } else {
-          bonusGame = next;
-        }
-
-        if (bonusGame.complete) {
-          const allClear = bonusGame.collectedItems >= bonusGame.totalItems;
-          status = "levelWon";
-          const config = BONUS_CONFIG[bonusGame.type];
-          if (allClear) {
-            message = `🎉 BONUS CLEAR!\n+${bonusGame.bonusScore} BONUS POINTS`;
-            void queueAchievementUnlock("bonus");
-          } else {
-            message = `⏱ TIME UP!\n+${bonusGame.bonusScore} BONUS POINTS`;
-          }
-          getSoundEngine().levelWin();
-          if (progressRef.current) {
-            const p = { ...progressRef.current };
-            p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
-            p.highScore = Math.max(p.highScore, score);
-            const normalized = withUnlockedThemes(p);
-            progressRef.current = normalized;
-            saveProgress(normalized);
-            void syncProgressAchievements(normalized);
-          }
-          if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
-          onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
-          mutated = true;
-        }
-      }
-
       // During a bonus level Pellet Guy is frozen — skip movement entirely.
       if (!bonusGame) {
       lastPelletGuyMoveRef.current = now;
@@ -892,6 +909,11 @@ export function useGhostMaze(opts?: {
             }
             lastComboTime = now;
             score += SCORE_CATCH;
+            if (shinyPelletUntilRef.current > now) {
+              score += SCORE_SHINY_CATCH;
+              shinyPelletUntilRef.current = 0;
+              message = `✨ SHINY CATCH!\n+${SCORE_SHINY_CATCH}`;
+            }
             if (triggeredCombo) {
               getSoundEngine().comboHit(comboCount);
             } else {

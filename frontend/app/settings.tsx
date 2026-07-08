@@ -185,6 +185,20 @@ export default function Settings() {
           onChange={(v) => update("reducedMotion", v)}
           testID="toggle-reduced-motion"
         />
+        <Row
+          label="High Contrast"
+          desc="Boost outlines and visibility for game entities"
+          value={settings.highContrast}
+          onChange={(v) => update("highContrast", v)}
+          testID="toggle-high-contrast"
+        />
+        <Row
+          label="Large HUD"
+          desc="Increase HUD size for readability"
+          value={settings.largeHud}
+          onChange={(v) => update("largeHud", v)}
+          testID="toggle-large-hud"
+        />
       </ScrollView>
     </SafeAreaView>
   );

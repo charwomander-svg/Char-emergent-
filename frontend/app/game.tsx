@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   PanResponder,
   useWindowDimensions,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
@@ -100,6 +101,9 @@ export default function GameScreen() {
   const [themeId, setThemeId] = useState("classic");
   const [gamepadDeadzone, setGamepadDeadzone] = useState(DEFAULT_SETTINGS.gamepadDeadzone);
   const [gamepadInvertY, setGamepadInvertY] = useState(DEFAULT_SETTINGS.gamepadInvertY);
+  const [highContrast, setHighContrast] = useState(DEFAULT_SETTINGS.highContrast);
+  const [largeHud, setLargeHud] = useState(DEFAULT_SETTINGS.largeHud);
+  const [reducedMotion, setReducedMotion] = useState(DEFAULT_SETTINGS.reducedMotion);
   const [pulseCatch, setPulseCatch] = useState(false);
   const [pulseCombo, setPulseCombo] = useState(false);
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
@@ -124,6 +128,7 @@ export default function GameScreen() {
   const previousUnlockedThemesRef = useRef<string[]>([]);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const runStatsAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -136,6 +141,9 @@ export default function GameScreen() {
     loadSettings().then((s) => {
       setGamepadDeadzone(s.gamepadDeadzone);
       setGamepadInvertY(s.gamepadInvertY);
+      setHighContrast(!!s.highContrast);
+      setLargeHud(!!s.largeHud);
+      setReducedMotion(!!s.reducedMotion);
     });
     void syncPlayGames();
   }, []);
@@ -291,6 +299,20 @@ export default function GameScreen() {
     }
     previousAliveCountRef.current = alive;
   }, [state.ghosts]);
+
+  useEffect(() => {
+    if (!(state.status === "gameOver" && state.message?.toLowerCase().includes("wiped"))) return;
+    if (reducedMotion) {
+      runStatsAnim.setValue(1);
+      return;
+    }
+    runStatsAnim.setValue(0);
+    Animated.timing(runStatsAnim, {
+      toValue: 1,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [state.status, state.message, reducedMotion, runStatsAnim]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -540,9 +562,13 @@ export default function GameScreen() {
             ready={state.status === "ready"}
             level={state.level}
             bonusGame={state.bonusGame}
+            highContrast={highContrast}
           />
         </View>
-        <View style={styles.footerHud} testID="hud-bottom">
+        <View
+          style={[styles.footerHud, largeHud && { transform: [{ scale: 1.08 }] }]}
+          testID="hud-bottom"
+        >
           <View style={styles.statusLine}>
             <Text style={styles.statusLabel}>PELLETS</Text>
             <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
@@ -722,7 +748,17 @@ export default function GameScreen() {
 
       {/* Run-stats HUD: shown inline with the "squad wiped" game-over toast */}
       {state.status === "gameOver" && state.message?.toLowerCase().includes('wiped') && (
-        <View style={[styles.unlockToast, { top: 80 }]} pointerEvents="none">
+        <Animated.View
+          style={[
+            styles.unlockToast,
+            {
+              top: 80,
+              opacity: runStatsAnim,
+              transform: [{ translateY: runStatsAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+            },
+          ]}
+          pointerEvents="none"
+        >
           <View style={styles.runStatsCard} testID="hud-run-stats">
             <Text style={styles.runStatsTitle}>RUN STATS</Text>
             <Text style={styles.runStatsText}>Catches: {runStats.catches}</Text>
@@ -731,7 +767,7 @@ export default function GameScreen() {
             <Text style={styles.runStatsText}>Power-Ups: {runStats.powerUpsUsed}</Text>
             <Text style={styles.runStatsText}>Bonus Clears: {runStats.bonusClears}</Text>
           </View>
-        </View>
+        </Animated.View>
       )}
     </SafeAreaView>
   );

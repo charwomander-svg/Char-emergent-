@@ -71,3 +71,4 @@ export const SCORE_CATCH = 200;
 export const SCORE_COMBO_BONUS = 300; // per extra ghost in combo
 export const SCORE_PER_PERCENT_REMAINING = 20; // level-end bonus
 export const SCORE_GHOST_EAT = 400; // points for pellet-guy eating a vulnerable ghost
+export const SCORE_SHINY_CATCH = 1000; // bonus points for catching shiny pellet guy

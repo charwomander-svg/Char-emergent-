@@ -14,6 +14,7 @@ interface Props {
   ready: boolean;
   level: number;
   bonusGame?: BonusGameState | null;
+  highContrast?: boolean;
 }
 
 function getWallPalette(level: number) {
@@ -251,12 +252,14 @@ const GhostSprite = React.memo(function GhostSprite({
   selected,
   ready,
   moveDuration,
+  highContrast = false,
 }: {
   ghost: Ghost;
   size: number;
   selected: boolean;
   ready: boolean;
   moveDuration: number;
+  highContrast?: boolean;
 }) {
   const { animX, animY } = useSmoothPosition(ghost.x, ghost.y, moveDuration, size);
 
@@ -315,7 +318,7 @@ const GhostSprite = React.memo(function GhostSprite({
             height: size,
             borderRadius: size / 2,
             borderWidth: 2,
-            borderColor: "#FFFFFF",
+            borderColor: highContrast ? "#FFFF00" : "#FFFFFF",
             opacity: 0.85,
           }}
         />
@@ -482,11 +485,13 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
   size,
   moveDuration,
   visualScale = 1,
+  highContrast = false,
 }: {
   pg: PelletGuy;
   size: number;
   moveDuration: number;
   visualScale?: number;
+  highContrast?: boolean;
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
 
@@ -572,6 +577,8 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           margin: size * 0.075,
           borderRadius: size * 0.425,
           backgroundColor: COLORS.pelletGuy,
+          borderWidth: highContrast ? 2 : 0,
+          borderColor: highContrast ? "#111111" : "transparent",
           transform: [{ rotate: rotation }],
           overflow: "hidden",
         }}
@@ -626,6 +633,7 @@ export default function MazeRenderer({
   ready,
   level,
   bonusGame,
+  highContrast = false,
 }: Props) {
   if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
@@ -719,6 +727,7 @@ export default function MazeRenderer({
             size={cellSize}
             moveDuration={pgDuration}
             visualScale={1}
+            highContrast={highContrast}
           />
         )}
         {ghosts
@@ -731,6 +740,7 @@ export default function MazeRenderer({
             selected={g.id === selectedGhostId}
             ready={ready}
             moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
+            highContrast={highContrast}
           />
         ))}
       </View>
