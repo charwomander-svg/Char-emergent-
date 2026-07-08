@@ -1,6 +1,7 @@
 // Main game state hook - manages the entire game logic
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  ActiveEffects,
   CellType,
   Direction,
   GameState,
@@ -39,7 +40,6 @@ import { getSoundEngine } from "./sounds";
 import { loadProgress, saveProgress, getTheme, ProgressData, withUnlockedThemes } from "./progress";
 import type { PowerUpId } from "./powerups";
 import { COIN_REWARD } from "./economy";
-import type { ActiveEffects } from "./types";
 import { loadSettings } from "./settings";
 import {
   isBonusLevel,
@@ -291,7 +291,6 @@ export function useGhostMaze(opts?: {
   const shinyPelletUntilRef = useRef<number>(0);
   const nextShinyRollAtRef = useRef<number>(0);
   const readyStartRef = useRef<number>(performance.now());
-  const lastFrameRef = useRef<number>(performance.now());
   const rafRef = useRef<number | null>(null);
   const stateRef = useRef<GameState>(state);
   stateRef.current = state;
@@ -1082,30 +1081,12 @@ export function useGhostMaze(opts?: {
       setState(nextState);
     }
   }, []);
-// --- Input Management ---
-  const inputRef = useRef<{
-    ghostId: GhostId;
-    dir: Direction;
-  } | null>(null);
-
-  const setInput = useCallback((ghostId: GhostId, dir: Direction) => {
-    inputRef.current = { ghostId, dir };
-  }, []);
-
-  const applyInput = useCallback(() => {
-    if (!inputRef.current) return;
-    const { ghostId, dir } = inputRef.current;
-    setGhostDirection(ghostId, dir);
-    inputRef.current = null;
-  }, [setGhostDirection]);
-
-  // --- Main Game Animation Loop ---
-  useEffect(() => {
-    const loop = (now: number) => {
-      tick(now);
-      applyInput();
-      rafRef.current = requestAnimationFrame(loop);
-    };
+ // --- Main Game Animation Loop ---
+ useEffect(() => {
+   const loop = (now: number) => {
+     tick(now);
+     rafRef.current = requestAnimationFrame(loop);
+   };
 
     rafRef.current = requestAnimationFrame(loop);
 
@@ -1114,7 +1095,9 @@ export function useGhostMaze(opts?: {
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [tick, applyInput]); const advanceLevel = useCallback(() => {
+  }, [tick]);
+
+  const advanceLevel = useCallback(() => {
     if (modeRef.current !== "endless" && state.level >= MAX_LEVELS) {
       // All 50 levels cleared — game complete!
       setState((prev) => ({

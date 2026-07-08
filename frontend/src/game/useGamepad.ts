@@ -152,11 +152,9 @@ export function useGamepad(cb: Callbacks) {
     rafId = requestAnimationFrame(poll);
 
     const onConnect = (e: Event) => {
-      // eslint-disable-next-line no-console
       console.log("[GhostMaze] Gamepad connected:", (e as any).gamepad?.id);
     };
     const onDisconnect = (e: Event) => {
-      // eslint-disable-next-line no-console
       console.log("[GhostMaze] Gamepad disconnected:", (e as any).gamepad?.id);
     };
 

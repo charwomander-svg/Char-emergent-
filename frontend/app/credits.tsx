@@ -9,10 +9,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { COLORS } from "@/src/game/constants";
+import { COLORS, MAX_LEVELS } from "@/src/game/constants";
 import { getSoundEngine } from "@/src/game/sounds";
 import { loadProgress, saveProgress } from "@/src/game/progress";
-import { MAX_LEVELS } from "@/src/game/constants";
 import { queueAchievementUnlock, syncPlayGames } from "@/src/game/playGames";
 
 const CHEAT_TAPS = 5;
