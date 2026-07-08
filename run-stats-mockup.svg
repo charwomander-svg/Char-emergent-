@@ -1,0 +1,16 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='720' height='240' viewBox='0 0 720 240'>
+  <rect width='100%' height='100%' fill='#0a0a12'/>
+  <g transform='translate(40,20)'>
+    <rect x='0' y='0' width='640' height='120' rx='12' fill='#11162a' stroke='#3e4b79' stroke-width='2'/>
+    <text x='18' y='28' font-family='Inter,Segoe UI,Arial' font-size='14' fill='#9fc4ff' font-weight='900'>RUN STATS</text>
+    <text x='18' y='52' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#d7def3' font-weight='800'>Catches: 3</text>
+    <text x='220' y='52' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#d7def3' font-weight='800'>Longest Combo: 7</text>
+    <text x='18' y='76' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#d7def3' font-weight='800'>Ghost Losses: 2</text>
+    <text x='220' y='76' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#d7def3' font-weight='800'>Power-Ups: 4</text>
+    <text x='18' y='100' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#d7def3' font-weight='800'>Bonus Clears: 1</text>
+    <g transform='translate(520,16)'>
+      <rect x='0' y='0' width='100' height='40' rx='8' fill='#ffd23f' opacity='0.95'/>
+      <text x='50' y='26' font-family='Inter,Segoe UI,Arial' font-size='12' fill='#111' font-weight='900' text-anchor='middle'>OK</text>
+    </g>
+  </g>
+</svg>
