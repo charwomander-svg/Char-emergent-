@@ -22,6 +22,14 @@ import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 
 const QUICK_SLOT_IDS: PowerUpId[] = POWER_UP_ORDER;
 
+// Escalating coin cost for each continue: 20, 50, 100, 200, 300, 400, …
+// (index 0 = first continue = 20, index 1 = 50, index 2+ = 100 + (index-2)*100)
+function getContinueCost(continueCount: number): number {
+  if (continueCount === 0) return 20;
+  if (continueCount === 1) return 50;
+  return 100 + (continueCount - 2) * 100;
+}
+
 function fmtMs(ms: number): string {
   const totalMs = Math.max(0, Math.floor(ms));
   const m = Math.floor(totalMs / 60000);
@@ -42,7 +50,7 @@ export default function GameScreen() {
     : "classic";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
-  const { earnCoins, inventory, useInventory: consumeInventory } = useEconomy();
+  const { earnCoins, spendCoins, inventory, useInventory: consumeInventory, coins } = useEconomy();
   const {
     state,
     setGhostDirection,
@@ -50,6 +58,7 @@ export default function GameScreen() {
     togglePause,
     advanceLevel,
     retryLevel,
+    continueGame,
     startNewGame,
     submitFinalScore,
     applyPowerUp,
@@ -69,6 +78,9 @@ export default function GameScreen() {
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
+
+  // Tracks how many times the player has continued this game (for escalating cost)
+  const [continueCount, setContinueCount] = useState(0);
 
   // Survival timer — tracks total play time for all modes; freezes on game over
   const [survivalMs, setSurvivalMs] = useState(0);
@@ -146,6 +158,7 @@ export default function GameScreen() {
       survivalAccumulatedRef.current = 0;
       survivalRunningFromRef.current = null;
       setSurvivalMs(0);
+      setContinueCount(0);
     }
   }, [state.status, state.level, state.score]);
 
@@ -292,6 +305,17 @@ export default function GameScreen() {
     if (!applied) return;
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory]);
+
+  const handleContinue = useCallback(() => {
+    const cost = getContinueCost(continueCount);
+    const success = spendCoins(cost);
+    if (!success) return;
+    setContinueCount((c) => c + 1);
+    continueGame();
+  }, [continueCount, spendCoins, continueGame]);
+
+  const continueCost = getContinueCost(continueCount);
+  const canAffordContinue = coins >= continueCost;
 
   const bossHpPct = state.boss ? Math.max(0, (state.boss.hp / state.boss.maxHp) * 100) : 0;
 
@@ -501,6 +525,19 @@ export default function GameScreen() {
                 <Text style={styles.gameOverStatValue}>{fmtMs(survivalMs)}</Text>
               </View>
             </View>
+            <TouchableOpacity
+              style={[styles.gameOverContinueBtn, !canAffordContinue && styles.gameOverContinueBtnDisabled]}
+              onPress={handleContinue}
+              disabled={!canAffordContinue}
+              testID="continue-btn"
+            >
+              <Text style={styles.gameOverContinueBtnText}>
+                🪙 CONTINUE ({continueCost} coins)
+              </Text>
+              {!canAffordContinue && (
+                <Text style={styles.gameOverContinueHint}>Not enough coins</Text>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.gameOverBtn}
               onPress={startNewGame}
@@ -835,4 +872,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   gameOverBtnText: { color: "#fff", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
+  gameOverContinueBtn: {
+    backgroundColor: "#f5a623",
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 12,
+    alignItems: "center",
+  },
+  gameOverContinueBtnDisabled: {
+    backgroundColor: "#555",
+  },
+  gameOverContinueBtnText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 15,
+    letterSpacing: 1,
+  },
+  gameOverContinueHint: {
+    color: "#ffcf7a",
+    fontSize: 11,
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
 });

@@ -902,6 +902,10 @@ export function useGhostMaze(opts?: {
     startLevel(state.level, state.lives, state.score);
   }, [state.level, state.lives, state.score, startLevel]);
 
+  const continueGame = useCallback(() => {
+    startLevel(state.level, STARTING_LIVES, state.score);
+  }, [state.level, state.score, startLevel]);
+
   const submitFinalScore = useCallback(
     async (playerName: string, runTimeMs?: number) => {
       const { submitScore } = await import("./api");
@@ -1116,6 +1120,7 @@ export function useGhostMaze(opts?: {
     startNewGame,
     advanceLevel,
     retryLevel,
+    continueGame,
     submitFinalScore,
     applyPowerUp,
   };

@@ -69,6 +69,18 @@ export function useEconomy() {
     [persist],
   );
 
+  const spendCoins = useCallback(
+    (amount: number): boolean => {
+      const cur = econRef.current;
+      if (!cur) return false;
+      const next = _spendCoins(cur, amount);
+      if (!next) return false;
+      persist(next);
+      return true;
+    },
+    [persist],
+  );
+
   const grantCoins = useCallback(
     (amount: number) => {
       const cur = econRef.current;
@@ -95,6 +107,7 @@ export function useEconomy() {
     economy,
     earnCoins,
     grantCoins,
+    spendCoins,
     buyPowerUp,
     useInventory,
     syncServerBalance,
