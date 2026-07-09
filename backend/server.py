@@ -2,12 +2,14 @@ from fastapi import FastAPI, APIRouter, HTTPException, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import DuplicateKeyError
 import os
 import logging
 import hashlib
+import json
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any
 import uuid
 from datetime import datetime, timezone, date
 
@@ -136,6 +138,84 @@ class LeaderboardSummary(BaseModel):
     overall_best: Optional[ScoreEntry] = None
     level_bests: List[ScoreEntry]
     aggregate_bests: List[ScoreEntry] = []
+
+
+class PromoRedeemRequest(BaseModel):
+    player_id: str = Field(min_length=4, max_length=128)
+    code: str = Field(min_length=1, max_length=64)
+
+    @field_validator("player_id", mode="before")
+    @classmethod
+    def sanitize_player_id(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("player_id cannot be blank")
+        return cleaned[:128]
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def sanitize_code(cls, value: str) -> str:
+        cleaned = (value or "").strip().upper()
+        cleaned = "".join(ch for ch in cleaned if ch.isalnum() or ch in ("-", "_"))
+        if not cleaned:
+            raise ValueError("code cannot be blank")
+        return cleaned[:64]
+
+
+class PromoRewards(BaseModel):
+    coins: int = 0
+    powerUps: dict[str, int] = Field(default_factory=dict)
+
+
+class PromoRedeemResponse(BaseModel):
+    code: str
+    message: str
+    rewards: PromoRewards
+
+
+_PROMO_CODES_CACHE: Optional[dict[str, dict[str, Any]]] = None
+
+
+def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
+    global _PROMO_CODES_CACHE
+    if _PROMO_CODES_CACHE is not None:
+        return _PROMO_CODES_CACHE
+
+    raw = os.getenv("PROMO_CODES_JSON", "").strip()
+    if not raw:
+        _PROMO_CODES_CACHE = {}
+        return _PROMO_CODES_CACHE
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("Invalid PROMO_CODES_JSON")
+        _PROMO_CODES_CACHE = {}
+        return _PROMO_CODES_CACHE
+
+    codes: dict[str, dict[str, Any]] = {}
+    if isinstance(parsed, list):
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            code = str(item.get("code", "")).strip().upper()
+            code = "".join(ch for ch in code if ch.isalnum() or ch in ("-", "_"))
+            if not code:
+                continue
+            codes[code] = item
+    elif isinstance(parsed, dict):
+        for raw_code, item in parsed.items():
+            if not isinstance(item, dict):
+                continue
+            code = str(raw_code).strip().upper()
+            code = "".join(ch for ch in code if ch.isalnum() or ch in ("-", "_"))
+            if not code:
+                continue
+            item["code"] = code
+            codes[code] = item
+
+    _PROMO_CODES_CACHE = codes
+    return codes
 
 
 @api_router.get("/daily-seed", response_model=DailySeedInfo)
@@ -319,6 +399,93 @@ async def leaderboard_summary(
         overall_best=overall_best,
         level_bests=level_bests,
         aggregate_bests=aggregate_bests[:5],
+    )
+
+
+@api_router.post("/promo/redeem", response_model=PromoRedeemResponse)
+async def promo_redeem(body: PromoRedeemRequest):
+    code = body.code
+    player_id = body.player_id
+
+    redemptions = db.promo_redemptions
+    promo_codes = db.promo_codes
+
+    redemption_id = f"{code}:{player_id}"
+    already = await redemptions.find_one({"_id": redemption_id}, {"_id": 1})
+    if already:
+        raise HTTPException(status_code=409, detail="Code already redeemed for this player")
+
+    promo = await promo_codes.find_one({"_id": code})
+    if promo is None:
+        promo = _load_env_promo_codes().get(code)
+        if promo is None:
+            raise HTTPException(status_code=404, detail="Promo code not found")
+
+    if promo.get("active", True) is False:
+        raise HTTPException(status_code=400, detail="Promo code is inactive")
+
+    expires_at = promo.get("expires_at")
+    if isinstance(expires_at, datetime):
+        now = datetime.now(timezone.utc)
+        exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        if now > exp:
+            raise HTTPException(status_code=400, detail="Promo code expired")
+
+    rewards_raw = promo.get("rewards", {}) if isinstance(promo, dict) else {}
+    if not isinstance(rewards_raw, dict):
+        rewards_raw = {}
+    coins = rewards_raw.get("coins", 0)
+    power_ups = rewards_raw.get("powerUps", {})
+
+    safe_coins = max(0, int(coins)) if isinstance(coins, (int, float)) else 0
+    safe_power_ups: dict[str, int] = {}
+    if isinstance(power_ups, dict):
+        for key, value in power_ups.items():
+            k = str(key).strip()
+            if not k:
+                continue
+            qty = int(value) if isinstance(value, (int, float)) else 0
+            if qty > 0:
+                safe_power_ups[k] = qty
+
+    if safe_coins <= 0 and not safe_power_ups:
+        raise HTTPException(status_code=400, detail="Promo code has no rewards configured")
+
+    max_redemptions = promo.get("max_redemptions")
+    redeemed_count = int(promo.get("redeemed_count", 0) or 0)
+    if isinstance(max_redemptions, int):
+        if redeemed_count >= max_redemptions:
+            raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
+        if await promo_codes.find_one({"_id": code}, {"_id": 1}) is None:
+            total = await redemptions.count_documents({"code": code})
+            if total >= max_redemptions:
+                raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
+        else:
+            update_result = await promo_codes.update_one(
+                {"_id": code, "redeemed_count": redeemed_count},
+                {"$inc": {"redeemed_count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+            )
+            if update_result.matched_count == 0:
+                raise HTTPException(status_code=409, detail="Promo redemption conflict, please retry")
+
+    now = datetime.now(timezone.utc)
+    try:
+        await redemptions.insert_one(
+            {
+                "_id": redemption_id,
+                "code": code,
+                "player_id": player_id,
+                "rewards": {"coins": safe_coins, "powerUps": safe_power_ups},
+                "created_at": now,
+            }
+        )
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="Code already redeemed for this player")
+
+    return PromoRedeemResponse(
+        code=code,
+        message="Promo code redeemed",
+        rewards=PromoRewards(coins=safe_coins, powerUps=safe_power_ups),
     )
 
 
