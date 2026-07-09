@@ -69,6 +69,12 @@ export default function GameScreen() {
   const timerAccumulatedRef = useRef(0);
   const timerRunningFromRef = useRef<number | null>(null);
   const submittedSpeedrunRef = useRef(false);
+
+  // Survival timer — tracks total play time for all modes; freezes on game over
+  const [survivalMs, setSurvivalMs] = useState(0);
+  const survivalAccumulatedRef = useRef(0);
+  const survivalRunningFromRef = useRef<number | null>(null);
+
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -79,6 +85,11 @@ export default function GameScreen() {
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
     return timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current);
+  }, []);
+
+  const computeSurvivalMs = useCallback(() => {
+    if (survivalRunningFromRef.current == null) return survivalAccumulatedRef.current;
+    return survivalAccumulatedRef.current + (performance.now() - survivalRunningFromRef.current);
   }, []);
 
   useEffect(() => {
@@ -108,12 +119,33 @@ export default function GameScreen() {
     return () => clearInterval(id);
   }, [mode, computeTimerMs]);
 
+  // Survival timer control
+  useEffect(() => {
+    if (state.status === "playing" && survivalRunningFromRef.current == null) {
+      survivalRunningFromRef.current = performance.now();
+    }
+    if (state.status !== "playing" && survivalRunningFromRef.current != null) {
+      survivalAccumulatedRef.current += performance.now() - survivalRunningFromRef.current;
+      survivalRunningFromRef.current = null;
+      setSurvivalMs(survivalAccumulatedRef.current);
+    }
+  }, [state.status]);
+
+  useEffect(() => {
+    if (state.status !== "playing") return;
+    const id = setInterval(() => setSurvivalMs(computeSurvivalMs()), 100);
+    return () => clearInterval(id);
+  }, [state.status, computeSurvivalMs]);
+
   useEffect(() => {
     if (state.status === "ready" && state.level === 1 && state.score === 0) {
       timerAccumulatedRef.current = 0;
       timerRunningFromRef.current = null;
       setElapsedMs(0);
       submittedSpeedrunRef.current = false;
+      survivalAccumulatedRef.current = 0;
+      survivalRunningFromRef.current = null;
+      setSurvivalMs(0);
     }
   }, [state.status, state.level, state.score]);
 
@@ -415,7 +447,7 @@ export default function GameScreen() {
             <TouchableOpacity onPress={togglePause} style={styles.pauseBtn} testID="pause-btn">
               <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
             </TouchableOpacity>
-            {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
+            {(state.status === "levelWon" || state.status === "levelLost") && (
               <View style={styles.stateActions}>
                 {state.status === "levelWon" && (
                   <TouchableOpacity onPress={advanceLevel} style={styles.stateBtn} testID="next-level-btn">
@@ -427,22 +459,58 @@ export default function GameScreen() {
                     <Text style={styles.stateBtnText}>RETRY LEVEL</Text>
                   </TouchableOpacity>
                 )}
-                {state.status === "gameOver" && (
-                  <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
-                    <Text style={styles.stateBtnText}>NEW GAME</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             )}
           </View>
         </View>
       </View>
 
-      {(state.message || state.status === "paused") && (
+      {(state.message || state.status === "paused") && state.status !== "gameOver" && (
         <View style={styles.messageOverlay} pointerEvents="none" testID="status-message">
           <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : state.message}</Text>
         </View>
       )}
+
+      {/* Game Over Stats Modal */}
+      <Modal
+        visible={state.status === "gameOver"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.gameOverOverlay}>
+          <View style={styles.gameOverCard}>
+            <Text style={styles.gameOverEmoji}>💀</Text>
+            <Text style={styles.gameOverTitle}>GAME OVER</Text>
+            <Text style={styles.gameOverReason}>{state.message.replace("GAME OVER\n", "")}</Text>
+            <View style={styles.gameOverStats}>
+              <View style={styles.gameOverStatRow}>
+                <Text style={styles.gameOverStatLabel}>SCORE</Text>
+                <Text style={styles.gameOverStatValue}>{state.score}</Text>
+              </View>
+              <View style={styles.gameOverStatRow}>
+                <Text style={styles.gameOverStatLabel}>LEVEL REACHED</Text>
+                <Text style={styles.gameOverStatValue}>{state.level}</Text>
+              </View>
+              <View style={styles.gameOverStatRow}>
+                <Text style={styles.gameOverStatLabel}>TOTAL CATCHES</Text>
+                <Text style={styles.gameOverStatValue}>{state.catches}</Text>
+              </View>
+              <View style={styles.gameOverStatRow}>
+                <Text style={styles.gameOverStatLabel}>TIME SURVIVED</Text>
+                <Text style={styles.gameOverStatValue}>{fmtMs(survivalMs)}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.gameOverBtn}
+              onPress={startNewGame}
+              testID="new-game-btn"
+            >
+              <Text style={styles.gameOverBtnText}>▶ NEW GAME</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* PB Screenshot Modal */}
       <Modal
@@ -697,4 +765,74 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pbModalBtnText: { color: "#000", fontWeight: "900", fontSize: 14, letterSpacing: 2 },
+  gameOverOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  gameOverCard: {
+    backgroundColor: "#0a0a1e",
+    borderWidth: 3,
+    borderColor: "#ff305e",
+    borderRadius: 20,
+    padding: 32,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 380,
+  },
+  gameOverEmoji: { fontSize: 56, marginBottom: 8 },
+  gameOverTitle: {
+    color: "#ff305e",
+    fontWeight: "900",
+    fontSize: 36,
+    letterSpacing: 4,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  gameOverReason: {
+    color: "#c0c8e8",
+    fontSize: 14,
+    letterSpacing: 1,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  gameOverStats: {
+    width: "100%",
+    gap: 12,
+    marginBottom: 28,
+  },
+  gameOverStatRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#111428",
+    borderWidth: 1,
+    borderColor: "#2b3357",
+  },
+  gameOverStatLabel: {
+    color: "#95a2c8",
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  gameOverStatValue: {
+    color: "#f7fbff",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 1,
+    fontVariant: ["tabular-nums"],
+  },
+  gameOverBtn: {
+    backgroundColor: "#ff305e",
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  gameOverBtnText: { color: "#fff", fontWeight: "900", fontSize: 16, letterSpacing: 2 },
 });
