@@ -144,6 +144,21 @@ export default function MainMenu() {
           <Text style={styles.charactersBtnText}>⚙️ SETTINGS</Text>
         </TouchableOpacity>
 
+        {/* Visual Novel */}
+        <TouchableOpacity
+          style={[styles.charactersBtn, { borderColor: "#BD93F9", marginTop: 24 }]}
+          onPress={() => {
+            getSoundEngine().uiClick();
+            router.push("/novel");
+          }}
+          testID="novel-btn"
+        >
+          <Text style={[styles.charactersBtnText, { color: "#BD93F9" }]}>📖 PIXEL DEEP FEELINGS</Text>
+          <Text style={{ color: "#555577", fontSize: 9, textAlign: "center", marginTop: 2, letterSpacing: 1 }}>
+            A VISUAL NOVEL · ~40 MIN
+          </Text>
+        </TouchableOpacity>
+
         {/* How to play */}
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
