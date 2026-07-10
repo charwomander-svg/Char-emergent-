@@ -1171,8 +1171,8 @@ export function useGhostMaze(opts?: {
       getSoundEngine().levelWin();
       return;
     }
-    startLevel(state.level + 1, state.lives, state.score);
-  }, [state.level, state.lives, state.score, startLevel]);
+    startLevel(state.level + 1, STARTING_LIVES, state.score);
+  }, [state.level, state.score, startLevel]);
 
   const retryLevel = useCallback(() => {
     startLevel(state.level, state.lives, state.score);
