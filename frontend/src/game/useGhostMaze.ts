@@ -546,6 +546,7 @@ export function useGhostMaze(opts?: {
     let status: GameState["status"] = prev.status;
     let message = prev.message;
     let effectsNext: ActiveEffects = effects;
+    let lives = prev.lives;
 
     if (
       themeIdRef.current === "spectre" &&
@@ -622,7 +623,7 @@ export function useGhostMaze(opts?: {
             saveProgress(normalized);
             void syncProgressAchievements(normalized);
           }
-          if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
+          if (prev.lives <= 3) void queueAchievementUnlock("closeCall");
           onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
           mutated = true;
         }
@@ -851,6 +852,23 @@ export function useGhostMaze(opts?: {
         };
         score += SCORE_SPIKED_GHOST_PENALTY;
         getSoundEngine().ghostEaten();
+        if (!hardcoreMode) {
+          lives--;
+          if (lives <= 0) {
+            status = "gameOver";
+            message = "GAME OVER\nAll ghost lives lost!";
+            getSoundEngine().levelLose();
+            getSoundEngine().fadeMusicTo(0, 240);
+            setTimeout(() => getSoundEngine().stopMusic(), 260);
+            if (progressRef.current) {
+              const p = { ...progressRef.current };
+              p.highScore = Math.max(p.highScore, score);
+              const normalized = withUnlockedThemes(p);
+              progressRef.current = normalized;
+              saveProgress(normalized);
+            }
+          }
+        }
         mutated = true;
       }
     }
@@ -859,7 +877,6 @@ export function useGhostMaze(opts?: {
     let catches = prev.catches;
     let lastComboTime = prev.lastComboTime;
     let comboCount = prev.comboCount;
-    let lives = prev.lives;
 
     if (pg.alive) {
       for (let i = 0; i < newGhosts.length; i++) {
@@ -912,6 +929,23 @@ export function useGhostMaze(opts?: {
             getSoundEngine().ghostEaten();
             // Award points when Pellet Guy eats a vulnerable ghost
             score += SCORE_GHOST_EAT;
+            if (!hardcoreMode) {
+              lives--;
+              if (lives <= 0) {
+                status = "gameOver";
+                message = "GAME OVER\nAll ghost lives lost!";
+                getSoundEngine().levelLose();
+                getSoundEngine().fadeMusicTo(0, 240);
+                setTimeout(() => getSoundEngine().stopMusic(), 260);
+                if (progressRef.current) {
+                  const p = { ...progressRef.current };
+                  p.highScore = Math.max(p.highScore, score);
+                  const normalized = withUnlockedThemes(p);
+                  progressRef.current = normalized;
+                  saveProgress(normalized);
+                }
+              }
+            }
           } else {
             if (effectsNext.teamPhaseUntil > now) continue;
             // ------------------------------------------------------------
@@ -996,7 +1030,7 @@ export function useGhostMaze(opts?: {
               }
               if (prev.level === 1) void queueAchievementUnlock("oneAndDone");
               if (comboCount >= 2) void queueAchievementUnlock("freeHugs");
-              if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
+              if (prev.lives <= 3) void queueAchievementUnlock("closeCall");
               if (pelletsRemaining <= Math.max(1, Math.floor(prev.totalPellets * 0.15))) {
                 void queueAchievementUnlock("pelletSchmellet");
               }
@@ -1042,34 +1076,29 @@ export function useGhostMaze(opts?: {
           hardcoreEliminatedRef.current = newGhosts
             .filter((g) => g.permaDead)
             .map((g) => g.id);
-        }
-        if (aliveGhosts === 0) {
-          if (!hardcoreMode) {
-            lives--;
-          }
-          if (lives <= 0) {
-            status = "gameOver";
-            message = hardcoreMode
-              ? "GAME OVER\nYour squad was wiped out!"
-              : "GAME OVER\nAll ghosts devoured!";
-            getSoundEngine().levelLose();
-            getSoundEngine().fadeMusicTo(0, 240);
-            setTimeout(() => getSoundEngine().stopMusic(), 260);
-            if (progressRef.current) {
-              const p = { ...progressRef.current };
-              p.highScore = Math.max(p.highScore, score);
-              const normalized = withUnlockedThemes(p);
-              progressRef.current = normalized;
-              saveProgress(normalized);
+          if (aliveGhosts === 0) {
+            if (lives <= 0) {
+              status = "gameOver";
+              message = "GAME OVER\nYour squad was wiped out!";
+              getSoundEngine().levelLose();
+              getSoundEngine().fadeMusicTo(0, 240);
+              setTimeout(() => getSoundEngine().stopMusic(), 260);
+              if (progressRef.current) {
+                const p = { ...progressRef.current };
+                p.highScore = Math.max(p.highScore, score);
+                const normalized = withUnlockedThemes(p);
+                progressRef.current = normalized;
+                saveProgress(normalized);
+              }
+            } else {
+              status = "levelLost";
+              message = "LEVEL FAILED\nYour squad is down!";
+              getSoundEngine().levelLose();
             }
-          } else {
-            status = "levelLost";
-            message = hardcoreMode
-              ? "LEVEL FAILED\nYour squad is down!"
-              : "PELLET GUY WINS!\nHe ate all your ghosts!";
-            getSoundEngine().levelLose();
           }
         }
+        // In non-hardcore mode, individual ghost deaths already cost hearts (lives).
+        // Ghosts respawn automatically; the game ends when lives reach 0 (handled above).
       }
     }
 
@@ -1414,7 +1443,7 @@ export function useGhostMaze(opts?: {
       return true;
     }
     if (id === "extraLife") {
-      setState((prev) => ({ ...prev, lives: Math.min(5, prev.lives + 1), message: "BLESSING: +1 LIFE" }));
+      setState((prev) => ({ ...prev, lives: Math.min(20, prev.lives + 1), message: "BLESSING: +1 LIFE" }));
       return true;
     }
     return false;

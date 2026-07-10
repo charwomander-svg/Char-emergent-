@@ -654,10 +654,6 @@ export default function GameScreen() {
     })),
     [inventory],
   );
-  const lifeDots = useMemo(
-    () => Array.from({ length: 3 }, (_, index) => index < state.lives),
-    [state.lives],
-  );
   const statusLabel = state.status === "playing"
     ? "LIVE"
     : state.status === "paused"
@@ -720,7 +716,7 @@ export default function GameScreen() {
       medals.push({ emoji: "⚡", label: "Speed Haunt" });
     }
     if (runStats.catches > 0 && runStats.powerUpsUsed === 0) medals.push({ emoji: "🎯", label: "Efficient Evil" });
-    if (state.lives === 1 && state.message?.includes("YOU BEAT ALL")) medals.push({ emoji: "💀", label: "Last Stand" });
+    if (state.lives <= 3 && state.message?.includes("YOU BEAT ALL")) medals.push({ emoji: "💀", label: "Last Stand" });
     return medals;
   }, [getRunHazardStats, runStats.catches, runStats.ghostLosses, runStats.powerUpsUsed, state.lives, state.message, state.status]);
 
@@ -818,12 +814,13 @@ export default function GameScreen() {
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
                 <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
-                <View style={[styles.lifeHearts, state.lives <= 1 && styles.lowLivesWarning]} testID="hud-lives">
-                  {lifeDots.map((filled, index) => (
-                    <Text key={index} style={[styles.lifeHeart, !filled && styles.lifeHeartEmpty]}>
-                      ♥
-                    </Text>
-                  ))}
+                <View style={[styles.lifeHearts, state.lives <= 5 && styles.lowLivesWarning]} testID="hud-lives">
+                  <Text style={[styles.lifeHeart, state.lives === 0 && styles.lifeHeartEmpty]}>
+                    ♥
+                  </Text>
+                  <Text style={[styles.lifeHeartCount, state.lives === 0 && styles.lifeHeartEmpty]}>
+                    {state.lives}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1130,6 +1127,7 @@ const styles = StyleSheet.create({
   lifeHearts: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 2 },
   lowLivesWarning: { backgroundColor: "#4a1020", borderRadius: 999, paddingHorizontal: 4, paddingVertical: 1 },
   lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
+  lifeHeartCount: { color: "#ff6b9a", fontSize: 12, fontWeight: "900" },
   lifeHeartEmpty: { color: "#5d3550" },
   ghostToggleRow: { flexDirection: "row", gap: 6 },
   ghostToggle: {

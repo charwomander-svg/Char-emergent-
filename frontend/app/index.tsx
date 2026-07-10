@@ -136,10 +136,13 @@ export default function MainMenu() {
         <View style={styles.howToWrap}>
           <Text style={styles.howToTitle}>HOW TO PLAY</Text>
           <Text style={styles.howToText}>
-            • Catch Pellet Guy 3 times to clear{"\n"}
+            • Catch Pellet Guy 3 times to clear a level{"\n"}
             • Swipe to direct armed ghosts{"\n"}
             • Every 5th level is a bonus stage{"\n"}
-            • Don&apos;t lose all ghosts or all pellets
+            • Ghosts start with 20 ♥ lives total{"\n"}
+            • Each ghost eaten or spiked costs 1 ♥{"\n"}
+            • Remaining hearts shown on the right HUD{"\n"}
+            • Lose all 20 hearts and it&apos;s game over
           </Text>
         </View>
 
