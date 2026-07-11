@@ -38,12 +38,12 @@ const SFX_SOURCES: Record<SfxKey, number> = {
 
 const MUSIC_SOURCES: Record<MusicTrack, number> = {
   main: require("@/assets/sounds/blinky_revenge.mp3"),
-  tier2: require("@/assets/sounds/Ghost Maze song 2.mp3"),
-  tier3: require("@/assets/sounds/song3.mp3"),
-  tier4: require("@/assets/sounds/Ghost Maze (Corrupted Nightmare Edit).mp3"),
+  tier2: require("@/assets/sounds/blinkys_revenge.mp3"),
+  tier3: require("@/assets/sounds/blinky_revenge.mp3"),
+  tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
-  instrumetalA: require("@/assets/sounds/chardcore/instrumetal/cloudy.mp3"),
-  instrumetalB: require("@/assets/sounds/chardcore/instrumetal/Hypervelocity.mp3"),
+  instrumetalA: require("@/assets/sounds/cloudy.mp3"),
+  instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
