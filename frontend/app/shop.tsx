@@ -67,12 +67,16 @@ export default function Shop() {
         setStoreError((prods?.length ?? 0) > 0 ? null : "No Google Play products were returned.");
 
         purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
-          const entry = COIN_SKUS.find((s) => s.sku === purchase.productId);
+          const purchasedSku =
+            purchase.productId ??
+            (Array.isArray((purchase as any).productIds) ? (purchase as any).productIds[0] : null) ??
+            null;
+          const entry = purchasedSku ? COIN_SKUS.find((s) => s.sku === purchasedSku) : undefined;
           if (entry) {
             grantCoins(entry.coins);
-            await finishTransaction({ purchase, isConsumable: true });
             Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
           }
+          await finishTransaction({ purchase, isConsumable: true });
           setPurchasing(null);
         });
 
@@ -137,7 +141,7 @@ export default function Shop() {
 
   // Merge Play Store prices into SKU list when available
   const packs = COIN_SKUS.map((entry) => {
-    const prod = products.find((p) => p.id === entry.sku);
+    const prod = products.find((p) => ((p as any).id ?? (p as any).productId) === entry.sku);
     return { ...entry, livePrice: prod?.displayPrice ?? entry.price };
   });
 

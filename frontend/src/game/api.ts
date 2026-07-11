@@ -37,6 +37,17 @@ export interface LeaderboardSummary {
   aggregate_bests: ScoreEntry[];
 }
 
+export interface PromoRewards {
+  coins: number;
+  powerUps: Record<string, number>;
+}
+
+export interface PromoRedeemResponse {
+  code: string;
+  message: string;
+  rewards: PromoRewards;
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
@@ -78,4 +89,14 @@ export async function fetchLeaderboardSummary(
 ): Promise<LeaderboardSummary> {
   const params = new URLSearchParams({ mode });
   return http<LeaderboardSummary>(`/leaderboard-summary?${params.toString()}`);
+}
+
+export async function redeemPromoCode(code: string, playerId: string): Promise<PromoRedeemResponse> {
+  return http<PromoRedeemResponse>("/promo/redeem", {
+    method: "POST",
+    body: JSON.stringify({
+      code,
+      player_id: playerId,
+    }),
+  });
 }

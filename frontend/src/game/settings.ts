@@ -18,6 +18,9 @@ export interface SettingsData {
   largeHud: boolean;
   soundTestFavorites: string[];
   soundTestOrder: string[];
+  devMode: boolean;
+  devInfiniteCoins: boolean;
+  devInfiniteItems: boolean;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -34,6 +37,9 @@ export const DEFAULT_SETTINGS: SettingsData = {
   largeHud: false,
   soundTestFavorites: [],
   soundTestOrder: [],
+  devMode: false,
+  devInfiniteCoins: false,
+  devInfiniteItems: false,
 };
 
 export async function loadSettings(): Promise<SettingsData> {

@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
 import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
+import { redeemPromoCode } from "@/src/game/api";
+import { getPlayerId } from "@/src/game/playerId";
+import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
+import type { PowerUpId } from "@/src/game/powerups";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
   const orderedSoundTestTracks = React.useMemo(() => {
     const order = settings.soundTestOrder ?? [];
     const orderMap = new Map(order.map((id, index) => [id, index]));
@@ -63,6 +69,45 @@ export default function Settings() {
       return;
     }
     await Linking.openURL(url);
+  };
+
+  const redeemSecretCode = async () => {
+    const cleaned = promoCode.trim();
+    if (!cleaned || redeemingPromo) return;
+    setRedeemingPromo(true);
+    try {
+      if (cleaned.toUpperCase() === "WARM0NGER") {
+        const next = {
+          ...settings,
+          devMode: true,
+          devInfiniteCoins: true,
+          devInfiniteItems: true,
+        };
+        setSettings(next);
+        await saveSettings(next);
+        Alert.alert("Dev mode unlocked", "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.");
+        setPromoCode("");
+        return;
+      }
+      const playerId = await getPlayerId();
+      const redeemed = await redeemPromoCode(cleaned, playerId);
+      const economy = await loadEconomy();
+      let nextEconomy = addCoins(economy, redeemed.rewards.coins ?? 0);
+      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
+        const id = rawId as PowerUpId;
+        if (typeof qty === "number" && qty > 0) {
+          nextEconomy = addInventory(nextEconomy, id, qty);
+        }
+      }
+      await saveEconomy(nextEconomy);
+      Alert.alert("Code redeemed", "Promo rewards added to your save.");
+      setPromoCode("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      Alert.alert("Redeem failed", message);
+    } finally {
+      setRedeemingPromo(false);
+    }
   };
 
   const NumberRow = ({
@@ -302,6 +347,50 @@ export default function Settings() {
             </TouchableOpacity>
           ))}
         </View>
+        <View style={styles.musicCard}>
+          <Text style={styles.musicCardTitle}>PROMO / SECRET CODE</Text>
+          <Text style={styles.musicCardSub}>Enter a code to claim rewards or unlock hidden features.</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              value={promoCode}
+              onChangeText={setPromoCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="ENTER CODE"
+              placeholderTextColor="#7d88a8"
+              style={styles.promoInput}
+              testID="promo-code-input"
+            />
+            <TouchableOpacity
+              onPress={redeemSecretCode}
+              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
+              disabled={redeemingPromo}
+              testID="promo-code-submit"
+            >
+              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {settings.devMode && (
+          <View style={styles.musicCard} testID="dev-mode-card">
+            <Text style={styles.musicCardTitle}>DEV MODE</Text>
+            <Text style={styles.musicCardSub}>Unlocked via secret code. These cheats stay hidden from normal players.</Text>
+            <Row
+              label="Infinite Coins"
+              desc="Coin spending checks always pass"
+              value={settings.devInfiniteCoins}
+              onChange={(v) => update("devInfiniteCoins", v)}
+              testID="toggle-dev-infinite-coins"
+            />
+            <Row
+              label="Infinite Items"
+              desc="Power-ups never consume inventory"
+              value={settings.devInfiniteItems}
+              onChange={(v) => update("devInfiniteItems", v)}
+              testID="toggle-dev-infinite-items"
+            />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -395,4 +484,29 @@ const styles = StyleSheet.create({
   favoriteBtnText: { color: "#FFE082", fontSize: 12, fontWeight: "900" },
   soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
   soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
+  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#394572",
+    borderRadius: 8,
+    backgroundColor: "#10172d",
+    color: "#f4f7ff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  promoButton: {
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    borderRadius: 8,
+    backgroundColor: "#202b4f",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  promoButtonDisabled: {
+    opacity: 0.6,
+  },
+  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
 });

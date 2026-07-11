@@ -15,6 +15,7 @@ export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Direction = "up" | "down" | "left" | "right" | "none";
 
 export type GhostId = 0 | 1 | 2 | 3;
+export type GhostAiRole = "free" | "hunter" | "patrol" | "cautious" | "coward" | "ambusher";
 
 export interface Ghost {
   id: GhostId;
@@ -31,6 +32,7 @@ export interface Ghost {
   respawnAt: number;
   spawnX: number;
   spawnY: number;
+  aiRole: GhostAiRole;
 }
 
 export interface PelletGuy {

@@ -139,7 +139,8 @@ export default function MainMenu() {
             • Catch Pellet Guy 3 times to clear{"\n"}
             • Swipe to direct armed ghosts{"\n"}
             • Every 5th level is a bonus stage{"\n"}
-            • Don&apos;t lose all ghosts or all pellets
+            • Don&apos;t lose all ghosts or all pellets{"\n"}
+            • 20 total ghost deaths in a stage is an auto-fail (resets each stage)
           </Text>
         </View>
 

@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
 import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS } from "@/src/game/constants";
-import type { Direction, GhostId } from "@/src/game/types";
+import type { Direction, GhostAiRole, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadProgress, computeUnlockedThemeIds, THEMES, withUnlockedThemes, saveProgress } from "@/src/game/progress";
@@ -23,7 +23,7 @@ import { POWER_UPS, POWER_UP_ORDER, type PowerUpId } from "@/src/game/powerups";
 import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
-import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
+import { DEFAULT_SETTINGS, loadSettings, type SettingsData } from "@/src/game/settings";
 import { getMusicTrackForLevel, getMusicTrackLabel, getSoundEngine } from "@/src/game/sounds";
 import {
   queueAchievementUnlock,
@@ -72,6 +72,15 @@ interface HiddenMedal {
   label: string;
 }
 
+const GHOST_ROLE_LABELS: Record<GhostAiRole, string> = {
+  free: "FREE",
+  hunter: "HUNTER",
+  patrol: "PATROL",
+  cautious: "CAUTIOUS",
+  coward: "COWARD",
+  ambusher: "AMBUSHER",
+};
+
 const RUN_MEDAL_THRESHOLDS = {
   silver: 10000,
   gold: 25000,
@@ -93,7 +102,8 @@ export default function GameScreen() {
     : "classic";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
-  const { earnCoins, inventory, useInventory: consumeInventory } = useEconomy();
+  const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const { earnCoins, spendCoins, inventory, coins, useInventory: consumeInventory } = useEconomy(runtimeSettings);
   const {
     state,
     setGhostDirection,
@@ -101,10 +111,15 @@ export default function GameScreen() {
     togglePause,
     advanceLevel,
     retryLevel,
+    continueEndlessRun,
     startNewGame,
     submitFinalScore,
     applyPowerUp,
     grantEndlessBlessing,
+    setControlledGhosts,
+    cycleGhostAiRole,
+    devDefeatGhost,
+    devDefeatPelletGuy,
     getEndlessBlessings,
     getRunHazardStats,
   } = useGhostMaze({
@@ -161,6 +176,8 @@ export default function GameScreen() {
   const [hardcoreSurvivalMs, setHardcoreSurvivalMs] = useState(0);
   const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [endlessContinueCount, setEndlessContinueCount] = useState(0);
   const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
   const [endlessBlessingChoices, setEndlessBlessingChoices] = useState<EndlessBlessingChoice[]>([]);
   const [endlessBlessingSummary, setEndlessBlessingSummary] = useState("");
@@ -169,6 +186,9 @@ export default function GameScreen() {
   const previousPelletsRef = useRef(state.pelletsRemaining);
   const levelStartAtRef = useRef<number>(performance.now());
   const bestLevelClearMsRef = useRef<number | null>(null);
+  const hardcoreTimerAccumulatedRef = useRef(0);
+  const hardcoreTimerRunningFromRef = useRef<number | null>(null);
+  const hardcoreSummaryCapturedRef = useRef(false);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -180,6 +200,7 @@ export default function GameScreen() {
       void saveProgress(normalized);
     });
     loadSettings().then((s) => {
+      setRuntimeSettings(s);
       setGamepadDeadzone(s.gamepadDeadzone);
       setGamepadInvertY(s.gamepadInvertY);
       setHighContrast(!!s.highContrast);
@@ -191,10 +212,15 @@ export default function GameScreen() {
 
   useEffect(() => {
     loadSettings().then((s) => {
+      setRuntimeSettings(s);
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
     });
   }, []);
+
+  useEffect(() => {
+    setControlledGhosts(armedGhosts);
+  }, [armedGhosts, setControlledGhosts]);
 
   useEffect(() => {
     if (state.status === "paused") {
@@ -207,6 +233,7 @@ export default function GameScreen() {
     }
     if (state.status === "playing" || state.status === "ready") {
       loadSettings().then((s) => {
+        setRuntimeSettings(s);
         getSoundEngine().fadeMusicTo(s.musicVolume, 180);
       });
     }
@@ -273,6 +300,10 @@ export default function GameScreen() {
       hardcoreStartAtRef.current = null;
       setHardcoreSurvivalMs(0);
       setHardcoreDeltaMs(null);
+      hardcoreTimerAccumulatedRef.current = 0;
+      hardcoreTimerRunningFromRef.current = null;
+      hardcoreSummaryCapturedRef.current = false;
+      setEndlessContinueCount(0);
       seenBonusTutorialsRef.current.clear();
       setBonusTutorialText(null);
       setEndlessBlessingChoices([]);
@@ -287,16 +318,29 @@ export default function GameScreen() {
         hardcoreRevivesUsed: 0,
       });
       setUnlockToast(null);
+      setStatusToast(null);
     }
   }, [state.status, state.level, state.score, state.ghosts]);
 
   useEffect(() => {
     if (mode !== "hardcore") return;
-    if (state.status === "playing" && hardcoreStartAtRef.current == null) {
-      hardcoreStartAtRef.current = performance.now();
+    if (state.status === "playing") {
+      if (hardcoreStartAtRef.current == null) {
+        hardcoreStartAtRef.current = performance.now();
+      }
+      if (hardcoreTimerRunningFromRef.current == null) {
+        hardcoreTimerRunningFromRef.current = performance.now();
+      }
+      return;
     }
-    if (state.status === "gameOver" && hardcoreStartAtRef.current != null) {
-      const survivalMs = Math.max(0, performance.now() - hardcoreStartAtRef.current);
+    if (hardcoreTimerRunningFromRef.current != null) {
+      hardcoreTimerAccumulatedRef.current += performance.now() - hardcoreTimerRunningFromRef.current;
+      hardcoreTimerRunningFromRef.current = null;
+      setHardcoreSurvivalMs(hardcoreTimerAccumulatedRef.current);
+    }
+    if (state.status === "gameOver" && !hardcoreSummaryCapturedRef.current) {
+      hardcoreSummaryCapturedRef.current = true;
+      const survivalMs = Math.max(0, hardcoreTimerAccumulatedRef.current);
       const previousBest = bestHardcoreSurvivalMs;
       setHardcoreSurvivalMs(survivalMs);
       setHardcoreDeltaMs(previousBest > 0 ? survivalMs - previousBest : null);
@@ -309,6 +353,21 @@ export default function GameScreen() {
       }
     }
   }, [bestHardcoreSurvivalMs, mode, state.status]);
+
+  useEffect(() => {
+    if (!state.message) {
+      setStatusToast(null);
+      return;
+    }
+    if (state.status === "playing") {
+      setStatusToast(state.message);
+      const timer = setTimeout(() => {
+        setStatusToast((current) => (current === state.message ? null : current));
+      }, 1400);
+      return () => clearTimeout(timer);
+    }
+    setStatusToast(state.message);
+  }, [state.message, state.status]);
 
   useEffect(() => {
     const type = state.bonusGame?.type;
@@ -654,10 +713,6 @@ export default function GameScreen() {
     })),
     [inventory],
   );
-  const lifeDots = useMemo(
-    () => Array.from({ length: 3 }, (_, index) => index < state.lives),
-    [state.lives],
-  );
   const statusLabel = state.status === "playing"
     ? "LIVE"
     : state.status === "paused"
@@ -696,6 +751,12 @@ export default function GameScreen() {
     state.status === "playing" &&
     reviveTokenCount > 0 &&
     state.ghosts.some((ghost) => ghost.permaDead);
+  const endlessContinueCost = useMemo(() => {
+    const tier = endlessContinueCount + 1;
+    if (tier <= 4) return tier * 25;
+    return 100 + (tier - 4) * 100;
+  }, [endlessContinueCount]);
+  const canAffordEndlessContinue = coins >= endlessContinueCost;
 
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
@@ -818,12 +879,17 @@ export default function GameScreen() {
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
                 <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>
+                <TouchableOpacity
+                  onPress={() => cycleGhostAiRole(state.selectedGhostId)}
+                  style={styles.panelActionBtn}
+                  testID="ghost-cycle-role"
+                >
+                  <Text style={styles.panelActionText}>
+                    AI {GHOST_ROLE_LABELS[state.ghosts[state.selectedGhostId]?.aiRole ?? "free"]}
+                  </Text>
+                </TouchableOpacity>
                 <View style={[styles.lifeHearts, state.lives <= 1 && styles.lowLivesWarning]} testID="hud-lives">
-                  {lifeDots.map((filled, index) => (
-                    <Text key={index} style={[styles.lifeHeart, !filled && styles.lifeHeartEmpty]}>
-                      ♥
-                    </Text>
-                  ))}
+                  <Text style={styles.lifeCountText}>LIVES {state.lives}</Text>
                 </View>
               </View>
             </View>
@@ -846,6 +912,7 @@ export default function GameScreen() {
                   <Text style={[styles.ghostToggleName, { color: selected ? "#f7fbff" : "#9aa6ca" }]}>
                     {ghost.name}
                   </Text>
+                  <Text style={styles.ghostToggleRole}>{GHOST_ROLE_LABELS[ghost.aiRole]}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -937,6 +1004,28 @@ export default function GameScreen() {
                     <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="one-more-run-btn">
                       <Text style={styles.stateBtnText}>ONE MORE RUN</Text>
                     </TouchableOpacity>
+                    {mode === "endless" && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const paid = spendCoins(endlessContinueCost);
+                          if (!paid) {
+                            setStatusToast(`NEED ${endlessContinueCost} COINS`);
+                            setTimeout(() => setStatusToast((current) => (current?.startsWith("NEED ") ? null : current)), 1400);
+                            return;
+                          }
+                          const continued = continueEndlessRun();
+                          if (!continued) return;
+                          setEndlessContinueCount((count) => count + 1);
+                          setStatusToast(`CONTINUE -${endlessContinueCost} COINS`);
+                          setTimeout(() => setStatusToast((current) => (current?.startsWith("CONTINUE ") ? null : current)), 1400);
+                        }}
+                        style={[styles.stateBtn, !canAffordEndlessContinue && styles.slotDim]}
+                        disabled={!canAffordEndlessContinue}
+                        testID="endless-continue-btn"
+                      >
+                        <Text style={styles.stateBtnText}>CONTINUE ({endlessContinueCost} COINS)</Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 )}
               </View>
@@ -975,14 +1064,47 @@ export default function GameScreen() {
         </View>
       </View>
 
+      {runtimeSettings.devMode && (
+        <View style={styles.devPanel} testID="dev-panel">
+          <Text style={styles.devPanelTitle}>DEV MODE</Text>
+          <View style={styles.devPanelRow}>
+            <TouchableOpacity
+              onPress={() => {
+                earnCoins(1000);
+                setStatusToast("DEV: +1000 COINS");
+              }}
+              style={styles.devBtn}
+            >
+              <Text style={styles.devBtnText}>+1000 COINS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                devDefeatPelletGuy();
+              }}
+              style={styles.devBtn}
+            >
+              <Text style={styles.devBtnText}>KILL PELLET GUY</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                devDefeatGhost();
+              }}
+              style={styles.devBtn}
+            >
+              <Text style={styles.devBtnText}>KILL SELECTED GHOST</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {unlockToast && (
         <View style={styles.unlockToast} pointerEvents="none">
           <Text style={styles.unlockToastText}>{unlockToast}</Text>
         </View>
       )}
-      {(state.message || state.status === "paused") && (
+      {(statusToast || state.status === "paused") && (
         <View style={styles.messageOverlay} pointerEvents="none" testID="status-message">
-          <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : state.message}</Text>
+          <Text style={styles.messageText}>{state.status === "paused" ? "PAUSED" : statusToast}</Text>
         </View>
       )}
 
@@ -999,7 +1121,7 @@ export default function GameScreen() {
           ]}
           pointerEvents="none"
         >
-          <View style={styles.runStatsCard} testID="hud-run-stats">
+          <View style={[styles.runStatsCard, mode === "hardcore" && styles.runStatsCardHardcore]} testID="hud-run-stats">
             <Animated.View
               style={{
                 transform: [
@@ -1131,6 +1253,7 @@ const styles = StyleSheet.create({
   lowLivesWarning: { backgroundColor: "#4a1020", borderRadius: 999, paddingHorizontal: 4, paddingVertical: 1 },
   lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
   lifeHeartEmpty: { color: "#5d3550" },
+  lifeCountText: { color: "#f7fbff", fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
   ghostToggleRow: { flexDirection: "row", gap: 6 },
   ghostToggle: {
     flex: 1,
@@ -1153,6 +1276,7 @@ const styles = StyleSheet.create({
   },
   ghostToggleIndex: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
+  ghostToggleRole: { fontSize: 8, fontWeight: "900", color: "#7d88a8", marginTop: 2, letterSpacing: 0.4 },
   slotRow: {
     flexDirection: "row",
     gap: 5,
@@ -1224,6 +1348,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 180,
   },
+  runStatsCardHardcore: {
+    minWidth: 240,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
   runStatsTitle: { color: "#9fc4ff", fontWeight: "900", fontSize: 11, marginBottom: 4, letterSpacing: 0.8 },
   runStatsMedal: { color: "#ffe08a", fontWeight: "900", fontSize: 11, marginBottom: 6, letterSpacing: 0.6 },
   runStatsText: { color: "#d7def3", fontWeight: "800", fontSize: 10, lineHeight: 15 },
@@ -1276,6 +1405,45 @@ const styles = StyleSheet.create({
     top: "44%",
     alignItems: "center",
     paddingHorizontal: 16,
+  },
+  devPanel: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 10,
+    backgroundColor: "#3a0718f2",
+    borderColor: "#ff8fab",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  devPanelTitle: {
+    color: "#ffd6de",
+    fontWeight: "900",
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  devPanelRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  devBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ffb3c7",
+    borderRadius: 8,
+    paddingVertical: 8,
+    backgroundColor: "#62122af0",
+    alignItems: "center",
+  },
+  devBtnText: {
+    color: "#fff1f4",
+    fontWeight: "900",
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textAlign: "center",
   },
   unlockToast: {
     position: "absolute",
