@@ -1001,9 +1001,11 @@ export default function GameScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.lifePills} testID="hud-lives">
-                <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
-                  <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
-                </View>
+                {mode !== "hardcore" && (
+                  <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
+                    <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
+                  </View>
+                )}
                 <View style={[styles.lifePill, pelletGuyLivesRemaining <= 1 && styles.lowLivesWarning]} testID="hud-pellet-lives">
                   <Text style={styles.lifeCountText}>PELLET GUY {pelletGuyLivesRemaining}/{catchesToWin}</Text>
                 </View>
@@ -1060,6 +1062,24 @@ export default function GameScreen() {
             })}
           </View>
           <View style={[styles.controlRow, isCompactHud && styles.controlRowCompact]} testID="hud-controls">
+            {mode === "hardcore" && (
+              <TouchableOpacity
+                onPress={() => activatePowerUp("hardcoreRevive")}
+                style={[
+                  styles.actionBtn,
+                  styles.hardcoreReviveBtn,
+                  isCompactHud && styles.hardcoreReviveBtnCompact,
+                  { borderColor: reviveToken.color },
+                  !canUseReviveToken && styles.slotDim,
+                ]}
+                disabled={!canUseReviveToken}
+                testID="hardcore-revive-btn"
+              >
+                <Text style={styles.hardcoreReviveText}>
+                  {reviveToken.icon} REVIVE {reviveTokenCount}
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={[styles.scorePill, isCompactHud && styles.scorePillCompact]} testID="hud-score">
               <Text style={[styles.scorePillLabel, largeHud && styles.scorePillLabelLarge]}>SCORE</Text>
               <Text style={[styles.scorePillValue, largeHud && styles.scorePillValueLarge]}>{state.score}</Text>
@@ -1077,24 +1097,6 @@ export default function GameScreen() {
                 testID="pause-btn"
               >
                 <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
-              </TouchableOpacity>
-            )}
-            {mode === "hardcore" && (
-              <TouchableOpacity
-                onPress={() => activatePowerUp("hardcoreRevive")}
-                style={[
-                  styles.actionBtn,
-                  styles.hardcoreReviveBtn,
-                  isCompactHud && styles.hardcoreReviveBtnCompact,
-                  { borderColor: reviveToken.color },
-                  !canUseReviveToken && styles.slotDim,
-                ]}
-                disabled={!canUseReviveToken}
-                testID="hardcore-revive-btn"
-              >
-                <Text style={[styles.pauseText, { color: reviveToken.color }]}>
-                  {reviveToken.icon} REVIVE {reviveTokenCount}
-                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1494,12 +1496,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#ff4466",
     borderRadius: 8,
+    minWidth: 108,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: "#2a0010",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  hardcoreReviveBtn: { alignSelf: "center", marginTop: -1 },
+  hardcoreReviveBtn: { alignSelf: "center", marginTop: -1, backgroundColor: "#331127" },
   hardcoreReviveBtnCompact: { paddingHorizontal: 10, paddingVertical: 6 },
+  hardcoreReviveText: { color: "#ff8cc8", fontWeight: "900", letterSpacing: 0.8, fontSize: 12 },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "stretch" },
   starSummaryCard: {
