@@ -1,6 +1,8 @@
 // API client for Ghost Maze backend (leaderboard + daily seed)
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
+const DEFAULT_BACKEND_URL = "https://ghost-maze-backend.onrender.com";
+const envBase = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();
+const BASE = (envBase && envBase.length > 0 ? envBase : DEFAULT_BACKEND_URL).replace(/\/+$/, "");
 
 export interface DailySeed {
   seed_date: string;
