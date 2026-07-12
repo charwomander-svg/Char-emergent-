@@ -588,6 +588,8 @@ export function useGhostMaze(opts?: {
 
     // --- move pellet guy ---
     let pg = prev.pelletGuy;
+    const pgStartX = pg.x;
+    const pgStartY = pg.y;
     let maze = prev.maze;
     let pelletsRemaining = prev.pelletsRemaining;
     let score = prev.score;
@@ -973,7 +975,13 @@ export function useGhostMaze(opts?: {
       for (let i = 0; i < newGhosts.length; i++) {
         const g = newGhosts[i];
         if (!g.alive) continue;
-        if (g.x === pg.x && g.y === pg.y) {
+        const ghostPrev = prev.ghosts[i];
+        const crossedPaths =
+          ghostPrev.x === pg.x &&
+          ghostPrev.y === pg.y &&
+          g.x === pgStartX &&
+          g.y === pgStartY;
+        if ((g.x === pg.x && g.y === pg.y) || crossedPaths) {
           // -------------------------------------------------------------
           // BONUS LEVELS: ghost-on-PG collision is disabled (PG frozen,
           // bonus items handle scoring). Only normal catch/vulnerable logic
@@ -1150,6 +1158,20 @@ export function useGhostMaze(opts?: {
           startLevel(prev.level, STARTING_LIVES, score);
           return;
         }
+        if (modeRef.current === "endless") {
+          status = "gameOver";
+          message = `GAME OVER\nToo many ghost losses (${ghostDeathCap})!`;
+          getSoundEngine().levelLose();
+          getSoundEngine().fadeMusicTo(0, 240);
+          setTimeout(() => getSoundEngine().stopMusic(), 260);
+          if (progressRef.current) {
+            const p = { ...progressRef.current };
+            p.highScore = Math.max(p.highScore, score);
+            const normalized = withUnlockedThemes(p);
+            progressRef.current = normalized;
+            saveProgress(normalized);
+          }
+        } else {
         if (!hardcoreMode) {
           lives--;
         }
@@ -1169,15 +1191,30 @@ export function useGhostMaze(opts?: {
         } else {
           status = "levelLost";
           message = hardcoreMode
-            ? "LEVEL FAILED\nToo many ghost losses (20)!"
-            : "ROUND FAILED\nToo many ghost losses (20)!";
+            ? `LEVEL FAILED\nToo many ghost losses (${ghostDeathCap})!`
+            : `ROUND FAILED\nToo many ghost losses (${ghostDeathCap})!`;
           getSoundEngine().levelLose();
+        }
         }
       } else if (pelletsRemaining <= 0) {
         if (timeAttackMode) {
           startLevel(prev.level, STARTING_LIVES, score);
           return;
         }
+        if (modeRef.current === "endless") {
+          status = "gameOver";
+          message = "GAME OVER\nPellet Guy ate everything!";
+          getSoundEngine().levelLose();
+          getSoundEngine().fadeMusicTo(0, 240);
+          setTimeout(() => getSoundEngine().stopMusic(), 260);
+          if (progressRef.current) {
+            const p = { ...progressRef.current };
+            p.highScore = Math.max(p.highScore, score);
+            const normalized = withUnlockedThemes(p);
+            progressRef.current = normalized;
+            saveProgress(normalized);
+          }
+        } else {
         // Pellet guy ate all pellets - lose life
         if (!hardcoreMode) {
           lives--;
@@ -1203,6 +1240,7 @@ export function useGhostMaze(opts?: {
             : "PELLET GUY WINS!\nHe ate all the pellets!";
           getSoundEngine().levelLose();
         }
+        }
       } else {
         const aliveGhosts = newGhosts.filter((g) => g.alive).length;
         if (hardcoreMode) {
@@ -1216,6 +1254,20 @@ export function useGhostMaze(opts?: {
             startLevel(prev.level, STARTING_LIVES, score);
             return;
           }
+          if (modeRef.current === "endless") {
+            status = "gameOver";
+            message = "GAME OVER\nAll ghosts devoured!";
+            getSoundEngine().levelLose();
+            getSoundEngine().fadeMusicTo(0, 240);
+            setTimeout(() => getSoundEngine().stopMusic(), 260);
+            if (progressRef.current) {
+              const p = { ...progressRef.current };
+              p.highScore = Math.max(p.highScore, score);
+              const normalized = withUnlockedThemes(p);
+              progressRef.current = normalized;
+              saveProgress(normalized);
+            }
+          } else {
           if (!hardcoreMode) {
             lives--;
           }
@@ -1240,6 +1292,7 @@ export function useGhostMaze(opts?: {
               ? "LEVEL FAILED\nYour squad is down!"
               : "PELLET GUY WINS!\nHe ate all your ghosts!";
             getSoundEngine().levelLose();
+          }
           }
         }
       }

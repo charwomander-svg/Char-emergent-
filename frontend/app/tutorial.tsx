@@ -97,7 +97,8 @@ const SECTIONS: TutorialSection[] = [
     body:
       "• Daily missions grant extra Ghost Coins.\n" +
       "• Leaderboards track major modes and lifetime totals.\n" +
-      "• Statistics gives run analytics (catches, clears, combos, bests, mode-specific records).",
+      "• Statistics gives run analytics (catches, clears, combos, bests, mode-specific records).\n" +
+      "• Hidden medals on run-end: 🧨 Mine Sweeper (no spike triggers), 👻 Untouchable (0 ghost losses), ⚡ Speed Haunt (quick clear), 🎯 Efficient Evil (catches without power-ups), 💀 Last Stand (win on final life).",
   },
   {
     title: "RUN IMPROVEMENT TIPS",
@@ -169,4 +170,3 @@ const styles = StyleSheet.create({
   cardTitle: { color: "#7fe8ff", fontWeight: "900", fontSize: 13, letterSpacing: 1.2 },
   cardBody: { color: "#edf3ff", fontSize: 12, lineHeight: 18 },
 });
-

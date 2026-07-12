@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
@@ -26,7 +27,7 @@ export default function MainMenu() {
   const [totalStars, setTotalStars] = useState(0);
   const [totalGoldStars, setTotalGoldStars] = useState(0);
   const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
-  const { missions, completedCount, rewardClaimed, rewardCoins, dateKey } =
+  const { missions, completedCount, rewardClaimed, rewardCoins, dateKey, refresh } =
     useDailyMissions(economy ? grantCoins : undefined);
 
   useEffect(() => {
@@ -53,6 +54,12 @@ export default function MainMenu() {
       getSoundEngine().stopMusic();
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const go = (route: string) => {
     getSoundEngine().uiClick();

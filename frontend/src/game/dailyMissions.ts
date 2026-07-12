@@ -19,6 +19,13 @@ interface DailyMissionStore {
   rewardClaimed: boolean;
 }
 
+type DailyMissionListener = () => void;
+const dailyMissionListeners = new Set<DailyMissionListener>();
+
+function notifyDailyMissionListeners(): void {
+  for (const listener of dailyMissionListeners) listener();
+}
+
 export interface MissionStats {
   catches: number;
   levelsCleared: number;
@@ -194,6 +201,7 @@ export async function recordDailyMissionProgress(
     stats: mergeStats(store.stats, delta),
   };
   await saveStore(next);
+  notifyDailyMissionListeners();
   return buildSnapshot(next);
 }
 
@@ -208,6 +216,7 @@ export async function grantDailyMissionReward(
   grantCoins(snapshot.rewardCoins);
   const next = { ...store, rewardClaimed: true };
   await saveStore(next);
+  notifyDailyMissionListeners();
   return buildSnapshot(next);
 }
 
@@ -224,6 +233,16 @@ export function useDailyMissions(grantCoins?: (amount: number) => void) {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const listener = () => {
+      void refresh();
+    };
+    dailyMissionListeners.add(listener);
+    return () => {
+      dailyMissionListeners.delete(listener);
+    };
   }, [refresh]);
 
   return {

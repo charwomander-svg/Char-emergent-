@@ -1326,7 +1326,7 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a12" },
   gameWrapper: { flex: 1, flexDirection: "column" },
-  mazeArea: { flex: 1, alignItems: "center", justifyContent: "center" },
+  mazeArea: { flex: 1, alignItems: "center", justifyContent: "flex-end", paddingBottom: 2 },
   footerHud: {
     paddingHorizontal: 8,
     paddingBottom: 8,
@@ -1484,7 +1484,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
-    minWidth: 84,
+    width: 96,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: "#1d1d2f",

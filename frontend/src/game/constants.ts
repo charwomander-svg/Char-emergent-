@@ -36,7 +36,7 @@ export const SPEED = {
 // Power-up balance
 // Power-up balance
 export const SUPER_PELLET_DURATION_MS = 6000;
-export const SUPER_PELLET_RESPAWN_MS = 14000;
+export const SUPER_PELLET_RESPAWN_MS = 19000;
 export const COMBO_WINDOW_MS = 1500;
 export const RESPAWN_MS = 1500;
 export const READY_DURATION_MS = 1500;
@@ -64,7 +64,7 @@ export const TRAP_DROP_MAX_CHANCE = 0.12;
 export const MAX_ACTIVE_TRAPS = 3;
 export const BARRICADE_DURATION_MS = 8000;
 export const SPIKE_PROBABILITY = 0.65; // vs barricade
-export const SCORE_SPIKED_GHOST_PENALTY = -150;
+export const SCORE_SPIKED_GHOST_PENALTY = 0;
 
 // Scoring
 export const SCORE_PELLET = 10;
