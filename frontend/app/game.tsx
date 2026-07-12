@@ -14,7 +14,7 @@ import * as Haptics from "expo-haptics";
 
 import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
-import { MAZE_COLS, MAZE_ROWS, MAX_LEVELS, TIME_ATTACK_DURATION_MS } from "@/src/game/constants";
+import { CATCH_TO_WIN, MAZE_COLS, MAZE_ROWS, MAX_LEVELS, TIME_ATTACK_DURATION_MS } from "@/src/game/constants";
 import type { Direction, GhostAiRole, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
@@ -25,7 +25,7 @@ import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
 import { DEFAULT_SETTINGS, loadSettings, type SettingsData } from "@/src/game/settings";
 import { updateStatistics } from "@/src/game/statistics";
-import { getMusicTrackForLevel, getMusicTrackLabel, getSoundEngine } from "@/src/game/sounds";
+import { getSoundEngine } from "@/src/game/sounds";
 import {
   queueAchievementUnlock,
   recordSpeedrunLevelBest,
@@ -826,17 +826,6 @@ export default function GameScreen() {
     })),
     [inventory],
   );
-  const statusLabel = state.status === "playing"
-    ? "LIVE"
-    : state.status === "paused"
-      ? "PAUSED"
-      : state.status === "ready"
-        ? "READY"
-        : state.status === "levelWon"
-          ? "CLEAR"
-          : state.status === "levelLost"
-            ? "LOST"
-            : "GAME OVER";
   const ghostToggleItems = useMemo(
     () => state.ghosts.map((ghost) => ({
       ghost,
@@ -876,10 +865,11 @@ export default function GameScreen() {
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
   const timeAttackRemainingMs = Math.max(0, TIME_ATTACK_DURATION_MS - elapsedMs);
   const isCompactHud = width < 390;
-  const isVeryCompactHud = width < 360;
+  const catchesToWin = mode === "endless" && endlessBlessings.quickClear ? 2 : CATCH_TO_WIN;
+  const pelletGuyLivesRemaining = Math.max(0, catchesToWin - state.catches);
+  const pelletPercentRemaining = Math.round((state.pelletsRemaining / Math.max(1, state.totalPellets)) * 100);
   const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
   const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
-  const currentMusicLabel = getMusicTrackLabel(getMusicTrackForLevel(state.level, state.bonusGame?.type));
   const runTitle: RunTitle = useMemo(() => {
     const perfectRun =
       state.status === "gameOver" &&
@@ -944,70 +934,57 @@ export default function GameScreen() {
           style={[styles.footerHud, isCompactHud && styles.footerHudCompact]}
           testID="hud-bottom"
         >
-          <View style={[styles.statusLine, isCompactHud && styles.statusLineCompact]}>
-            <Text style={styles.statusLabel}>PELLETS</Text>
-            <Text style={styles.statusValue}>{state.pelletsRemaining}</Text>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>MODE {mode.toUpperCase()}</Text>
-              <Text style={styles.statusPillSub}>LV {state.level} · {statusLabel}</Text>
+          {(bonusTutorialText ||
+            activeEffects.length > 0 ||
+            state.bonusGame ||
+            (mode === "endless" && !!endlessBlessingSummary) ||
+            mode === "speedrun" ||
+            mode === "timeattack") && (
+            <View style={styles.miniInfoRow}>
+              {bonusTutorialText && (
+                <View style={[styles.miniChip, styles.miniChipHighlight]}>
+                  <Text style={styles.miniChipText}>{bonusTutorialText}</Text>
+                </View>
+              )}
+              {mode === "endless" && !!endlessBlessingSummary && (
+                <View style={styles.miniChip}>
+                  <Text style={styles.miniChipText}>BUILD {endlessBlessingSummary}</Text>
+                </View>
+              )}
+              {mode === "speedrun" && (
+                <View style={styles.miniChip}>
+                  <Text style={styles.miniChipText}>
+                    TIME {fmtMs(elapsedMs)}{bestRunMs > 0 ? ` · BEST ${fmtMs(bestRunMs)}` : ""}
+                  </Text>
+                </View>
+              )}
+              {mode === "timeattack" && (
+                <View style={styles.miniChip}>
+                  <Text style={styles.miniChipText}>TIME LEFT {fmtMs(timeAttackRemainingMs)}</Text>
+                </View>
+              )}
+              {state.bonusGame && (
+                <View style={styles.miniChip}>
+                  <Text style={styles.miniChipText}>
+                    {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft} ·{" "}
+                    {state.bonusGame.type === "powerHunt"
+                      ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
+                        ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
+                        : "GRAB YELLOW PELLET"
+                      : `${Math.ceil(bonusTimeLeft / 1000)}s`}
+                  </Text>
+                </View>
+              )}
+              {activeEffects.map((effect) => (
+                <View key={effect.key} style={[styles.miniChip, { borderColor: effect.color }]}>
+                  <Text style={[styles.miniChipText, { color: effect.color }]}>{effect.label}</Text>
+                </View>
+              ))}
             </View>
-            {!isVeryCompactHud && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>NOW PLAYING</Text>
-                <Text style={styles.statusPillSub}>{currentMusicLabel}</Text>
-              </View>
-            )}
-            {mode === "endless" && endlessBlessingSummary && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>BUILD {endlessBlessingSummary}</Text>
-              </View>
-            )}
-            {mode === "speedrun" && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>TIME {fmtMs(elapsedMs)}</Text>
-                {bestRunMs > 0 && <Text style={styles.statusPillSub}>BEST {fmtMs(bestRunMs)}</Text>}
-              </View>
-            )}
-            {mode === "timeattack" && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>TIME LEFT {fmtMs(timeAttackRemainingMs)}</Text>
-                <Text style={styles.statusPillSub}>3:00 SCORE ATTACK</Text>
-              </View>
-            )}
-            {state.bonusGame && (
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>
-                  {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft}✕
-                </Text>
-                <Text style={styles.statusPillSub}>
-                  {state.bonusGame.type === "powerHunt"
-                    ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
-                      ? `HUNT ON ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
-                      : "GRAB YELLOW PELLET"
-                    : `${Math.ceil(bonusTimeLeft / 1000)}s LEFT`}
-                </Text>
-              </View>
-            )}
-            {bonusTutorialText && (
-              <View style={[styles.statusPill, styles.tutorialPill]}>
-                <Text style={styles.statusPillText}>{bonusTutorialText}</Text>
-              </View>
-            )}
-            {activeEffects.length > 0 && (
-              <View style={styles.effectRow}>
-                {activeEffects.map((effect) => (
-                  <View key={effect.key} style={[styles.effectChip, { borderColor: effect.color }]}>
-                    <Text style={[styles.effectChipText, { color: effect.color }]}>{effect.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
+          )}
           <View style={styles.ghostTogglePanel} testID="ghost-toggles">
             <View style={styles.panelHeader}>
-              <Text style={styles.panelLabel}>
-                {isCompactHud ? "GHOSTS · HOLD TO CHANGE AI" : "GHOSTS · HOLD TILE TO CHANGE AI"}
-              </Text>
+              <Text style={styles.panelLabel}>GHOSTS</Text>
               <View style={styles.panelHeaderActions}>
                 <TouchableOpacity
                   onPress={() => { setArmedGhosts([0, 1, 2, 3]); selectGhost(0); }}
@@ -1023,13 +1000,12 @@ export default function GameScreen() {
                 >
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
-                {!isVeryCompactHud && <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>}
                 <View style={styles.lifePills} testID="hud-lives">
-                  <View style={[styles.lifePill, state.lives <= 1 && styles.lowLivesWarning]}>
-                    <Text style={styles.lifeCountText}>TEAM {state.lives}</Text>
-                  </View>
                   <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
                     <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
+                  </View>
+                  <View style={[styles.lifePill, pelletGuyLivesRemaining <= 1 && styles.lowLivesWarning]} testID="hud-pellet-lives">
+                    <Text style={styles.lifeCountText}>PELLET {pelletGuyLivesRemaining}/{catchesToWin}</Text>
                   </View>
                 </View>
               </View>
@@ -1088,6 +1064,12 @@ export default function GameScreen() {
             <View style={[styles.scorePill, isCompactHud && styles.scorePillCompact]} testID="hud-score">
               <Text style={[styles.scorePillLabel, largeHud && styles.scorePillLabelLarge]}>SCORE</Text>
               <Text style={[styles.scorePillValue, largeHud && styles.scorePillValueLarge]}>{state.score}</Text>
+            </View>
+            <View style={styles.pelletPill}>
+              <Text style={styles.scorePillLabel}>PELLETS</Text>
+              <Text style={styles.pelletPillValue}>
+                {state.pelletsRemaining}/{state.totalPellets}/{pelletPercentRemaining}%
+              </Text>
             </View>
             {(state.status === "playing" || state.status === "paused" || state.status === "ready") && (
               <TouchableOpacity
@@ -1347,65 +1329,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
     paddingTop: 4,
-    gap: 8,
+    gap: 5,
   },
   footerHudCompact: {
     paddingHorizontal: 6,
-    gap: 6,
+    gap: 4,
   },
-  statusLine: {
+  miniInfoRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    borderRadius: 14,
-    backgroundColor: "#101426dd",
-    borderWidth: 1,
-    borderColor: "#2b3357",
-  },
-  statusLineCompact: {
-    gap: 5,
+    gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 7,
   },
-  statusLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  statusValue: { color: "#f7fbff", fontSize: 14, fontWeight: "900", marginRight: 6 },
-  statusPill: {
+  miniChip: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    backgroundColor: "#171d31",
     borderWidth: 1,
     borderColor: "#303a60",
-  },
-  statusPillText: { color: "#f1f4ff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  statusPillSub: { color: "#9aa6ca", fontSize: 9, fontWeight: "800", marginTop: 2 },
-  tutorialPill: {
-    backgroundColor: "#2b1a40",
-    borderColor: "#f0abfc",
-  },
-  effectRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  effectChip: {
-    borderRadius: 999,
-    borderWidth: 1,
     backgroundColor: "#171d31",
-    paddingHorizontal: 7,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
-  effectChipText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  miniChipHighlight: {
+    borderColor: "#f0abfc",
+    backgroundColor: "#2b1a40",
+  },
+  miniChipText: { color: "#e6ebff", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
   ghostTogglePanel: {
-    gap: 8,
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 9,
-    borderRadius: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: "#101426dd",
     borderWidth: 1,
     borderColor: "#2b3357",
   },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  panelHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flex: 1 },
+  panelHeaderActions: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", flex: 1 },
   panelActionBtn: {
     borderWidth: 1,
     borderColor: "#4a5580",
@@ -1416,30 +1376,29 @@ const styles = StyleSheet.create({
   },
   panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  lifePills: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: 2, paddingRight: 2, flexWrap: "wrap" },
+  lifePills: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 2, paddingRight: 2, flexWrap: "wrap" },
   lifePill: {
     backgroundColor: "#171d31",
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#303a60",
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
   },
   lowLivesWarning: { backgroundColor: "#4a1020", borderRadius: 999, paddingHorizontal: 4, paddingVertical: 1 },
   lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
   lifeHeartEmpty: { color: "#5d3550" },
   lifeCountText: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
-  ghostToggleRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  ghostToggleRow: { flexDirection: "row", flexWrap: "nowrap", justifyContent: "space-between", gap: 4 },
   ghostToggle: {
-    width: "48.8%",
-    borderRadius: 10,
-    borderWidth: 1.5,
+    width: "24%",
+    borderRadius: 7,
+    borderWidth: 1.2,
     backgroundColor: "#12172d",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 46,
-    paddingVertical: 9,
+    minHeight: 34,
+    paddingVertical: 4,
     opacity: 0.6,
   },
   ghostToggleArmed: {
@@ -1450,62 +1409,80 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     transform: [{ translateY: -1 }],
   },
-  ghostToggleIndex: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  ghostToggleIndex: { fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
   ghostToggleName: { fontSize: 9, fontWeight: "800", marginTop: 2 },
-  ghostToggleRole: { fontSize: 8, fontWeight: "900", color: "#7d88a8", marginTop: 2, letterSpacing: 0.4 },
+  ghostToggleRole: { fontSize: 7, fontWeight: "900", color: "#7d88a8", marginTop: 1, letterSpacing: 0.2 },
   ghostToggleRoleSelected: { color: "#ffe082" },
   slotRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 4,
   },
   slotRowCompact: {
-    gap: 5,
+    gap: 4,
   },
   slot: {
-    flexBasis: "18.8%",
-    maxWidth: "19.2%",
-    minWidth: 46,
-    height: 50,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    flexBasis: "12%",
+    maxWidth: "12%",
+    minWidth: 34,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1.2,
     backgroundColor: "#12172d",
     alignItems: "center",
     justifyContent: "center",
   },
   slotDim: { opacity: 0.4 },
-  slotIcon: { fontSize: 18, lineHeight: 18 },
-  slotCount: { fontSize: 10, fontWeight: "900", marginTop: 3 },
-  controlRow: { flexDirection: "row", alignItems: "stretch", justifyContent: "center", flexWrap: "wrap", gap: 8 },
-  controlRowCompact: { justifyContent: "flex-start", gap: 6 },
+  slotIcon: { fontSize: 14, lineHeight: 14 },
+  slotCount: { fontSize: 9, fontWeight: "900", marginTop: 1 },
+  controlRow: { flexDirection: "row", alignItems: "stretch", justifyContent: "space-between", flexWrap: "nowrap", gap: 6 },
+  controlRowCompact: { gap: 4 },
   scorePill: {
-    minWidth: 132,
+    minWidth: 100,
     borderWidth: 1,
     borderColor: "#FFD23F",
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: "#1d1d2f",
     justifyContent: "center",
   },
-  scorePillCompact: { minWidth: 116, paddingHorizontal: 10, paddingVertical: 6 },
+  scorePillCompact: { minWidth: 92, paddingHorizontal: 8, paddingVertical: 5 },
   scorePillLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   scorePillLabelLarge: { fontSize: 11 },
   scorePillValue: {
     color: "#FFD23F",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "900",
-    marginTop: 2,
+    marginTop: 1,
     fontVariant: ["tabular-nums"],
   },
   scorePillValueLarge: { fontSize: 21 },
+  pelletPill: {
+    minWidth: 98,
+    borderWidth: 1,
+    borderColor: "#4a5580",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+    backgroundColor: "#1d1d2f",
+    justifyContent: "center",
+  },
+  pelletPillValue: {
+    color: "#f7fbff",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: 1,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 0.2,
+  },
   pauseBtn: {
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: "#1d1d2f",
   },
   compactBtn: { paddingHorizontal: 12, paddingVertical: 7 },
