@@ -2,10 +2,9 @@
 // Bonus Games — Ghost Maze
 // ----------------------------------------------------------------------------
 // Every 5 levels (5, 10, 15 …) triggers a carefree bonus stage instead of
-// a boss fight. Three types rotate in order:
-//   1. SPEED RALLY  — collect flags before time runs out
-//   2. CHERRY CHASE — collect bonus cherries fast
-//   3. TIME ATTACK  — collect clocks to extend time
+// a boss fight. Hunt appears every 10th level; others rotate on the 5s:
+//   - 5, 15, 25, 35, 45   => Rally, Cherry, Timer, Rally, Cherry...
+//   - 10, 20, 30, 40, 50  => Power Hunt
 //
 // Bonus rounds have NO lives at risk. Pellet Guy is frozen. Ghosts are fully
 // player-controlled. A countdown timer drives tension; collecting items adds
@@ -16,13 +15,15 @@ import type { CellType } from "./types";
 
 export const BONUS_LEVEL_INTERVAL = 5;
 
-export type BonusGameType = "rallyRound" | "cherryChase" | "timeAttack";
+export type BonusGameType = "rallyRound" | "cherryChase" | "timeAttack" | "powerHunt";
 export type BonusDir = "up" | "down" | "left" | "right";
 
 export interface BonusItem {
   x: number;
   y: number;
   collected: boolean;
+  /** Timestamp when a collected item should respawn (powerHunt only). */
+  respawnAt?: number;
   /** For digDugDash: Pooka moves each tick; direction changes randomly. */
   dir?: BonusDir;
   /** Next tick timestamp when this Pooka moves (digDugDash only). */
@@ -78,6 +79,15 @@ export const BONUS_CONFIG = {
     scorePerSecondRemaining: 65,
     emoji: "⏰",
   },
+  powerHunt: {
+    label: "POWER HUNT",
+    subtitle: "HUNT 10 VULNERABLE PELLET GUYS!",
+    durationMs: 18_000,
+    itemCount: 10,
+    scorePerItem: 260,
+    scorePerSecondRemaining: 65,
+    emoji: "⚡",
+  },
 } as const satisfies Record<
   BonusGameType,
   {
@@ -91,6 +101,8 @@ export const BONUS_CONFIG = {
   }
 >;
 
+const BONUS_TIME_ATTACK_RESPAWN_MS = 5_000; // fast power-pellet respawn cadence
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -100,13 +112,15 @@ export function isBonusLevel(level: number): boolean {
 }
 
 /**
- * Rotate through three types as bonus encounters accumulate.
- * Encounter 1 → rallyRound, 2 → cherryChase, 3 → timeAttack, 4 → rallyRound …
+ * Hunt appears every 10th level.
+ * Non-hunt bonus levels (5,15,25,35,45,...) cycle:
+ * rallyRound -> cherryChase -> timeAttack -> rallyRound -> ...
  */
 export function getBonusGameType(level: number): BonusGameType {
-  const encounterIndex = Math.floor(level / BONUS_LEVEL_INTERVAL); // 1-based
+  if (level % 10 === 0) return "powerHunt";
+  const nonHuntIndex = Math.floor((level - BONUS_LEVEL_INTERVAL) / 10);
   const order: BonusGameType[] = ["rallyRound", "cherryChase", "timeAttack"];
-  return order[(encounterIndex - 1) % order.length];
+  return order[nonHuntIndex % order.length];
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -202,12 +216,50 @@ export function tickBonusGame(
   let collectedNow = 0;
   let bonusPointsEarned = 0;
 
+  const walkableCells: { x: number; y: number }[] = [];
+  if (bonus.type === "powerHunt") {
+    for (let y = 0; y < maze.length; y++) {
+      for (let x = 0; x < maze[0].length; x++) {
+        const c = maze[y][x];
+        if (c === 0 || c === 2 || c === 3) walkableCells.push({ x, y });
+      }
+    }
+  }
+  const occupied = new Set<string>(items.filter((i) => !i.collected).map((i) => `${i.x},${i.y}`));
+
   items = items.map((item) => {
-    if (item.collected) return item;
+    if (item.collected) {
+      if (
+      bonus.type === "powerHunt" &&
+        typeof item.respawnAt === "number" &&
+        now >= item.respawnAt
+      ) {
+        const openCells = walkableCells.filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
+        if (openCells.length > 0) {
+          const chosen = openCells[Math.floor(Math.random() * openCells.length)];
+          occupied.add(`${chosen.x},${chosen.y}`);
+          return {
+            ...item,
+            x: chosen.x,
+            y: chosen.y,
+            collected: false,
+            respawnAt: undefined,
+          };
+        }
+      }
+      return item;
+    }
     const touched = ghostPositions.some((g) => g.x === item.x && g.y === item.y);
     if (!touched) return item;
     collectedNow++;
     bonusPointsEarned += config.scorePerItem;
+    if (bonus.type === "powerHunt") {
+      return {
+        ...item,
+        collected: true,
+        respawnAt: now + BONUS_TIME_ATTACK_RESPAWN_MS,
+      };
+    }
     return { ...item, collected: true };
   });
 
@@ -221,11 +273,11 @@ export function tickBonusGame(
   }
 
   let endsAt = bonus.endsAt;
-  // Time Attack extends timer on pickup for intuitive "chase the clock" play.
+  // Time Attack extends timer on pickup for "chase the clock" gameplay.
   if (bonus.type === "timeAttack" && collectedNow > 0 && !timedOut) {
     endsAt = Math.min(bonus.endsAt + collectedNow * 1000, now + 8000);
   }
-  const complete = allCollected || now >= endsAt;
+  const complete = bonus.type === "powerHunt" ? now >= endsAt : allCollected || now >= endsAt;
 
   return {
     next: {

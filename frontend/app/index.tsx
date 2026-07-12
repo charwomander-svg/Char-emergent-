@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
@@ -8,13 +8,23 @@ import { syncPlayGames } from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
-import { computeUnlockedThemeIds, loadProgress, THEMES } from "@/src/game/progress";
+import {
+  computeUnlockedThemeIds,
+  getTotalGoldStars,
+  getTotalStars,
+  loadProgress,
+  THEMES,
+} from "@/src/game/progress";
 
 export default function MainMenu() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isCompactMenu = width < 390;
   const { coins, economy, grantCoins } = useEconomy();
   const [highestLevel, setHighestLevel] = useState(1);
   const [totalCatches, setTotalCatches] = useState(0);
+  const [totalStars, setTotalStars] = useState(0);
+  const [totalGoldStars, setTotalGoldStars] = useState(0);
   const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
   const { missions, completedCount, rewardClaimed, rewardCoins, dateKey } =
     useDailyMissions(economy ? grantCoins : undefined);
@@ -33,6 +43,8 @@ export default function MainMenu() {
       const unlocked = new Set(computeUnlockedThemeIds(p));
       setHighestLevel(p.highestLevel);
       setTotalCatches(p.totalCatches);
+      setTotalStars(getTotalStars(p));
+      setTotalGoldStars(getTotalGoldStars(p));
       const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
       setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
     });
@@ -52,9 +64,9 @@ export default function MainMenu() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
           <Text style={styles.kicker}>CHARWARE ARCADE</Text>
-          <Text style={styles.heroTitle}>GHOST MAZE</Text>
+          <Text style={[styles.heroTitle, isCompactMenu && styles.heroTitleCompact]}>GHOST MAZE</Text>
           <Text style={styles.heroSubtitle}>Reverse Maze Chase</Text>
-          <View style={styles.heroMetaRow}>
+          <View style={[styles.heroMetaRow, isCompactMenu && styles.heroMetaRowCompact]}>
             <View style={styles.coinBadge} testID="menu-coin-balance">
               <Text style={styles.coinBadgeText}>🪙 {coins}</Text>
               <Text style={styles.coinBadgeLabel}>GHOST COINS</Text>
@@ -67,7 +79,12 @@ export default function MainMenu() {
               <Text style={styles.metaPillLabel}>CATCHES</Text>
               <Text style={styles.metaPillValue}>{totalCatches}</Text>
             </View>
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillLabel}>STARS</Text>
+              <Text style={styles.metaPillValue}>{totalStars}</Text>
+            </View>
           </View>
+          <Text style={styles.heroFootnote}>Gold Stars: {totalGoldStars}</Text>
           <View style={styles.ghostRow} testID="ghost-preview-row">
             {COLORS.ghosts.map((c, i) => (
               <View key={i} style={[styles.ghostPreview, { backgroundColor: c }]}>
@@ -84,27 +101,32 @@ export default function MainMenu() {
         </TouchableOpacity>
 
         <View style={styles.modeGrid}>
-          <TouchableOpacity style={[styles.modeCard, { borderColor: "#7FE8FF" }]} onPress={() => go("/speedrun")} testID="speedrun-btn">
+          <TouchableOpacity style={[styles.modeCard, isCompactMenu && styles.modeCardCompact, { borderColor: "#7FE8FF" }]} onPress={() => go("/speedrun")} testID="speedrun-btn">
             <Text style={[styles.modeTitle, { color: "#7FE8FF" }]}>⏱ SPEEDRUN</Text>
             <Text style={styles.modeSub}>Best time wins</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.modeCard, { borderColor: "#FF477E" }]} onPress={() => go("/game?mode=hardcore")} testID="hardcore-btn">
+          <TouchableOpacity style={[styles.modeCard, isCompactMenu && styles.modeCardCompact, { borderColor: "#FFD23F" }]} onPress={() => go("/game?mode=timeattack")} testID="timeattack-btn">
+            <Text style={[styles.modeTitle, { color: "#FFD23F" }]}>🔥 TIME ATTACK</Text>
+            <Text style={styles.modeSub}>3 minutes · infinite respawns</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.modeCard, isCompactMenu && styles.modeCardCompact, { borderColor: "#FF477E" }]} onPress={() => go("/game?mode=hardcore")} testID="hardcore-btn">
             <Text style={[styles.modeTitle, { color: "#FF477E" }]}>☠ HARDCORE</Text>
             <Text style={styles.modeSub}>No respawns</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.modeCard, { borderColor: "#9CFF57" }]} onPress={() => go("/game?mode=endless")} testID="endless-btn">
+          <TouchableOpacity style={[styles.modeCard, isCompactMenu && styles.modeCardCompact, { borderColor: "#9CFF57" }]} onPress={() => go("/game?mode=endless")} testID="endless-btn">
             <Text style={[styles.modeTitle, { color: "#9CFF57" }]}>∞ ENDLESS</Text>
             <Text style={styles.modeSub}>Past level 50</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/levels")} testID="levels-btn"><Text style={styles.actionBtnText}>🎯 LEVEL SELECT</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/shop")} testID="shop-btn"><Text style={styles.actionBtnText}>🛒 SHOP</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/characters")} testID="characters-btn"><Text style={styles.actionBtnText}>👻 CHARACTERS</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/levels")} testID="levels-btn"><Text style={styles.actionBtnText}>🎯 LEVEL SELECT</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/shop")} testID="shop-btn"><Text style={styles.actionBtnText}>🛒 SHOP</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/characters")} testID="characters-btn"><Text style={styles.actionBtnText}>👻 CHARACTERS</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/statistics")} testID="statistics-btn"><Text style={styles.actionBtnText}>📊 STATISTICS</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
         </View>
 
         <View style={styles.unlockCard} testID="next-unlock-card">
@@ -158,8 +180,11 @@ const styles = StyleSheet.create({
   },
   kicker: { color: "#7ca4ff", fontSize: 11, fontWeight: "800", letterSpacing: 1.6 },
   heroTitle: { color: "#ffff66", fontSize: 38, fontWeight: "900", letterSpacing: 2.4 },
+  heroTitleCompact: { fontSize: 33, letterSpacing: 2.1 },
   heroSubtitle: { color: "#ffb897", fontSize: 13, fontWeight: "700", letterSpacing: 0.8 },
   heroMetaRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  heroMetaRowCompact: { flexWrap: "wrap", gap: 6 },
+  heroFootnote: { color: "#ffd54a", fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
   coinBadge: {
     flex: 1.25, backgroundColor: "#1f1f3a", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: "#FFD23F", alignItems: "center", justifyContent: "center",
   },
@@ -180,14 +205,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFF00", paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: "#ff5f74", alignItems: "center",
   },
   playBtnText: { color: "#000000", fontWeight: "900", fontSize: 18, letterSpacing: 1.3 },
-  modeGrid: { flexDirection: "row", gap: 8 },
-  modeCard: { flex: 1, borderRadius: 10, borderWidth: 1, backgroundColor: "#121a31", paddingHorizontal: 10, paddingVertical: 10 },
+  modeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  modeCard: { width: "48%", borderRadius: 10, borderWidth: 1, backgroundColor: "#121a31", paddingHorizontal: 10, paddingVertical: 10 },
+  modeCardCompact: { width: "100%" },
   modeTitle: { fontSize: 12, fontWeight: "900", letterSpacing: 0.7 },
   modeSub: { color: "#b3c1e6", fontSize: 10, marginTop: 4, fontWeight: "700" },
   quickActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   actionBtn: {
     borderRadius: 9, borderWidth: 1, borderColor: "#4a5f96", backgroundColor: "#121b35", paddingVertical: 9, paddingHorizontal: 10, minWidth: "31%",
   },
+  actionBtnCompact: { minWidth: "48%" },
   actionBtnText: { color: "#ecf2ff", fontWeight: "800", fontSize: 12, letterSpacing: 0.5 },
   unlockCard: {
     width: "100%", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#9f8bff", backgroundColor: "#17142b",

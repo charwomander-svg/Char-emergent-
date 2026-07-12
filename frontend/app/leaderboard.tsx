@@ -18,7 +18,7 @@ import {
   type ScoreEntry,
 } from "@/src/game/api";
 
-type Tab = "classic" | "speedrun";
+type Tab = "classic" | "speedrun" | "timeattack";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -64,6 +64,11 @@ export default function LeaderboardScreen() {
     router.push("/speedrun");
   };
 
+  const playTimeAttack = () => {
+    getSoundEngine().uiClick();
+    router.push("/game?mode=timeattack");
+  };
+
   const formatRunMs = (ms?: number | null): string => {
     if (!ms || ms <= 0) return "—";
     const totalMs = Math.floor(ms);
@@ -75,7 +80,11 @@ export default function LeaderboardScreen() {
   };
 
   const aggregateTitle =
-    tab === "classic" ? "TOP 5 SUM OF BEST SCORES" : "TOP 5 SUM OF BEST TIMES";
+    tab === "classic"
+      ? "TOP 5 SUM OF BEST SCORES"
+      : tab === "speedrun"
+        ? "TOP 5 SUM OF BEST TIMES"
+        : "TOP 5 TIME ATTACK SCORES";
 
   const levelRows = useMemo(() => {
     const byLevel = new Map<number, ScoreEntry>();
@@ -85,6 +94,9 @@ export default function LeaderboardScreen() {
         const level = index + 1;
         return { level, entry: byLevel.get(level) ?? null };
       });
+    }
+    if (tab === "timeattack") {
+      return (summary?.level_bests ?? []).map((entry, index) => ({ level: index + 1, entry }));
     }
     return Array.from(byLevel.entries())
       .sort((a, b) => a[0] - b[0])
@@ -127,6 +139,15 @@ export default function LeaderboardScreen() {
             SPEEDRUN
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, tab === "timeattack" && styles.tabActive]}
+          onPress={() => switchTab("timeattack")}
+          testID="tab-timeattack"
+        >
+          <Text style={[styles.tabText, tab === "timeattack" && styles.tabTextActive]}>
+            TIME ATTACK
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {tab === "speedrun" && (
@@ -138,6 +159,19 @@ export default function LeaderboardScreen() {
             testID="play-speedrun-btn"
           >
             <Text style={styles.playBtnText}>▶ START SPEEDRUN</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {tab === "timeattack" && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>3 minutes. Infinite respawns. Highest score wins.</Text>
+          <TouchableOpacity
+            style={styles.playBtn}
+            onPress={playTimeAttack}
+            testID="play-timeattack-btn"
+          >
+            <Text style={styles.playBtnText}>🔥 START TIME ATTACK</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -180,8 +214,8 @@ export default function LeaderboardScreen() {
             </View>
           )}
 
-          <Text style={styles.sectionTitle}>{aggregateTitle}</Text>
-          {summary.aggregate_bests.length > 0 ? (
+          {tab !== "timeattack" && <Text style={styles.sectionTitle}>{aggregateTitle}</Text>}
+          {tab !== "timeattack" && (summary.aggregate_bests.length > 0 ? (
             summary.aggregate_bests.map((entry, index) => (
               <View
                 key={entry.id}
@@ -206,15 +240,19 @@ export default function LeaderboardScreen() {
                 No full 50-level aggregate runs yet.
               </Text>
             </View>
-          )}
+          ))}
 
           <Text style={styles.sectionTitle}>
-            {tab === "classic" ? "BEST SCORE BY LEVEL" : "BEST SPEEDRUN TIME BY LEVEL"}
+            {tab === "classic"
+              ? "BEST SCORE BY LEVEL"
+              : tab === "speedrun"
+                ? "BEST SPEEDRUN TIME BY LEVEL"
+                : "BEST TIME ATTACK RUNS"}
           </Text>
 
           {levelRows.map(({ level, entry }) => (
             <View key={level} style={styles.row} testID={`leaderboard-level-${level}`}>
-              <Text style={styles.rank}>L{level}</Text>
+              <Text style={styles.rank}>{tab === "timeattack" ? `#${level}` : `L${level}`}</Text>
               <View style={styles.rowMain}>
                 {entry ? (
                   <>
@@ -222,7 +260,9 @@ export default function LeaderboardScreen() {
                     <Text style={styles.rowMeta}>
                       {tab === "classic"
                         ? `${entry.catches} catches · ${entry.theme_id}`
-                        : `score ${entry.score} · ${entry.theme_id}`}
+                        : tab === "speedrun"
+                          ? `score ${entry.score} · ${entry.theme_id}`
+                          : `L${entry.level} · ${entry.catches} catches · ${entry.theme_id}`}
                     </Text>
                   </>
                 ) : (
@@ -233,7 +273,7 @@ export default function LeaderboardScreen() {
                 )}
               </View>
               <Text style={styles.scoreText}>
-                {tab === "classic" ? entry?.score ?? "—" : formatRunMs(entry?.run_time_ms)}
+                {tab === "speedrun" ? formatRunMs(entry?.run_time_ms) : entry?.score ?? "—"}
               </Text>
             </View>
           ))}

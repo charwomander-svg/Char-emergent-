@@ -14,7 +14,7 @@ export interface ScoreEntry {
   level: number;
   catches: number;
   theme_id: string;
-  mode: "classic" | "daily" | "speedrun";
+  mode: "classic" | "daily" | "speedrun" | "timeattack";
   daily_seed_date?: string | null;
   run_time_ms?: number | null;
   timestamp: string;
@@ -26,7 +26,7 @@ export interface ScoreSubmission {
   level: number;
   catches: number;
   theme_id?: string;
-  mode: "classic" | "daily" | "speedrun";
+  mode: "classic" | "daily" | "speedrun" | "timeattack";
   daily_seed_date?: string;
   run_time_ms?: number;
 }
@@ -75,7 +75,7 @@ export async function submitScore(s: ScoreSubmission): Promise<ScoreEntry> {
 }
 
 export async function fetchLeaderboard(
-  mode: "classic" | "daily" | "speedrun" | "all" = "classic",
+  mode: "classic" | "daily" | "speedrun" | "timeattack" | "all" = "classic",
   options?: { daily_seed_date?: string; limit?: number },
 ): Promise<ScoreEntry[]> {
   const params = new URLSearchParams({ mode });
@@ -85,7 +85,7 @@ export async function fetchLeaderboard(
 }
 
 export async function fetchLeaderboardSummary(
-  mode: "classic" | "speedrun",
+  mode: "classic" | "speedrun" | "timeattack",
 ): Promise<LeaderboardSummary> {
   const params = new URLSearchParams({ mode });
   return http<LeaderboardSummary>(`/leaderboard-summary?${params.toString()}`);

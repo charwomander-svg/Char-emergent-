@@ -485,12 +485,14 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
   size,
   moveDuration,
   visualScale = 1,
+  vulnerable = false,
   highContrast = false,
 }: {
   pg: PelletGuy;
   size: number;
   moveDuration: number;
   visualScale?: number;
+  vulnerable?: boolean;
   highContrast?: boolean;
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
@@ -576,7 +578,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           height: size * 0.85,
           margin: size * 0.075,
           borderRadius: size * 0.425,
-          backgroundColor: COLORS.pelletGuy,
+          backgroundColor: vulnerable ? COLORS.ghostVulnerable : COLORS.pelletGuy,
           borderWidth: highContrast ? 2 : 0,
           borderColor: highContrast ? "#111111" : "transparent",
           transform: [{ rotate: rotation }],
@@ -601,7 +603,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
               top: 0,
               width: size * 0.5,
               height: size * 0.425,
-              backgroundColor: COLORS.background,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
               transform: [{ skewY: "-25deg" }],
               transformOrigin: "left bottom",
             } as any}
@@ -613,7 +615,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
               top: size * 0.425,
               width: size * 0.5,
               height: size * 0.425,
-              backgroundColor: COLORS.background,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
               transform: [{ skewY: "25deg" }],
               transformOrigin: "left top",
             } as any}
@@ -685,17 +687,37 @@ export default function MazeRenderer({
         {bonusGame &&
           bonusGame.items
             .filter((item) => !item.collected)
-            .map((item, idx) => (
-              <BonusItemSprite
-                key={idx}
-                x={item.x}
-                y={item.y}
-                size={cellSize}
-                emoji={BONUS_CONFIG[bonusGame.type].emoji}
-                moveDuration={pgDuration}
-                moving={false}
-              />
-            ))}
+            .map((item, idx) =>
+              bonusGame.type === "powerHunt" ? (
+                <PelletGuySprite
+                  key={idx}
+                  pg={{
+                    x: item.x,
+                    y: item.y,
+                    spawnX: item.x,
+                    spawnY: item.y,
+                    direction: "left",
+                    alive: true,
+                    respawnAt: 0,
+                  }}
+                  size={cellSize}
+                  moveDuration={0}
+                  visualScale={0.92}
+                  vulnerable
+                  highContrast={highContrast}
+                />
+              ) : (
+                <BonusItemSprite
+                  key={idx}
+                  x={item.x}
+                  y={item.y}
+                  size={cellSize}
+                  emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                  moveDuration={pgDuration}
+                  moving={false}
+                />
+              ),
+            )}
         {/* Pellet Guy — hidden during bonus rounds */}
         {!bonusGame && (
           <PelletGuySprite

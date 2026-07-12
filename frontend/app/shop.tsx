@@ -27,6 +27,7 @@ import {
 import { COLORS } from "@/src/game/constants";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";
+import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
 import { getSoundEngine } from "@/src/game/sounds";
 
 // SKU → coins mapping (must match Play Console in-app product IDs exactly)
@@ -41,13 +42,26 @@ const COIN_SKUS: { sku: string; coins: number; label: string; price: string; bad
 
 export default function Shop() {
   const router = useRouter();
-  const { coins, inventory, buyPowerUp, grantCoins } = useEconomy();
+  const [runtimeSettings, setRuntimeSettings] = useState({
+    devInfiniteCoins: DEFAULT_SETTINGS.devInfiniteCoins,
+    devInfiniteItems: DEFAULT_SETTINGS.devInfiniteItems,
+  });
+  const { coins, inventory, buyPowerUp, grantCoins } = useEconomy(runtimeSettings);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [iapReady, setIapReady] = useState(false);
   const [loadingIap, setLoadingIap] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [storeError, setStoreError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadSettings().then((settings) => {
+      setRuntimeSettings({
+        devInfiniteCoins: settings.devInfiniteCoins,
+        devInfiniteItems: settings.devInfiniteItems,
+      });
+    });
+  }, []);
 
   useEffect(() => {
     let purchaseUpdateSub: ReturnType<typeof purchaseUpdatedListener>;

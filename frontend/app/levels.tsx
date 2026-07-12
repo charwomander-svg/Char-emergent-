@@ -3,7 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS, MAX_LEVELS } from "@/src/game/constants";
-import { loadProgress, ProgressData } from "@/src/game/progress";
+import {
+  countLevelStars,
+  getLevelStarRecord,
+  loadProgress,
+  ProgressData,
+} from "@/src/game/progress";
 import { getSoundEngine } from "@/src/game/sounds";
 
 export default function Levels() {
@@ -39,6 +44,8 @@ export default function Levels() {
           {levels.map((lv) => {
             const locked = lv > highest;
             const isBonus = lv % 5 === 0;
+            const stars = progress ? getLevelStarRecord(progress, lv) : null;
+            const starCount = stars ? countLevelStars(stars) : 0;
             return (
               <TouchableOpacity
                 key={lv}
@@ -57,6 +64,26 @@ export default function Levels() {
                   <>
                     <Text style={styles.cellNum}>{lv}</Text>
                     {isBonus && <Text style={styles.bonusTag}>BONUS</Text>}
+                    {!isBonus && (
+                      <View style={styles.starRow}>
+                        {Array.from({ length: 3 }, (_, index) => {
+                          const filled = index < starCount;
+                          const glyph = stars?.gold ? "★" : filled ? "★" : "☆";
+                          return (
+                            <Text
+                              key={`${lv}-star-${index}`}
+                              style={[
+                                styles.star,
+                                filled && styles.starFilled,
+                                stars?.gold && styles.goldStar,
+                              ]}
+                            >
+                              {glyph}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                    )}
                   </>
                 )}
               </TouchableOpacity>
@@ -101,5 +128,9 @@ const styles = StyleSheet.create({
   cellNum: { color: "#FFFFFF", fontWeight: "900", fontSize: 22, letterSpacing: 1 },
   lockedIcon: { fontSize: 20 },
   bonusTag: { color: "#A06DFF", fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  starRow: { flexDirection: "row", gap: 2, marginTop: 4 },
+  star: { color: "#485075", fontSize: 11, fontWeight: "900" },
+  starFilled: { color: "#9fb4ff" },
+  goldStar: { color: "#ffd54a" },
   hint: { color: "#666688", fontSize: 11, marginTop: 16, fontStyle: "italic", textAlign: "center" },
 });

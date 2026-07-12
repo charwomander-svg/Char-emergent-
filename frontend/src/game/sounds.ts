@@ -1,6 +1,7 @@
 // Hybrid sound engine: bundled WAV files via expo-audio on all platforms.
 
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
+import type { BonusGameType } from "./bonusGame";
 
 type SfxKey =
   | "chomp"
@@ -19,6 +20,7 @@ export type MusicTrack =
   | "tier3"
   | "tier4"
   | "bonus"
+  | "bonusHunt"
   | "instrumetalA"
   | "instrumetalB";
 
@@ -42,14 +44,15 @@ const MUSIC_SOURCES: Record<MusicTrack, number> = {
   tier3: require("@/assets/sounds/blinky_revenge.mp3"),
   tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
+  bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
   instrumetalA: require("@/assets/sounds/cloudy.mp3"),
   instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
 
-export function getMusicTrackForLevel(level: number, isBonusStage: boolean): MusicTrack {
-  if (isBonusStage) return "bonus";
+export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType | null): MusicTrack {
+  if (bonusType) return bonusType === "powerHunt" ? "bonusHunt" : "bonus";
   const safeLevel = Math.max(1, Math.floor(level));
   const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
   return LEVEL_MUSIC_ROTATION[tierIndex];
@@ -61,6 +64,7 @@ export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; 
   { id: "arcade-3", label: "Arcade: Song 3", track: "tier3", description: "Levels 21–30" },
   { id: "arcade-4", label: "Arcade: Corrupted Nightmare", track: "tier4", description: "Levels 31+" },
   { id: "bonus", label: "Bonus Stage Theme", track: "bonus", description: "Dedicated bonus music" },
+  { id: "bonus-hunt", label: "Bonus Hunt Theme", track: "bonusHunt", description: "Power Hunt levels" },
   { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
   { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
 ];

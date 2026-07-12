@@ -102,7 +102,7 @@ class ScoreSubmission(BaseModel):
     level: int = Field(ge=1)
     catches: int = Field(ge=0)
     theme_id: str = "classic"
-    mode: Literal["classic", "daily", "speedrun"] = "classic"
+    mode: Literal["classic", "daily", "speedrun", "timeattack"] = "classic"
     daily_seed_date: Optional[str] = None  # required if mode==daily
     run_time_ms: Optional[int] = Field(default=None, ge=0)
 
@@ -255,7 +255,7 @@ async def submit_score(s: ScoreSubmission):
 
 @api_router.get("/leaderboard", response_model=List[ScoreEntry])
 async def leaderboard(
-    mode: Literal["classic", "daily", "speedrun", "all"] = "classic",
+    mode: Literal["classic", "daily", "speedrun", "timeattack", "all"] = "classic",
     daily_seed_date: Optional[str] = None,
     limit: int = Query(default=20, ge=1, le=100),
 ):
@@ -276,7 +276,7 @@ async def leaderboard(
 
 @api_router.get("/leaderboard-summary", response_model=LeaderboardSummary)
 async def leaderboard_summary(
-    mode: Literal["classic", "speedrun"] = "classic",
+    mode: Literal["classic", "speedrun", "timeattack"] = "classic",
 ):
     query = {"mode": mode}
     rows = await db.scores.find(query, {"_id": 0}).to_list(length=None)
@@ -311,41 +311,42 @@ async def leaderboard_summary(
                 player_levels[entry.level] = entry
 
     aggregate_bests: List[ScoreEntry] = []
-    for player_name, level_map in per_player_level_best.items():
-        if len(level_map) < 50:
-            continue
-        player_entries = [level_map[level] for level in sorted(level_map.keys())]
-        if mode == "speedrun":
-            total_run_time = sum((entry.run_time_ms or 0) for entry in player_entries)
-            if total_run_time <= 0:
+    if mode in ("classic", "speedrun"):
+        for player_name, level_map in per_player_level_best.items():
+            if len(level_map) < 50:
                 continue
-            aggregate_bests.append(
-                ScoreEntry(
-                    id=f"aggregate-speedrun-{player_name}",
-                    player_name=player_name,
-                    score=sum(entry.score for entry in player_entries),
-                    level=50,
-                    catches=sum(entry.catches for entry in player_entries),
-                    theme_id="aggregate",
-                    mode=mode,
-                    run_time_ms=total_run_time,
-                    timestamp=min(entry.timestamp for entry in player_entries),
+            player_entries = [level_map[level] for level in sorted(level_map.keys())]
+            if mode == "speedrun":
+                total_run_time = sum((entry.run_time_ms or 0) for entry in player_entries)
+                if total_run_time <= 0:
+                    continue
+                aggregate_bests.append(
+                    ScoreEntry(
+                        id=f"aggregate-speedrun-{player_name}",
+                        player_name=player_name,
+                        score=sum(entry.score for entry in player_entries),
+                        level=50,
+                        catches=sum(entry.catches for entry in player_entries),
+                        theme_id="aggregate",
+                        mode=mode,
+                        run_time_ms=total_run_time,
+                        timestamp=min(entry.timestamp for entry in player_entries),
+                    )
                 )
-            )
-        else:
-            aggregate_bests.append(
-                ScoreEntry(
-                    id=f"aggregate-classic-{player_name}",
-                    player_name=player_name,
-                    score=sum(entry.score for entry in player_entries),
-                    level=50,
-                    catches=sum(entry.catches for entry in player_entries),
-                    theme_id="aggregate",
-                    mode=mode,
-                    run_time_ms=None,
-                    timestamp=min(entry.timestamp for entry in player_entries),
+            else:
+                aggregate_bests.append(
+                    ScoreEntry(
+                        id=f"aggregate-classic-{player_name}",
+                        player_name=player_name,
+                        score=sum(entry.score for entry in player_entries),
+                        level=50,
+                        catches=sum(entry.catches for entry in player_entries),
+                        theme_id="aggregate",
+                        mode=mode,
+                        run_time_ms=None,
+                        timestamp=min(entry.timestamp for entry in player_entries),
+                    )
                 )
-            )
 
     if mode == "speedrun":
         by_level: dict[int, ScoreEntry] = {}

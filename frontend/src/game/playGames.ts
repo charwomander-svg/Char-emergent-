@@ -8,6 +8,9 @@ const CLASSIC_AGGREGATE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQAQ0";
 const SPEEDRUN_AGGREGATE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQAg";
 const HARDCORE_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQEw";
 const ENDLESS_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQFA";
+const TIME_ATTACK_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQFQ";
+const MOST_CATCHES_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQFg";
+const TOTAL_GOLD_STARS_LEADERBOARD_ID = "CgkI9JL9xpkeEAIQFw";
 const KEY = "ghostMaze.playGames.v1";
 
 export const ACHIEVEMENT_IDS = {
@@ -60,6 +63,8 @@ interface PlayGamesData {
   speedrunBestMsByLevel: Record<string, number>;
   classicAggregateSubmitted: boolean;
   speedrunAggregateSubmitted: boolean;
+  mostCatchesLifetimeSubmitted: number;
+  totalGoldStarsSubmitted: number;
 }
 
 const DEFAULT_DATA: PlayGamesData = {
@@ -68,6 +73,8 @@ const DEFAULT_DATA: PlayGamesData = {
   speedrunBestMsByLevel: {},
   classicAggregateSubmitted: false,
   speedrunAggregateSubmitted: false,
+  mostCatchesLifetimeSubmitted: 0,
+  totalGoldStarsSubmitted: 0,
 };
 
 let cachedConfigured: boolean | null = null;
@@ -299,6 +306,42 @@ export async function submitEndlessRun(level: number): Promise<boolean> {
   if (level < 1) return false;
   if (!(await ensureSignedIn())) return false;
   return submitLeaderboardNow(ENDLESS_LEADERBOARD_ID, Math.floor(level));
+}
+
+export async function submitTimeAttackRun(score: number): Promise<boolean> {
+  if (score <= 0) return false;
+  if (!(await ensureSignedIn())) return false;
+  return submitLeaderboardNow(TIME_ATTACK_LEADERBOARD_ID, Math.floor(score));
+}
+
+export async function submitMostCatchesLifetime(totalCatches: number): Promise<boolean> {
+  if (totalCatches <= 0) return false;
+  const data = await loadPlayGamesData();
+  const nextTotal = Math.floor(totalCatches);
+  if (nextTotal <= data.mostCatchesLifetimeSubmitted) return false;
+  if (!(await ensureSignedIn())) return false;
+  const submitted = await submitLeaderboardNow(MOST_CATCHES_LEADERBOARD_ID, nextTotal);
+  if (!submitted) return false;
+  await savePlayGamesData({
+    ...data,
+    mostCatchesLifetimeSubmitted: nextTotal,
+  });
+  return true;
+}
+
+export async function submitTotalGoldStarsLifetime(totalGoldStars: number): Promise<boolean> {
+  if (totalGoldStars <= 0) return false;
+  const data = await loadPlayGamesData();
+  const nextTotal = Math.floor(totalGoldStars);
+  if (nextTotal <= data.totalGoldStarsSubmitted) return false;
+  if (!(await ensureSignedIn())) return false;
+  const submitted = await submitLeaderboardNow(TOTAL_GOLD_STARS_LEADERBOARD_ID, nextTotal);
+  if (!submitted) return false;
+  await savePlayGamesData({
+    ...data,
+    totalGoldStarsSubmitted: nextTotal,
+  });
+  return true;
 }
 
 export async function syncProgressAchievements(progress: ProgressData): Promise<void> {
