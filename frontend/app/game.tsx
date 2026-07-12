@@ -868,6 +868,7 @@ export default function GameScreen() {
   const catchesToWin = mode === "endless" && endlessBlessings.quickClear ? 2 : CATCH_TO_WIN;
   const pelletGuyLivesRemaining = Math.max(0, catchesToWin - state.catches);
   const pelletPercentRemaining = Math.round((state.pelletsRemaining / Math.max(1, state.totalPellets)) * 100);
+  const modeLabel = mode === "timeattack" ? "TIME ATTACK" : mode.toUpperCase();
   const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
   const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
   const runTitle: RunTitle = useMemo(() => {
@@ -934,58 +935,56 @@ export default function GameScreen() {
           style={[styles.footerHud, isCompactHud && styles.footerHudCompact]}
           testID="hud-bottom"
         >
-          {(bonusTutorialText ||
-            activeEffects.length > 0 ||
-            state.bonusGame ||
-            (mode === "endless" && !!endlessBlessingSummary) ||
-            mode === "speedrun" ||
-            mode === "timeattack") && (
-            <View style={styles.miniInfoRow}>
-              {bonusTutorialText && (
-                <View style={[styles.miniChip, styles.miniChipHighlight]}>
-                  <Text style={styles.miniChipText}>{bonusTutorialText}</Text>
-                </View>
-              )}
-              {mode === "endless" && !!endlessBlessingSummary && (
-                <View style={styles.miniChip}>
-                  <Text style={styles.miniChipText}>BUILD {endlessBlessingSummary}</Text>
-                </View>
-              )}
-              {mode === "speedrun" && (
-                <View style={styles.miniChip}>
-                  <Text style={styles.miniChipText}>
-                    TIME {fmtMs(elapsedMs)}{bestRunMs > 0 ? ` · BEST ${fmtMs(bestRunMs)}` : ""}
-                  </Text>
-                </View>
-              )}
-              {mode === "timeattack" && (
-                <View style={styles.miniChip}>
-                  <Text style={styles.miniChipText}>TIME LEFT {fmtMs(timeAttackRemainingMs)}</Text>
-                </View>
-              )}
-              {state.bonusGame && (
-                <View style={styles.miniChip}>
-                  <Text style={styles.miniChipText}>
-                    {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft} ·{" "}
-                    {state.bonusGame.type === "powerHunt"
-                      ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
-                        ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
-                        : "GRAB YELLOW PELLET"
-                      : `${Math.ceil(bonusTimeLeft / 1000)}s`}
-                  </Text>
-                </View>
-              )}
-              {activeEffects.map((effect) => (
-                <View key={effect.key} style={[styles.miniChip, { borderColor: effect.color }]}>
-                  <Text style={[styles.miniChipText, { color: effect.color }]}>{effect.label}</Text>
-                </View>
-              ))}
+          <View style={styles.miniInfoRow}>
+            <View style={styles.miniChip}>
+              <Text style={styles.miniChipText}>LEVEL {state.level}</Text>
             </View>
-          )}
+            <View style={styles.miniChip}>
+              <Text style={styles.miniChipText}>{modeLabel}</Text>
+            </View>
+            {bonusTutorialText && (
+              <View style={[styles.miniChip, styles.miniChipHighlight]}>
+                <Text style={styles.miniChipText}>{bonusTutorialText}</Text>
+              </View>
+            )}
+            {mode === "endless" && !!endlessBlessingSummary && (
+              <View style={styles.miniChip}>
+                <Text style={styles.miniChipText}>BUILD {endlessBlessingSummary}</Text>
+              </View>
+            )}
+            {mode === "speedrun" && (
+              <View style={styles.miniChip}>
+                <Text style={styles.miniChipText}>
+                  TIME {fmtMs(elapsedMs)}{bestRunMs > 0 ? ` · BEST ${fmtMs(bestRunMs)}` : ""}
+                </Text>
+              </View>
+            )}
+            {mode === "timeattack" && (
+              <View style={styles.miniChip}>
+                <Text style={styles.miniChipText}>TIME LEFT {fmtMs(timeAttackRemainingMs)}</Text>
+              </View>
+            )}
+            {state.bonusGame && (
+              <View style={styles.miniChip}>
+                <Text style={styles.miniChipText}>
+                  {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft} ·{" "}
+                  {state.bonusGame.type === "powerHunt"
+                    ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
+                      ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
+                      : "GRAB YELLOW PELLET"
+                    : `${Math.ceil(bonusTimeLeft / 1000)}s`}
+                </Text>
+              </View>
+            )}
+            {activeEffects.map((effect) => (
+              <View key={effect.key} style={[styles.miniChip, { borderColor: effect.color }]}>
+                <Text style={[styles.miniChipText, { color: effect.color }]}>{effect.label}</Text>
+              </View>
+            ))}
+          </View>
           <View style={styles.ghostTogglePanel} testID="ghost-toggles">
             <View style={styles.panelHeader}>
-              <Text style={styles.panelLabel}>GHOSTS</Text>
-              <View style={styles.panelHeaderActions}>
+              <View style={styles.panelHeaderActionsLeft}>
                 <TouchableOpacity
                   onPress={() => { setArmedGhosts([0, 1, 2, 3]); selectGhost(0); }}
                   style={styles.panelActionBtn}
@@ -1000,13 +999,13 @@ export default function GameScreen() {
                 >
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
-                <View style={styles.lifePills} testID="hud-lives">
-                  <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
-                    <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
-                  </View>
-                  <View style={[styles.lifePill, pelletGuyLivesRemaining <= 1 && styles.lowLivesWarning]} testID="hud-pellet-lives">
-                    <Text style={styles.lifeCountText}>PELLET {pelletGuyLivesRemaining}/{catchesToWin}</Text>
-                  </View>
+              </View>
+              <View style={styles.lifePills} testID="hud-lives">
+                <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
+                  <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
+                </View>
+                <View style={[styles.lifePill, pelletGuyLivesRemaining <= 1 && styles.lowLivesWarning]} testID="hud-pellet-lives">
+                  <Text style={styles.lifeCountText}>PELLET GUY {pelletGuyLivesRemaining}/{catchesToWin}</Text>
                 </View>
               </View>
             </View>
@@ -1085,7 +1084,8 @@ export default function GameScreen() {
                 onPress={() => activatePowerUp("hardcoreRevive")}
                 style={[
                   styles.actionBtn,
-                  isCompactHud && styles.compactBtn,
+                  styles.hardcoreReviveBtn,
+                  isCompactHud && styles.hardcoreReviveBtnCompact,
                   { borderColor: reviveToken.color },
                   !canUseReviveToken && styles.slotDim,
                 ]}
@@ -1097,108 +1097,108 @@ export default function GameScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
-              <View style={styles.stateActions}>
-                {classicStarSummary && (
-                  <View style={styles.starSummaryCard}>
-                    <Text style={styles.starSummaryTitle}>
-                      {classicStarSummary.gold ? "GOLD STAR RUN" : "LEVEL STARS"}
-                    </Text>
-                    {classicStarSummary.criteria.map((criterion) => (
-                      <Text key={criterion.label} style={styles.starSummaryText}>
-                        {criterion.earned ? "★" : "☆"} {criterion.label}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-                {state.status === "levelWon" && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (mode === "endless" && endlessBlessingChoices.length > 0) return;
-                      advanceLevel();
-                    }}
-                    style={styles.stateBtn}
-                    testID="next-level-btn"
-                  >
-                    <Text style={styles.stateBtnText}>
-                      {mode === "endless" && endlessBlessingChoices.length > 0
-                        ? "CHOOSE BLESSING"
-                        : mode !== "endless" && state.level >= MAX_LEVELS
-                          ? "FINISH!"
-                          : "NEXT LEVEL"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {state.status === "levelLost" && (
-                  <TouchableOpacity onPress={retryLevel} style={styles.stateBtn} testID="retry-level-btn">
-                    <Text style={styles.stateBtnText}>RETRY LEVEL</Text>
-                  </TouchableOpacity>
-                )}
-                {state.status === "gameOver" && (
-                  <>
-                    <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
-                      <Text style={styles.stateBtnText}>NEW GAME</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.replace("/")} style={styles.stateBtn} testID="exit-btn">
-                      <Text style={styles.stateBtnText}>EXIT</Text>
-                    </TouchableOpacity>
-                    {mode === "endless" && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          const paid = spendCoins(endlessContinueCost, { ignoreInfiniteCoins: true });
-                          if (!paid) {
-                            setStatusToast(`NEED ${endlessContinueCost} COINS`);
-                            setTimeout(() => setStatusToast((current) => (current?.startsWith("NEED ") ? null : current)), 1400);
-                            return;
-                          }
-                          const continued = continueEndlessRun();
-                          if (!continued) return;
-                          setEndlessContinueCount((count) => count + 1);
-                          setStatusToast(`CONTINUE -${endlessContinueCost} COINS`);
-                          setTimeout(() => setStatusToast((current) => (current?.startsWith("CONTINUE ") ? null : current)), 1400);
-                        }}
-                        style={[styles.stateBtn, !canAffordEndlessContinue && styles.slotDim]}
-                        disabled={!canAffordEndlessContinue}
-                        testID="endless-continue-btn"
-                      >
-                        <Text style={styles.stateBtnText}>CONTINUE ({endlessContinueCost} COINS)</Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
-                )}
-              </View>
-            )}
-            {mode === "endless" && state.status === "levelWon" && endlessBlessingChoices.length > 0 && (
-              <View style={styles.blessingPanel}>
-                <Text style={styles.blessingTitle}>MILESTONE BLESSING — PICK ONE</Text>
-                {endlessBlessingChoices.map((choice) => (
-                  <TouchableOpacity
-                    key={choice.id}
-                    style={styles.blessingBtn}
-                    onPress={() => {
-                      const ok = grantEndlessBlessing(choice.id);
-                      if (!ok) return;
-                      setEndlessBlessingChoices([]);
-                      advanceLevel();
-                    }}
-                    testID={`endless-blessing-${choice.id}`}
-                  >
-                    <Text style={styles.blessingBtnLabel}>{choice.label}</Text>
-                    <Text style={styles.blessingBtnSub}>{choice.description}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            {state.status === "gameOver" && (state.pelletsRemaining <= 12 || state.catches >= 2) && (
-              <View style={styles.almostCard}>
-                <Text style={styles.almostText}>
-                  {state.pelletsRemaining <= 12
-                    ? `ALMOST HAD IT — ${state.pelletsRemaining} PELLETS LEFT`
-                    : `${Math.max(0, 3 - state.catches)} CATCH FROM CLEAR`}
-                </Text>
-              </View>
-            )}
           </View>
+          {(state.status === "levelWon" || state.status === "levelLost" || state.status === "gameOver") && (
+            <View style={styles.stateActions}>
+              {classicStarSummary && (
+                <View style={styles.starSummaryCard}>
+                  <Text style={styles.starSummaryTitle}>
+                    {classicStarSummary.gold ? "GOLD STAR RUN" : "LEVEL STARS"}
+                  </Text>
+                  {classicStarSummary.criteria.map((criterion) => (
+                    <Text key={criterion.label} style={styles.starSummaryText}>
+                      {criterion.earned ? "★" : "☆"} {criterion.label}
+                    </Text>
+                  ))}
+                </View>
+              )}
+              {state.status === "levelWon" && (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (mode === "endless" && endlessBlessingChoices.length > 0) return;
+                    advanceLevel();
+                  }}
+                  style={styles.stateBtn}
+                  testID="next-level-btn"
+                >
+                  <Text style={styles.stateBtnText}>
+                    {mode === "endless" && endlessBlessingChoices.length > 0
+                      ? "CHOOSE BLESSING"
+                      : mode !== "endless" && state.level >= MAX_LEVELS
+                        ? "FINISH!"
+                        : "NEXT LEVEL"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {state.status === "levelLost" && (
+                <TouchableOpacity onPress={retryLevel} style={styles.stateBtn} testID="retry-level-btn">
+                  <Text style={styles.stateBtnText}>RETRY LEVEL</Text>
+                </TouchableOpacity>
+              )}
+              {state.status === "gameOver" && (
+                <>
+                  <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
+                    <Text style={styles.stateBtnText}>NEW GAME</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.replace("/")} style={styles.stateBtn} testID="exit-btn">
+                    <Text style={styles.stateBtnText}>EXIT</Text>
+                  </TouchableOpacity>
+                  {mode === "endless" && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        const paid = spendCoins(endlessContinueCost, { ignoreInfiniteCoins: true });
+                        if (!paid) {
+                          setStatusToast(`NEED ${endlessContinueCost} COINS`);
+                          setTimeout(() => setStatusToast((current) => (current?.startsWith("NEED ") ? null : current)), 1400);
+                          return;
+                        }
+                        const continued = continueEndlessRun();
+                        if (!continued) return;
+                        setEndlessContinueCount((count) => count + 1);
+                        setStatusToast(`CONTINUE -${endlessContinueCost} COINS`);
+                        setTimeout(() => setStatusToast((current) => (current?.startsWith("CONTINUE ") ? null : current)), 1400);
+                      }}
+                      style={[styles.stateBtn, !canAffordEndlessContinue && styles.slotDim]}
+                      disabled={!canAffordEndlessContinue}
+                      testID="endless-continue-btn"
+                    >
+                      <Text style={styles.stateBtnText}>CONTINUE ({endlessContinueCost} COINS)</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+          {mode === "endless" && state.status === "levelWon" && endlessBlessingChoices.length > 0 && (
+            <View style={styles.blessingPanel}>
+              <Text style={styles.blessingTitle}>MILESTONE BLESSING — PICK ONE</Text>
+              {endlessBlessingChoices.map((choice) => (
+                <TouchableOpacity
+                  key={choice.id}
+                  style={styles.blessingBtn}
+                  onPress={() => {
+                    const ok = grantEndlessBlessing(choice.id);
+                    if (!ok) return;
+                    setEndlessBlessingChoices([]);
+                    advanceLevel();
+                  }}
+                  testID={`endless-blessing-${choice.id}`}
+                >
+                  <Text style={styles.blessingBtnLabel}>{choice.label}</Text>
+                  <Text style={styles.blessingBtnSub}>{choice.description}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {state.status === "gameOver" && (state.pelletsRemaining <= 12 || state.catches >= 2) && (
+            <View style={styles.almostCard}>
+              <Text style={styles.almostText}>
+                {state.pelletsRemaining <= 12
+                  ? `ALMOST HAD IT — ${state.pelletsRemaining} PELLETS LEFT`
+                  : `${Math.max(0, 3 - state.catches)} CATCH FROM CLEAR`}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -1365,6 +1365,7 @@ const styles = StyleSheet.create({
     borderColor: "#2b3357",
   },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  panelHeaderActionsLeft: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "nowrap" },
   panelHeaderActions: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", flex: 1 },
   panelActionBtn: {
     borderWidth: 1,
@@ -1481,19 +1482,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
+    minWidth: 84,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: "#1d1d2f",
+    alignItems: "center",
+    justifyContent: "center",
   },
   compactBtn: { paddingHorizontal: 12, paddingVertical: 7 },
   actionBtn: {
     borderWidth: 2,
     borderColor: "#ff4466",
     borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: "#2a0010",
   },
+  hardcoreReviveBtn: { alignSelf: "center", marginTop: -1 },
+  hardcoreReviveBtnCompact: { paddingHorizontal: 10, paddingVertical: 6 },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "stretch" },
   starSummaryCard: {
