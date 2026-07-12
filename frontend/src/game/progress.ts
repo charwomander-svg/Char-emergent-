@@ -276,6 +276,28 @@ export const THEMES: Theme[] = [
     passive: "Candy Tax: +5% Ghost Coins from level clears.",
     unlockedAt: (p) => p.totalCatches >= 100,
   },
+  {
+    id: "marathon-squad",
+    name: "Marathon Squad",
+    ghostColors: ["#22D3EE", "#A78BFA", "#F59E0B", "#34D399"],
+    pelletGuyColor: "#F8FAFC",
+    pelletColor: "#BAE6FD",
+    hidden: false,
+    unlockHint: "Reach Level 51",
+    passive: "Trail Mix: each ghost move has a small chance to drop a pellet on empty ground.",
+    unlockedAt: (p) => p.highestLevel >= 51,
+  },
+  {
+    id: "golden-girls",
+    name: "Golden Girls",
+    ghostColors: ["#FDE047", "#FACC15", "#EAB308", "#CA8A04"],
+    pelletGuyColor: "#FFF7D6",
+    pelletColor: "#FDE68A",
+    hidden: false,
+    unlockHint: "Reach Level 101",
+    passive: "Golden Luck: Pellet Guy respawns faster with a 25% proc chance.",
+    unlockedAt: (p) => p.highestLevel >= 101,
+  },
   // Hidden / secret
   {
     id: "blood-moon",

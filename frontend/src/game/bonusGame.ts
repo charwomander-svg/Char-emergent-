@@ -45,6 +45,14 @@ export interface BonusGameState {
   collectedItems: number;
   bonusScore: number;
   complete: boolean;
+  /** Power Hunt only: one trigger pellet starts hunt mode for a short window. */
+  huntPellet?: {
+    x: number;
+    y: number;
+    active: boolean;
+  };
+  /** Power Hunt only: while now < huntActiveUntil, pellet guys are catchable. */
+  huntActiveUntil?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +109,9 @@ export const BONUS_CONFIG = {
   }
 >;
 
-const BONUS_TIME_ATTACK_RESPAWN_MS = 5_000; // fast power-pellet respawn cadence
+const POWER_HUNT_TRIGGER_WINDOW_MS = 6_000;
+const POWER_HUNT_MOVE_MIN_MS = 220;
+const POWER_HUNT_MOVE_JITTER_MS = 140;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -166,7 +176,26 @@ export function createBonusGame(
   now: number,
 ): BonusGameState {
   const config = BONUS_CONFIG[type];
-  const items = pickItemPositions(maze, config.itemCount, now, false);
+  const moving = type === "powerHunt";
+  const items = pickItemPositions(maze, config.itemCount, now, moving);
+  const occupied = new Set(items.map((i) => `${i.x},${i.y}`));
+  const walkableCells: { x: number; y: number }[] = [];
+  if (type === "powerHunt") {
+    for (let y = 0; y < maze.length; y++) {
+      for (let x = 0; x < maze[0].length; x++) {
+        const c = maze[y][x];
+        if (c === 0 || c === 2 || c === 3) walkableCells.push({ x, y });
+      }
+    }
+  }
+  let huntPellet: BonusGameState["huntPellet"] = undefined;
+  if (type === "powerHunt") {
+    const candidates = walkableCells.filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
+    const chosen =
+      candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] ??
+      { x: items[0]?.x ?? 1, y: items[0]?.y ?? 1 };
+    huntPellet = { x: chosen.x, y: chosen.y, active: true };
+  }
   return {
     type,
     label: config.label,
@@ -178,6 +207,8 @@ export function createBonusGame(
     collectedItems: 0,
     bonusScore: 0,
     complete: false,
+    huntPellet,
+    huntActiveUntil: 0,
   };
 }
 
@@ -212,6 +243,8 @@ export function tickBonusGame(
   const timedOut = now >= bonus.endsAt;
 
   let items = bonus.items;
+  let huntPellet = bonus.huntPellet;
+  let huntActiveUntil = bonus.huntActiveUntil ?? 0;
 
   let collectedNow = 0;
   let bonusPointsEarned = 0;
@@ -225,43 +258,101 @@ export function tickBonusGame(
       }
     }
   }
-  const occupied = new Set<string>(items.filter((i) => !i.collected).map((i) => `${i.x},${i.y}`));
+  const occupied = new Set<string>(items.map((i) => `${i.x},${i.y}`));
+
+  if (bonus.type === "powerHunt") {
+    const ghost = ghostPositions[0];
+    const deltas: Record<BonusDir, [number, number]> = {
+      up: [0, -1],
+      down: [0, 1],
+      left: [-1, 0],
+      right: [1, 0],
+    };
+    const isWalkable = (x: number, y: number) => {
+      const c = maze[y]?.[x];
+      return c === 0 || c === 2 || c === 3;
+    };
+    const manhattan = (x1: number, y1: number, x2: number, y2: number) =>
+      Math.abs(x1 - x2) + Math.abs(y1 - y2);
+
+    items = items.map((item) => {
+      if (!ghost || (item.nextMoveAt ?? 0) > now) return item;
+      const currentDist = manhattan(item.x, item.y, ghost.x, ghost.y);
+      const dirs = DIRS.map((dir) => {
+        const [dx, dy] = deltas[dir];
+        const nx = item.x + dx;
+        const ny = item.y + dy;
+        return { dir, nx, ny };
+      }).filter((d) => isWalkable(d.nx, d.ny));
+      if (dirs.length === 0) {
+        return {
+          ...item,
+          nextMoveAt: now + POWER_HUNT_MOVE_MIN_MS + Math.floor(Math.random() * POWER_HUNT_MOVE_JITTER_MS),
+        };
+      }
+      const scored = dirs.map((d) => ({
+        ...d,
+        score: manhattan(d.nx, d.ny, ghost.x, ghost.y),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+      const best = scored.filter((s) => s.score === scored[0].score);
+      const move = best[Math.floor(Math.random() * best.length)];
+      const shouldMove = move.score >= currentDist || Math.random() < 0.5;
+      return {
+        ...item,
+        x: shouldMove ? move.nx : item.x,
+        y: shouldMove ? move.ny : item.y,
+        dir: move.dir,
+        nextMoveAt: now + POWER_HUNT_MOVE_MIN_MS + Math.floor(Math.random() * POWER_HUNT_MOVE_JITTER_MS),
+      };
+    });
+  }
 
   items = items.map((item) => {
-    if (item.collected) {
-      if (
-      bonus.type === "powerHunt" &&
-        typeof item.respawnAt === "number" &&
-        now >= item.respawnAt
-      ) {
-        const openCells = walkableCells.filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
-        if (openCells.length > 0) {
-          const chosen = openCells[Math.floor(Math.random() * openCells.length)];
-          occupied.add(`${chosen.x},${chosen.y}`);
-          return {
-            ...item,
-            x: chosen.x,
-            y: chosen.y,
-            collected: false,
-            respawnAt: undefined,
-          };
-        }
+    if (bonus.type === "powerHunt") {
+      const huntActive = now < huntActiveUntil;
+      if (!huntActive) return { ...item, collected: false };
+      const touched = ghostPositions.some((g) => g.x === item.x && g.y === item.y);
+      if (!touched) return { ...item, collected: false };
+      collectedNow++;
+      bonusPointsEarned += config.scorePerItem;
+      const openCells = walkableCells.filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
+      if (openCells.length > 0) {
+        const chosen = openCells[Math.floor(Math.random() * openCells.length)];
+        occupied.add(`${chosen.x},${chosen.y}`);
+        return {
+          ...item,
+          x: chosen.x,
+          y: chosen.y,
+          collected: false,
+          nextMoveAt: now + POWER_HUNT_MOVE_MIN_MS + Math.floor(Math.random() * POWER_HUNT_MOVE_JITTER_MS),
+        };
       }
-      return item;
+      return { ...item, collected: false };
     }
+
     const touched = ghostPositions.some((g) => g.x === item.x && g.y === item.y);
     if (!touched) return item;
     collectedNow++;
     bonusPointsEarned += config.scorePerItem;
-    if (bonus.type === "powerHunt") {
-      return {
-        ...item,
-        collected: true,
-        respawnAt: now + BONUS_TIME_ATTACK_RESPAWN_MS,
-      };
-    }
     return { ...item, collected: true };
   });
+
+  if (bonus.type === "powerHunt") {
+    if (huntPellet?.active) {
+      const touched = ghostPositions.some((g) => g.x === huntPellet?.x && g.y === huntPellet?.y);
+      if (touched) {
+        huntActiveUntil = now + POWER_HUNT_TRIGGER_WINDOW_MS;
+        huntPellet = { ...huntPellet, active: false };
+      }
+    } else if (now >= huntActiveUntil) {
+      const openCells = walkableCells.filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
+      if (openCells.length > 0) {
+        const chosen = openCells[Math.floor(Math.random() * openCells.length)];
+        huntPellet = { x: chosen.x, y: chosen.y, active: true };
+      }
+    }
+  }
 
   const collectedItems = bonus.collectedItems + collectedNow;
   const allCollected = collectedItems >= bonus.totalItems;
@@ -283,6 +374,8 @@ export function tickBonusGame(
     next: {
       ...bonus,
       items,
+      huntPellet,
+      huntActiveUntil,
       endsAt,
       collectedItems,
       bonusScore: bonus.bonusScore + bonusPointsEarned,

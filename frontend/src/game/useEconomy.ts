@@ -87,10 +87,10 @@ export function useEconomy(devSettings?: Pick<SettingsData, "devInfiniteCoins" |
   );
 
   const spendCoins = useCallback(
-    (amount: number): boolean => {
+    (amount: number, options?: { ignoreInfiniteCoins?: boolean }): boolean => {
       const cur = econRef.current;
       if (!cur) return false;
-      if (devSettings?.devInfiniteCoins) return true;
+      if (devSettings?.devInfiniteCoins && !options?.ignoreInfiniteCoins) return true;
       const next = _spendCoins(cur, amount);
       if (!next) return false;
       persist(next);

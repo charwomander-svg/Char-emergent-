@@ -14,6 +14,7 @@ export interface StatisticsData {
   totalMinesTriggered: number;
   totalEndlessContinues: number;
   totalHardcoreRevives: number;
+  totalShinyCatches: number;
   totalScoreEarned: number;
   highestCombo: number;
   bestLevelClearMs: number;
@@ -31,6 +32,7 @@ export const DEFAULT_STATISTICS: StatisticsData = {
   totalMinesTriggered: 0,
   totalEndlessContinues: 0,
   totalHardcoreRevives: 0,
+  totalShinyCatches: 0,
   totalScoreEarned: 0,
   highestCombo: 0,
   bestLevelClearMs: 0,

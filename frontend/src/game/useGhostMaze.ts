@@ -68,11 +68,22 @@ import {
   submitTotalGoldStarsLifetime,
   syncProgressAchievements,
 } from "./playGames";
+import { updateStatistics } from "./statistics";
 
-export type EndlessBlessingId = "hunterInstinct" | "slowArena" | "extraLife";
+export type EndlessBlessingId =
+  | "hunterInstinct"
+  | "slowArena"
+  | "ghostOverdrive"
+  | "extraLife"
+  | "continueDiscount"
+  | "quickClear";
 export interface EndlessBlessingsState {
   hunterInstinct: number;
   slowArena: number;
+  ghostOverdrive: number;
+  secondWind: boolean;
+  continueDiscount: boolean;
+  quickClear: boolean;
 }
 export interface RunHazardStats {
   spikeTriggers: number;
@@ -88,6 +99,7 @@ const EMPTY_EFFECTS: ActiveEffects = {
   teamPhaseUntil: 0,
   spikeArmUntilByCell: {},
 };
+const MARATHON_PELLET_DROP_CHANCE = 0.015;
 
 function createInitialGhosts(
   spawns: { x: number; y: number }[],
@@ -330,6 +342,10 @@ export function useGhostMaze(opts?: {
   const endlessBlessingsRef = useRef<EndlessBlessingsState>({
     hunterInstinct: 0,
     slowArena: 0,
+    ghostOverdrive: 0,
+    secondWind: false,
+    continueDiscount: false,
+    quickClear: false,
   });
 
   const startLevel = useCallback((level: number, lives: number, score: number) => {
@@ -365,6 +381,10 @@ export function useGhostMaze(opts?: {
     endlessBlessingsRef.current = {
       hunterInstinct: 0,
       slowArena: 0,
+      ghostOverdrive: 0,
+      secondWind: false,
+      continueDiscount: false,
+      quickClear: false,
     };
     runHazardStatsRef.current = { spikeTriggers: 0 };
     startLevel(1, STARTING_LIVES, 0);
@@ -402,6 +422,7 @@ export function useGhostMaze(opts?: {
     // Selecting a ghost should not reset its position or trigger spawns.
     // Ignore selection requests for dead ghosts.
     setState((prev) => {
+      if (prev.bonusGame) return prev;
       if (!prev.ghosts[ghostId]?.alive) return prev;
       return { ...prev, selectedGhostId: ghostId };
     });
@@ -455,7 +476,7 @@ export function useGhostMaze(opts?: {
       modeRef.current === "hardcore" ? 0.92
       : modeRef.current === "speedrun" ? 0.95
       : modeRef.current === "endless"
-        ? 0.97 + Math.min(0.18, endlessBlessingsRef.current.slowArena * 0.06)
+        ? Math.max(0.7, 0.97 - Math.min(0.24, endlessBlessingsRef.current.ghostOverdrive * 0.08))
       : 1.0;
     const ghostInterval = SPEED.ghost * scale * ghostSpeedMult * modeSpeedMult;
     const ghostVulnInterval = SPEED.ghostVulnerable * scale * ghostSpeedMult * modeSpeedMult;
@@ -468,6 +489,7 @@ export function useGhostMaze(opts?: {
       scale *
       pelletGuyPanicMultiplier *
       (1 / modeSpeedMult) *
+      (modeRef.current === "endless" ? 1 + endlessBlessingsRef.current.slowArena * 0.15 : 1) *
       (shinyActive ? SHINY_PELLET_GUY_SPEED_MULTIPLIER : 1);
 
     let nextState: GameState = prev;
@@ -475,6 +497,7 @@ export function useGhostMaze(opts?: {
 
     // --- move ghosts ---
     const newGhosts = [...prev.ghosts];
+    const marathonPelletDrops: { x: number; y: number }[] = [];
     for (let i = 0; i < 4; i++) {
       // During bonus rounds only the selected ghost moves.
       if (prev.bonusGame && i !== prev.selectedGhostId) continue;
@@ -553,6 +576,13 @@ export function useGhostMaze(opts?: {
         direction: dir,
         nextDirection: isControlled ? ghost.nextDirection : dir,
       };
+      if (
+        themeIdRef.current === "marathon-squad" &&
+        !prev.bonusGame &&
+        Math.random() < MARATHON_PELLET_DROP_CHANCE
+      ) {
+        marathonPelletDrops.push({ x: ghost.x, y: ghost.y });
+      }
       mutated = true;
     }
 
@@ -595,6 +625,25 @@ export function useGhostMaze(opts?: {
     let status: GameState["status"] = prev.status;
     let message = prev.message;
     let effectsNext: ActiveEffects = effects;
+
+    if (marathonPelletDrops.length > 0) {
+      const dropKeys = new Set(marathonPelletDrops.map((spot) => `${spot.x},${spot.y}`));
+      for (const key of dropKeys) {
+        const [xRaw, yRaw] = key.split(",");
+        const x = Number(xRaw);
+        const y = Number(yRaw);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (maze[y]?.[x] === 0) {
+          maze = maze.map((row, ry) =>
+            ry === y
+              ? row.map((cell, cx) => (cx === x ? (2 as CellType) : cell))
+              : row,
+          );
+          pelletsRemaining++;
+          mutated = true;
+        }
+      }
+    }
 
     if (
       themeIdRef.current === "spectre" &&
@@ -994,6 +1043,10 @@ export function useGhostMaze(opts?: {
               score += SCORE_SHINY_CATCH;
               shinyPelletUntilRef.current = 0;
               message = `✨ SHINY CATCH!\n+${SCORE_SHINY_CATCH}`;
+              void updateStatistics((current) => ({
+                ...current,
+                totalShinyCatches: current.totalShinyCatches + 1,
+              }));
             }
             if (triggeredCombo) {
               getSoundEngine().comboHit(comboCount);
@@ -1002,15 +1055,23 @@ export function useGhostMaze(opts?: {
             }
 
             // Pellet Guy temporarily down
+            const goldenGirlsRespawnBoost =
+              themeIdRef.current === "golden-girls" && Math.random() < 0.25;
             pg = {
               ...pg,
               alive: false,
-              respawnAt: now + (timeAttackMode ? 0 : RESPAWN_MS),
+              respawnAt:
+                now +
+                (timeAttackMode ? 0 : goldenGirlsRespawnBoost ? Math.floor(RESPAWN_MS * 0.25) : RESPAWN_MS),
             };
             mutated = true;
 
             // ---- Non-bonus level: classic 3-catch win. ----
-            if (catches >= CATCH_TO_WIN) {
+            const catchesToWin =
+              modeRef.current === "endless" && endlessBlessingsRef.current.quickClear
+                ? 2
+                : CATCH_TO_WIN;
+            if (catches >= catchesToWin) {
               if (catches === 1) {
                 void queueAchievementUnlock("flippingTheScript");
               }
@@ -1039,7 +1100,7 @@ export function useGhostMaze(opts?: {
               if (progressRef.current) {
                 const p = { ...progressRef.current };
                 p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
-                p.totalCatches = p.totalCatches + CATCH_TO_WIN;
+                p.totalCatches = p.totalCatches + catchesToWin;
                 p.highScore = Math.max(p.highScore, score);
                 const starEligible = modeRef.current === "classic" && !prev.bonusGame;
                 const noGhostLoss = prev.ghostDeathsThisLevel === 0;
@@ -1082,7 +1143,9 @@ export function useGhostMaze(opts?: {
 
     // --- loss conditions ---
     if (status === "playing") {
-      if (ghostDeathsThisLevel >= 20) {
+      const ghostDeathCap =
+        modeRef.current === "endless" && endlessBlessingsRef.current.secondWind ? 25 : 20;
+      if (ghostDeathsThisLevel >= ghostDeathCap) {
         if (timeAttackMode) {
           startLevel(prev.level, STARTING_LIVES, score);
           return;
@@ -1092,7 +1155,7 @@ export function useGhostMaze(opts?: {
         }
         if (lives <= 0) {
           status = "gameOver";
-          message = "GAME OVER\nToo many ghost losses (20)!";
+          message = `GAME OVER\nToo many ghost losses (${ghostDeathCap})!`;
           getSoundEngine().levelLose();
           getSoundEngine().fadeMusicTo(0, 240);
           setTimeout(() => getSoundEngine().stopMusic(), 260);
@@ -1549,11 +1612,39 @@ export function useGhostMaze(opts?: {
         ...endlessBlessingsRef.current,
         slowArena: Math.min(3, endlessBlessingsRef.current.slowArena + 1),
       };
-      setState((prev) => ({ ...prev, message: "BLESSING: SLOW ARENA (GHOSTS SLOWED)" }));
+      setState((prev) => ({ ...prev, message: "BLESSING: SLOW ARENA (PELLET GUY SLOWED)" }));
+      return true;
+    }
+    if (id === "ghostOverdrive") {
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        ghostOverdrive: Math.min(3, endlessBlessingsRef.current.ghostOverdrive + 1),
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: GHOST OVERDRIVE (TEAM SPEED UP)" }));
       return true;
     }
     if (id === "extraLife") {
-      setState((prev) => ({ ...prev, lives: Math.min(5, prev.lives + 1), message: "BLESSING: +1 LIFE" }));
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        secondWind: true,
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: SECOND WIND (GHOST LOSS CAP 25)" }));
+      return true;
+    }
+    if (id === "continueDiscount") {
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        continueDiscount: true,
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: BARGAIN LIVES (CONTINUES -50%)" }));
+      return true;
+    }
+    if (id === "quickClear") {
+      endlessBlessingsRef.current = {
+        ...endlessBlessingsRef.current,
+        quickClear: true,
+      };
+      setState((prev) => ({ ...prev, message: "BLESSING: RELENTLESS HUNT (2 CATCH CLEAR)" }));
       return true;
     }
     return false;

@@ -164,8 +164,8 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
   },
 };
 
-// Purchasable first (these are the 8 shown in the HUD inventory bar),
-// then non-store items at the end (still functional if earned as bonuses).
+// Purchasable first (these are the 8 shown in the HUD inventory bar).
+// Remaining items stay functional but are not sold in the shop.
 export const POWER_UP_ORDER: PowerUpId[] = [
   "speedBoost",
   "freeze",
@@ -174,9 +174,9 @@ export const POWER_UP_ORDER: PowerUpId[] = [
   "key",
   "magnet",
   "rewind",
-  "hardcoreRevive",
-  // Not sold in the store — hidden from HUD by the slice(0,8) in game.tsx:
   "pelletScatter",
+  "hardcoreRevive",
+  // Not sold in the store:
   "fastRespawn",
   "reveal",
   "decoy",

@@ -9,7 +9,7 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 
 import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
@@ -90,6 +90,7 @@ const RUN_MEDAL_THRESHOLDS = {
 } as const;
 
 export default function GameScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
     seed?: string;
@@ -453,6 +454,7 @@ export default function GameScreen() {
       rallyRound: "TIP: Sweep flags fast with your lead ghost.",
       cherryChase: "TIP: Cut corners and chain cherries.",
       timeAttack: "TIP: Prioritize clocks to extend time.",
+      powerHunt: "TIP: Grab the yellow pellet, then hunt fleeing pellet guys.",
     };
     setBonusTutorialText(hintByType[type] ?? "TIP: Collect bonus items before time runs out.");
     const timer = setTimeout(() => setBonusTutorialText(null), 2600);
@@ -463,11 +465,27 @@ export default function GameScreen() {
     if (mode !== "endless") return;
     const shouldOffer = state.status === "levelWon" && state.level > 0 && state.level % 5 === 0;
     if (!shouldOffer || endlessBlessingChoices.length > 0) return;
-    const pool: EndlessBlessingChoice[] = [
+    const commonPool: EndlessBlessingChoice[] = [
       { id: "hunterInstinct", label: "HUNTER INSTINCT", description: "+50 catch score (stacking)." },
-      { id: "slowArena", label: "SLOW ARENA", description: "Ghost speed reduced (stacking)." },
-      { id: "extraLife", label: "SECOND WIND", description: "+1 life (max 5)." },
+      { id: "slowArena", label: "SLOW ARENA", description: "Pellet Guy speed reduced (stacking)." },
+      { id: "ghostOverdrive", label: "GHOST OVERDRIVE", description: "Your ghost team speed increases (stacking)." },
+      { id: "extraLife", label: "SECOND WIND", description: "Raises ghost-loss cap to 25 this run." },
     ];
+    const pool = [...commonPool];
+    if (Math.random() < 0.35) {
+      pool.push({
+        id: "continueDiscount",
+        label: "BARGAIN LIVES (RARE)",
+        description: "All continue costs are halved for this run.",
+      });
+    }
+    if (Math.random() < 0.12) {
+      pool.push({
+        id: "quickClear",
+        label: "RELENTLESS HUNT (SUPER RARE)",
+        description: "Only 2 catches are needed to clear levels.",
+      });
+    }
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -504,6 +522,10 @@ export default function GameScreen() {
     const parts: string[] = [];
     if (buffs.hunterInstinct > 0) parts.push(`HUNT x${buffs.hunterInstinct}`);
     if (buffs.slowArena > 0) parts.push(`SLOW x${buffs.slowArena}`);
+    if (buffs.ghostOverdrive > 0) parts.push(`SPD x${buffs.ghostOverdrive}`);
+    if (buffs.secondWind) parts.push("2ND WIND");
+    if (buffs.continueDiscount) parts.push("HALF CONTINUE");
+    if (buffs.quickClear) parts.push("2 CATCH CLEAR");
     setEndlessBlessingSummary(parts.join(" · "));
   }, [getEndlessBlessings, mode, state.level, state.status]);
 
@@ -842,11 +864,12 @@ export default function GameScreen() {
     state.status === "playing" &&
     reviveTokenCount > 0 &&
     state.ghosts.some((ghost) => ghost.permaDead);
+  const endlessBlessings = getEndlessBlessings();
   const endlessContinueCost = useMemo(() => {
     const tier = endlessContinueCount + 1;
-    if (tier <= 4) return tier * 25;
-    return 100 + (tier - 4) * 100;
-  }, [endlessContinueCount]);
+    const base = tier <= 4 ? tier * 25 : 100 + (tier - 4) * 100;
+    return endlessBlessings.continueDiscount ? Math.max(1, Math.floor(base * 0.5)) : base;
+  }, [endlessBlessings.continueDiscount, endlessContinueCount]);
   const canAffordEndlessContinue = coins >= endlessContinueCost;
 
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
@@ -854,6 +877,8 @@ export default function GameScreen() {
   const timeAttackRemainingMs = Math.max(0, TIME_ATTACK_DURATION_MS - elapsedMs);
   const isCompactHud = width < 390;
   const isVeryCompactHud = width < 360;
+  const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
+  const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
   const currentMusicLabel = getMusicTrackLabel(getMusicTrackForLevel(state.level, state.bonusGame?.type));
   const runTitle: RunTitle = useMemo(() => {
     const perfectRun =
@@ -955,7 +980,11 @@ export default function GameScreen() {
                   {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft}✕
                 </Text>
                 <Text style={styles.statusPillSub}>
-                  {Math.ceil(bonusTimeLeft / 1000)}s LEFT
+                  {state.bonusGame.type === "powerHunt"
+                    ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
+                      ? `HUNT ON ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
+                      : "GRAB YELLOW PELLET"
+                    : `${Math.ceil(bonusTimeLeft / 1000)}s LEFT`}
                 </Text>
               </View>
             )}
@@ -995,15 +1024,17 @@ export default function GameScreen() {
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
                 {!isVeryCompactHud && <Text style={styles.panelValue}>{armedGhosts.length}/4 ARMED</Text>}
-                <View style={[styles.lifeHearts, state.lives <= 1 && styles.lowLivesWarning]} testID="hud-lives">
-                  {Array.from({ length: Math.min(5, Math.max(0, state.lives)) }).map((_, index) => (
-                    <Text key={index} style={styles.lifeHeart}>♥</Text>
-                  ))}
-                  <Text style={styles.lifeCountText}>LIVES {state.lives}</Text>
+                <View style={styles.lifePills} testID="hud-lives">
+                  <View style={[styles.lifePill, state.lives <= 1 && styles.lowLivesWarning]}>
+                    <Text style={styles.lifeCountText}>TEAM {state.lives}</Text>
+                  </View>
+                  <View style={[styles.lifePill, ghostLivesRemaining <= 5 && styles.lowLivesWarning]} testID="hud-ghost-lives">
+                    <Text style={styles.lifeCountText}>GHOST {ghostLivesRemaining}/{ghostDeathCap}</Text>
+                  </View>
                 </View>
               </View>
             </View>
-            <View style={[styles.ghostToggleRow, isCompactHud && styles.ghostToggleRowCompact]}>
+            <View style={styles.ghostToggleRow}>
               {ghostToggleItems.map(({ ghost, armed, selected }) => (
                 <TouchableOpacity
                   key={ghost.id}
@@ -1014,7 +1045,6 @@ export default function GameScreen() {
                   }}
                   style={[
                     styles.ghostToggle,
-                    isCompactHud && styles.ghostToggleCompact,
                     { borderColor: ghost.color },
                     armed && styles.ghostToggleArmed,
                     selected && styles.ghostToggleSelected,
@@ -1023,9 +1053,6 @@ export default function GameScreen() {
                 >
                   <Text style={[styles.ghostToggleIndex, { color: armed ? ghost.color : "#7d88a8" }]}>
                     G{ghost.id + 1}
-                  </Text>
-                  <Text style={[styles.ghostToggleName, { color: selected ? "#f7fbff" : "#9aa6ca" }]}>
-                    {ghost.name}
                   </Text>
                   <Text style={[styles.ghostToggleRole, selected && styles.ghostToggleRoleSelected]}>
                     {GHOST_ROLE_LABELS[ghost.aiRole]}
@@ -1130,13 +1157,13 @@ export default function GameScreen() {
                     <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
                       <Text style={styles.stateBtnText}>NEW GAME</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="one-more-run-btn">
-                      <Text style={styles.stateBtnText}>ONE MORE RUN</Text>
+                    <TouchableOpacity onPress={() => router.replace("/")} style={styles.stateBtn} testID="exit-btn">
+                      <Text style={styles.stateBtnText}>EXIT</Text>
                     </TouchableOpacity>
                     {mode === "endless" && (
                       <TouchableOpacity
                         onPress={() => {
-                          const paid = spendCoins(endlessContinueCost);
+                          const paid = spendCoins(endlessContinueCost, { ignoreInfiniteCoins: true });
                           if (!paid) {
                             setStatusToast(`NEED ${endlessContinueCost} COINS`);
                             setTimeout(() => setStatusToast((current) => (current?.startsWith("NEED ") ? null : current)), 1400);
@@ -1390,16 +1417,22 @@ const styles = StyleSheet.create({
   panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   panelValue: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  lifeHearts: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 2, paddingRight: 2 },
+  lifePills: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 2, paddingRight: 2, flexWrap: "wrap" },
+  lifePill: {
+    backgroundColor: "#171d31",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#303a60",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   lowLivesWarning: { backgroundColor: "#4a1020", borderRadius: 999, paddingHorizontal: 4, paddingVertical: 1 },
   lifeHeart: { color: "#ff6b9a", fontSize: 13, fontWeight: "900" },
   lifeHeartEmpty: { color: "#5d3550" },
-  lifeCountText: { color: "#f7fbff", fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
-  ghostToggleRow: { flexDirection: "row", gap: 6 },
-  ghostToggleRowCompact: { flexWrap: "wrap", gap: 5 },
+  lifeCountText: { color: "#f7fbff", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
+  ghostToggleRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   ghostToggle: {
-    flex: 1,
-    minWidth: 0,
+    width: "49%",
     borderRadius: 10,
     borderWidth: 1.5,
     backgroundColor: "#12172d",
@@ -1408,7 +1441,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     opacity: 0.6,
   },
-  ghostToggleCompact: { flexBasis: "48%", paddingVertical: 7 },
   ghostToggleArmed: {
     backgroundColor: "#18213d",
     opacity: 1,

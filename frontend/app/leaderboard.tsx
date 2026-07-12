@@ -126,7 +126,12 @@ export default function LeaderboardScreen() {
           onPress={() => switchTab("classic")}
           testID="tab-classic"
         >
-          <Text style={[styles.tabText, tab === "classic" && styles.tabTextActive]}>
+          <Text
+            style={[styles.tabText, tab === "classic" && styles.tabTextActive]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.9}
+          >
             CLASSIC
           </Text>
         </TouchableOpacity>
@@ -135,7 +140,12 @@ export default function LeaderboardScreen() {
           onPress={() => switchTab("speedrun")}
           testID="tab-speedrun"
         >
-          <Text style={[styles.tabText, tab === "speedrun" && styles.tabTextActive]}>
+          <Text
+            style={[styles.tabText, tab === "speedrun" && styles.tabTextActive]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.9}
+          >
             SPEEDRUN
           </Text>
         </TouchableOpacity>
@@ -144,7 +154,12 @@ export default function LeaderboardScreen() {
           onPress={() => switchTab("timeattack")}
           testID="tab-timeattack"
         >
-          <Text style={[styles.tabText, tab === "timeattack" && styles.tabTextActive]}>
+          <Text
+            style={[styles.tabText, tab === "timeattack" && styles.tabTextActive]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.9}
+          >
             TIME ATTACK
           </Text>
         </TouchableOpacity>
@@ -315,7 +330,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   tabActive: { backgroundColor: "#1a1a2e", borderColor: "#FFFF00" },
-  tabText: { color: "#888899", fontWeight: "bold", letterSpacing: 2 },
+  tabText: { color: "#888899", fontWeight: "bold", letterSpacing: 1.2, fontSize: 12 },
   tabTextActive: { color: "#FFFF00" },
   banner: {
     margin: 16,

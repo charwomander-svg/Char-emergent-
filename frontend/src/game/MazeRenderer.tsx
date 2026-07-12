@@ -718,6 +718,16 @@ export default function MazeRenderer({
                 />
               ),
             )}
+        {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
+          <BonusItemSprite
+            x={bonusGame.huntPellet.x}
+            y={bonusGame.huntPellet.y}
+            size={cellSize}
+            emoji="🟡"
+            moveDuration={0}
+            moving={false}
+          />
+        )}
         {/* Pellet Guy — hidden during bonus rounds */}
         {!bonusGame && (
           <PelletGuySprite

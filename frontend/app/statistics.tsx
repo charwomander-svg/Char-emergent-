@@ -73,7 +73,7 @@ export default function StatisticsScreen() {
         ["Power-Ups Used", String(stats.totalPowerUpsUsed)],
         ["Endless Continues", String(stats.totalEndlessContinues)],
         ["Hardcore Revives", String(stats.totalHardcoreRevives)],
-        ["Highest Combo", String(stats.highestCombo)],
+        ["Shiny Pellet Guy Catches", String(stats.totalShinyCatches)],
       ],
     },
     {
