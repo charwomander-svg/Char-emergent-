@@ -52,61 +52,61 @@ export async function saveProgress(p: ProgressData): Promise<void> {
   } catch {
     // ignore
   }
+}
 
-  export function getLevelStarRecord(progress: ProgressData, level: number): LevelStarRecord {
-    const existing = progress.levelStars?.[level];
-    return {
-      cleared: !!existing?.cleared,
-      noGhostLoss: !!existing?.noGhostLoss,
-      highPellets: !!existing?.highPellets,
-      gold: !!existing?.gold,
-    };
-  }
+export function getLevelStarRecord(progress: ProgressData, level: number): LevelStarRecord {
+  const existing = progress.levelStars?.[level];
+  return {
+    cleared: !!existing?.cleared,
+    noGhostLoss: !!existing?.noGhostLoss,
+    highPellets: !!existing?.highPellets,
+    gold: !!existing?.gold,
+  };
+}
 
-  export function countLevelStars(record: LevelStarRecord): number {
-    return Number(record.cleared) + Number(record.noGhostLoss) + Number(record.highPellets);
-  }
+export function countLevelStars(record: LevelStarRecord): number {
+  return Number(record.cleared) + Number(record.noGhostLoss) + Number(record.highPellets);
+}
 
-  export function getTotalStars(progress: ProgressData): number {
-    const stars = progress.levelStars ?? {};
-    return Object.values(stars).reduce(
-      (total, record) =>
-        total +
-        countLevelStars({
-          cleared: !!record?.cleared,
-          noGhostLoss: !!record?.noGhostLoss,
-          highPellets: !!record?.highPellets,
-          gold: !!record?.gold,
-        }),
-      0,
-    );
-  }
+export function getTotalStars(progress: ProgressData): number {
+  const stars = progress.levelStars ?? {};
+  return Object.values(stars).reduce(
+    (total, record) =>
+      total +
+      countLevelStars({
+        cleared: !!record?.cleared,
+        noGhostLoss: !!record?.noGhostLoss,
+        highPellets: !!record?.highPellets,
+        gold: !!record?.gold,
+      }),
+    0,
+  );
+}
 
-  export function getTotalGoldStars(progress: ProgressData): number {
-    const stars = progress.levelStars ?? {};
-    return Object.values(stars).reduce((total, record) => total + Number(!!record?.gold), 0);
-  }
+export function getTotalGoldStars(progress: ProgressData): number {
+  const stars = progress.levelStars ?? {};
+  return Object.values(stars).reduce((total, record) => total + Number(!!record?.gold), 0);
+}
 
-  export function mergeLevelStarRecord(
-    progress: ProgressData,
-    level: number,
-    update: Partial<LevelStarRecord>,
-  ): ProgressData {
-    const current = getLevelStarRecord(progress, level);
-    const next: LevelStarRecord = {
-      cleared: current.cleared || !!update.cleared,
-      noGhostLoss: current.noGhostLoss || !!update.noGhostLoss,
-      highPellets: current.highPellets || !!update.highPellets,
-      gold: current.gold || !!update.gold,
-    };
-    return {
-      ...progress,
-      levelStars: {
-        ...(progress.levelStars ?? {}),
-        [level]: next,
-      },
-    };
-  }
+export function mergeLevelStarRecord(
+  progress: ProgressData,
+  level: number,
+  update: Partial<LevelStarRecord>,
+): ProgressData {
+  const current = getLevelStarRecord(progress, level);
+  const next: LevelStarRecord = {
+    cleared: current.cleared || !!update.cleared,
+    noGhostLoss: current.noGhostLoss || !!update.noGhostLoss,
+    highPellets: current.highPellets || !!update.highPellets,
+    gold: current.gold || !!update.gold,
+  };
+  return {
+    ...progress,
+    levelStars: {
+      ...(progress.levelStars ?? {}),
+      [level]: next,
+    },
+  };
 }
 
 // Theme definitions
