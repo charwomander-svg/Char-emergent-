@@ -19,6 +19,33 @@ export default function Root({ children }: PropsWithChildren) {
           set `overflow: auto` on the body style below.
         */}
         <ScrollViewStyleReset />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var p = window.location.pathname || "";
+                  var q = window.location.search || "";
+                  var h = window.location.hash || "";
+                  var next = p;
+
+                  if (/\\/index\\.html$/i.test(p)) {
+                    next = p.replace(/\\/index\\.html$/i, "/");
+                  } else {
+                    var m = p.match(/\\/([^\\/]+)\\.html$/i);
+                    if (m && m[1] && m[1].toLowerCase() !== "index") {
+                      next = p.replace(/\\/[^\\/]+\\.html$/i, "/" + m[1]);
+                    }
+                  }
+
+                  if (next !== p) {
+                    window.history.replaceState(null, "", next + q + h);
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <style
           dangerouslySetInnerHTML={{
             __html: `
