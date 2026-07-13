@@ -13,7 +13,46 @@ function carveLine(grid,x1,y1,x2,y2){
 }
 function makeStaticBase(level){
   const grid = createWalledGrid();
-  const template = (level-1)%15;
+  const template = (level-1)%35;
+  if (template >= 15) {
+    const variant = template - 15;
+    const offset = variant % 4;
+    const spread = 2 + (variant % 3);
+    if (variant % 5 === 0) {
+      for (let y = 2 + offset; y <= 16; y += spread) carveLine(grid, 2, y, 12, y);
+      for (let x = 3 + (offset % 2); x <= 11; x += 4) carveLine(grid, x, 2, x, 16);
+    } else if (variant % 5 === 1) {
+      carveLine(grid, 2, 2 + offset, 12, 2 + offset);
+      carveLine(grid, 2, 16 - offset, 12, 16 - offset);
+      carveLine(grid, 2 + offset, 2, 2 + offset, 16);
+      carveLine(grid, 12 - offset, 2, 12 - offset, 16);
+      carveLine(grid, 5, 8, 9, 8);
+      carveLine(grid, 5, 10, 9, 10);
+    } else if (variant % 5 === 2) {
+      for (let i = 0; i < 5; i++) {
+        const y = 2 + i * 3;
+        carveLine(grid, 2 + ((i + offset) % 3), y, 6 + ((i + offset) % 4), y + 1);
+        carveLine(grid, 8 - ((i + offset) % 2), y + 1, 12 - ((i + offset) % 3), y + 2);
+      }
+    } else if (variant % 5 === 3) {
+      carveLine(grid, 3, 3, 11, 3);
+      carveLine(grid, 3, 15, 11, 15);
+      carveLine(grid, 3, 3, 3, 15);
+      carveLine(grid, 11, 3, 11, 15);
+      carveLine(grid, 5 + (offset % 2), 5, 9 - (offset % 2), 5);
+      carveLine(grid, 5 + (offset % 2), 13, 9 - (offset % 2), 13);
+      carveLine(grid, 7, 6 + offset, 7, 12 - offset);
+    } else {
+      for (let y = 2; y <= 16; y += 2) {
+        for (let x = 2; x <= 12; x += 2) {
+          if (((x + y + variant) % 3) !== 0) carveLine(grid, x, y, x + 1, y);
+        }
+      }
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 7, 2, 7, 16);
+    }
+    return grid;
+  }
   switch(template){
     case 0:
       for(let y=3;y<=15;y+=4) carveLine(grid,2,y,12,y);
@@ -85,10 +124,10 @@ function renderSVG(grid, idx){
   svg += '</svg>';
   return svg;
 }
-for(let t=1;t<=15;t++){
+for(let t=1;t<=35;t++){
   const g = makeStaticBase(t);
   const dec = decorate(g);
   const svg = renderSVG(dec.grid,t);
   fs.writeFileSync(`./maze-${String(t).padStart(2,'0')}.svg`, svg);
 }
-console.log('Rendered 15 maze SVGs to current directory');
+console.log('Rendered 35 maze SVGs to current directory');

@@ -999,6 +999,22 @@ export default function GameScreen() {
                 >
                   <Text style={styles.panelActionText}>RESET</Text>
                 </TouchableOpacity>
+                {mode === "hardcore" && (
+                  <TouchableOpacity
+                    onPress={() => activatePowerUp("hardcoreRevive")}
+                    style={[
+                      styles.panelActionBtn,
+                      styles.panelActionBtnRevive,
+                      !canUseReviveToken && styles.slotDim,
+                    ]}
+                    disabled={!canUseReviveToken}
+                    testID="hardcore-revive-btn"
+                  >
+                    <Text style={styles.panelActionTextRevive}>
+                      {reviveToken.icon} REVIVE {reviveTokenCount}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={styles.lifePills} testID="hud-lives">
                 {mode !== "hardcore" && (
@@ -1062,24 +1078,6 @@ export default function GameScreen() {
             })}
           </View>
           <View style={[styles.controlRow, isCompactHud && styles.controlRowCompact]} testID="hud-controls">
-            {mode === "hardcore" && (
-              <TouchableOpacity
-                onPress={() => activatePowerUp("hardcoreRevive")}
-                style={[
-                  styles.actionBtn,
-                  styles.hardcoreReviveBtn,
-                  isCompactHud && styles.hardcoreReviveBtnCompact,
-                  { borderColor: reviveToken.color },
-                  !canUseReviveToken && styles.slotDim,
-                ]}
-                disabled={!canUseReviveToken}
-                testID="hardcore-revive-btn"
-              >
-                <Text style={styles.hardcoreReviveText}>
-                  {reviveToken.icon} REVIVE {reviveTokenCount}
-                </Text>
-              </TouchableOpacity>
-            )}
             <View style={[styles.scorePill, isCompactHud && styles.scorePillCompact]} testID="hud-score">
               <Text style={[styles.scorePillLabel, largeHud && styles.scorePillLabelLarge]}>SCORE</Text>
               <Text style={[styles.scorePillValue, largeHud && styles.scorePillValueLarge]}>{state.score}</Text>
@@ -1096,7 +1094,9 @@ export default function GameScreen() {
                 style={[styles.pauseBtn, isCompactHud && styles.compactBtn]}
                 testID="pause-btn"
               >
-                <Text style={styles.pauseText}>{state.status === "paused" ? "RESUME" : "PAUSE"}</Text>
+                <Text style={styles.pauseText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
+                  {state.status === "paused" ? "RESUME" : "PAUSE"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1330,8 +1330,8 @@ const styles = StyleSheet.create({
   footerHud: {
     paddingHorizontal: 8,
     paddingBottom: 8,
-    paddingTop: 4,
-    gap: 5,
+    paddingTop: 2,
+    gap: 4,
   },
   footerHudCompact: {
     paddingHorizontal: 6,
@@ -1378,6 +1378,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#12172d",
   },
   panelActionText: { color: "#c8d0f0", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  panelActionBtnRevive: { borderColor: "#ff7dc4", backgroundColor: "#2a1023" },
+  panelActionTextRevive: { color: "#ffb7de", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
   panelLabel: { color: "#95a2c8", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   lifePills: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 2, paddingRight: 2, flexWrap: "wrap" },
   lifePill: {
@@ -1484,7 +1486,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffff66",
     borderRadius: 8,
-    width: 96,
+    minWidth: 104,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: "#1d1d2f",
@@ -1503,9 +1505,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  hardcoreReviveBtn: { alignSelf: "center", marginTop: -1, backgroundColor: "#331127" },
-  hardcoreReviveBtnCompact: { paddingHorizontal: 10, paddingVertical: 6 },
-  hardcoreReviveText: { color: "#ff8cc8", fontWeight: "900", letterSpacing: 0.8, fontSize: 12 },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "stretch" },
   starSummaryCard: {

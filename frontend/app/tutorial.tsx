@@ -17,12 +17,14 @@ const SECTIONS: TutorialSection[] = [
       "You control ghosts, not Pellet Guy.\n" +
       "• Catch Pellet Guy 3 times to clear a normal stage.\n" +
       "• If pellets hit zero first, you lose the stage.\n" +
+      "• If your squad is wiped out (all ghosts dead at the same time), you lose the stage.\n" +
       "• In a stage, 20 total ghost deaths causes an auto-fail (or 25 if Second Wind is active in Endless).",
   },
   {
     title: "CONTROLS",
     body:
       "• Swipe: sets direction for armed ghosts.\n" +
+      "• We recommend using a controller for the best experience, but swiping is still good.\n" +
       "• Tap a ghost icon: arm/disarm that ghost.\n" +
       "• Selected ghost can be directed instantly where legal.\n" +
       "• Pausing and power-ups are available from the in-game HUD.",
@@ -47,8 +49,7 @@ const SECTIONS: TutorialSection[] = [
     title: "POWER-UPS + SHOP",
     body:
       "Power-ups are bought with Ghost Coins and can decide runs.\n" +
-      "Examples: Speed Boost, Freeze, Magnet, Reveal, Shield, Fast Respawn, Decoy, Trap Scramble, Pellet Scatter.\n" +
-      "• Pellet Scatter is intentionally a coin sink that can inflate star progress.\n" +
+      "Examples: Speed Boost, Freeze, Magnet, Shield, Pellet Scatter.\n" +
       "• Hardcore revive token only works in Hardcore conditions.",
   },
   {
