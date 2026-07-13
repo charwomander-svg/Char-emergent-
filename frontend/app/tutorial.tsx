@@ -24,7 +24,9 @@ const SECTIONS: TutorialSection[] = [
     title: "CONTROLS",
     body:
       "• Swipe: sets direction for armed ghosts.\n" +
+      "• Tap-to-move: tap a walkable tile and your armed ghosts path toward that spot (enable in Settings → Controls).\n" +
       "• We recommend using a controller for the best experience, but swiping is still good.\n" +
+      "• Unarmed ghosts and Pellet Guy use passive AI movement.\n" +
       "• Tap a ghost icon: arm/disarm that ghost.\n" +
       "• Selected ghost can be directed instantly where legal.\n" +
       "• Pausing and power-ups are available from the in-game HUD.",
@@ -36,6 +38,24 @@ const SECTIONS: TutorialSection[] = [
       "• Yellow power pellets make ghosts vulnerable for a short time.\n" +
       "• Vulnerable ghosts can be eaten by Pellet Guy.\n" +
       "• You can regain control through spacing, route cuts, and power-up timing.",
+  },
+  {
+    title: "AI BEHAVIOR (QUICK GUIDE)",
+    body:
+      "• Pellet Guy AI scales by level: early levels are mostly random, then it increasingly avoids nearby ghosts and takes safer routes.\n" +
+      "• At high levels, Pellet Guy has stronger awareness and becomes harder to predict/corner.\n" +
+      "• Unarmed ghosts use hunt AI: they usually chase Pellet Guy, with some randomness so routes are less scripted.\n" +
+      "• Ghost hunt aggression rises with level, so passive ghosts become better at pressure and cutoffs.\n" +
+      "• Magnet effects can temporarily alter these priorities.\n" +
+      "Ghost AI role options:\n" +
+      "• FREE: looser movement and less direct pressure.\n" +
+      "• HUNTER: direct chaser that prioritizes shortest pressure routes.\n" +
+      "• AMBUSHER: attempts to predict Pellet Guy movement and cut off escape routes.\n" +
+      "• PATROL: steadier lane control around spawn/nearby paths.\n" +
+      "• SOCIAL: prefers to stay within 5 tiles of another ghost.\n" +
+      "• CAUTIOUS: avoids danger zones and traps while still contesting space.\n" +
+      "• COWARD: keeps distance and drifts toward safer corners.\n" +
+      "• To switch AI roles, long press on the ghost you want to change.",
   },
   {
     title: "HAZARDS + TRAPS",

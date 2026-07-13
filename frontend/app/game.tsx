@@ -7,6 +7,7 @@ import {
   PanResponder,
   useWindowDimensions,
   Animated,
+  type GestureResponderEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -24,6 +25,7 @@ import { loadSpeedrunData, saveBestRunMs } from "@/src/game/speedrun";
 import { bonusTimeRemainingMs, BONUS_CONFIG } from "@/src/game/bonusGame";
 import { recordDailyMissionProgress } from "@/src/game/dailyMissions";
 import { DEFAULT_SETTINGS, loadSettings, type SettingsData } from "@/src/game/settings";
+import { isWalkable } from "@/src/game/maze";
 import { updateStatistics } from "@/src/game/statistics";
 import { getSoundEngine } from "@/src/game/sounds";
 import {
@@ -75,6 +77,43 @@ interface HiddenMedal {
   label: string;
 }
 
+function getDirectionalStepTowardTarget(
+  maze: number[][],
+  start: { x: number; y: number },
+  target: { x: number; y: number },
+): Direction | null {
+  const dirs: { dir: Direction; dx: number; dy: number }[] = [
+    { dir: "up", dx: 0, dy: -1 },
+    { dir: "down", dx: 0, dy: 1 },
+    { dir: "left", dx: -1, dy: 0 },
+    { dir: "right", dx: 1, dy: 0 },
+  ];
+  const inBounds = (x: number, y: number) => y >= 0 && y < maze.length && x >= 0 && x < maze[0].length;
+  if (!inBounds(target.x, target.y) || !isWalkable(maze, target.x, target.y, false)) return null;
+  if (start.x === target.x && start.y === target.y) return null;
+
+  const queue: { x: number; y: number }[] = [{ x: start.x, y: start.y }];
+  const visited = new Set<string>([`${start.x},${start.y}`]);
+  const firstStepByCell = new Map<string, Direction>();
+
+  for (let idx = 0; idx < queue.length; idx++) {
+    const current = queue[idx];
+    if (current.x === target.x && current.y === target.y) {
+      return firstStepByCell.get(`${current.x},${current.y}`) ?? null;
+    }
+    for (const { dir, dx, dy } of dirs) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      if (!inBounds(nx, ny) || visited.has(key) || !isWalkable(maze, nx, ny, false)) continue;
+      visited.add(key);
+      queue.push({ x: nx, y: ny });
+      firstStepByCell.set(key, firstStepByCell.get(`${current.x},${current.y}`) ?? dir);
+    }
+  }
+  return null;
+}
+
 const GHOST_ROLE_LABELS: Record<GhostAiRole, string> = {
   free: "FREE",
   hunter: "HUNTER",
@@ -82,6 +121,7 @@ const GHOST_ROLE_LABELS: Record<GhostAiRole, string> = {
   cautious: "CAUTIOUS",
   coward: "COWARD",
   ambusher: "AMBUSHER",
+  social: "SOCIAL",
 };
 
 const RUN_MEDAL_THRESHOLDS = {
@@ -153,6 +193,7 @@ export default function GameScreen() {
   const [highContrast, setHighContrast] = useState(DEFAULT_SETTINGS.highContrast);
   const [largeHud, setLargeHud] = useState(DEFAULT_SETTINGS.largeHud);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_SETTINGS.reducedMotion);
+  const [controlMode, setControlMode] = useState<SettingsData["controlMode"]>(DEFAULT_SETTINGS.controlMode);
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
   const [runStats, setRunStats] = useState<RunStats>({
     catches: 0,
@@ -216,6 +257,7 @@ export default function GameScreen() {
       setHighContrast(!!s.highContrast);
       setLargeHud(!!s.largeHud);
       setReducedMotion(!!s.reducedMotion);
+      setControlMode(s.controlMode ?? DEFAULT_SETTINGS.controlMode);
     });
     void syncPlayGames();
   }, []);
@@ -703,6 +745,24 @@ export default function GameScreen() {
     if (targets.length > 1) selectGhost(selectedGhostId);
   }, [armedGhosts, selectGhost, setGhostDirection]);
 
+  const moveArmedGhostsTowardCell = useCallback((targetX: number, targetY: number) => {
+    const current = stateRef.current;
+    if (current.status !== "playing") return;
+    const targets = armedGhosts.length > 0 ? armedGhosts : [current.selectedGhostId];
+    const selectedGhostId = current.selectedGhostId;
+    targets.forEach((id) => {
+      const ghost = current.ghosts[id];
+      if (!ghost?.alive) return;
+      const dir = getDirectionalStepTowardTarget(
+        current.maze,
+        { x: ghost.x, y: ghost.y },
+        { x: targetX, y: targetY },
+      );
+      if (dir) setGhostDirection(id, dir);
+    });
+    if (targets.length > 1) selectGhost(selectedGhostId);
+  }, [armedGhosts, selectGhost, setGhostDirection]);
+
   // Keep a stable ref so the frozen panResponder closure always calls the latest version.
   const applyDirectionToArmedRef = useRef(applyDirectionToArmed);
   applyDirectionToArmedRef.current = applyDirectionToArmed;
@@ -736,26 +796,49 @@ export default function GameScreen() {
   });
 
   const SWIPE_THRESHOLD = 25;
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
-      onPanResponderRelease: (_, g) => {
-        const dx = g.dx;
-        const dy = g.dy;
-        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
-        const dir: Direction =
-          Math.abs(dx) > Math.abs(dy)
-            ? dx > 0 ? "right" : "left"
-            : dy > 0 ? "down" : "up";
-        try {
-          Haptics.selectionAsync();
-        } catch {}
-        applyDirectionToArmedRef.current(dir);
-      },
-    })
-  ).current;
+  const isSwipeEnabled = controlMode === "swipe" || controlMode === "both";
+  const isTapEnabled = controlMode === "tap" || controlMode === "both";
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, g) =>
+          isSwipeEnabled && (Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5),
+        onPanResponderRelease: (_, g) => {
+          if (!isSwipeEnabled) return;
+          const dx = g.dx;
+          const dy = g.dy;
+          if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+          const dir: Direction =
+            Math.abs(dx) > Math.abs(dy)
+              ? dx > 0 ? "right" : "left"
+              : dy > 0 ? "down" : "up";
+          try {
+            Haptics.selectionAsync();
+          } catch {}
+          applyDirectionToArmedRef.current(dir);
+        },
+      }),
+    [isSwipeEnabled],
+  );
+
+  const handleMazeTap = useCallback((event: GestureResponderEvent) => {
+    if (!isTapEnabled) return;
+    const mazePixelWidth = cellSize * MAZE_COLS;
+    const mazePixelHeight = cellSize * MAZE_ROWS;
+    const xOffset = Math.max(0, (mazeAreaSize.width - mazePixelWidth) / 2);
+    const yOffset = Math.max(0, mazeAreaSize.height - mazePixelHeight);
+    const localX = event.nativeEvent.locationX - xOffset;
+    const localY = event.nativeEvent.locationY - yOffset;
+    if (localX < 0 || localY < 0 || localX >= mazePixelWidth || localY >= mazePixelHeight) return;
+    const targetX = Math.floor(localX / cellSize);
+    const targetY = Math.floor(localY / cellSize);
+    if (!isWalkable(stateRef.current.maze, targetX, targetY, false)) return;
+    try {
+      Haptics.selectionAsync();
+    } catch {}
+    moveArmedGhostsTowardCell(targetX, targetY);
+  }, [cellSize, isTapEnabled, mazeAreaSize.height, mazeAreaSize.width, moveArmedGhostsTowardCell]);
 
   const activeEffects = useMemo(() => {
     const now = performance.now();
@@ -912,6 +995,8 @@ export default function GameScreen() {
       <View style={styles.gameWrapper} {...panResponder.panHandlers}>
         <View
           style={styles.mazeArea}
+          onStartShouldSetResponder={() => isTapEnabled}
+          onResponderRelease={handleMazeTap}
           onLayout={(e) =>
             setMazeAreaSize({
               width: e.nativeEvent.layout.width,

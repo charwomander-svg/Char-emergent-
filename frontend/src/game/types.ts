@@ -15,7 +15,7 @@ export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Direction = "up" | "down" | "left" | "right" | "none";
 
 export type GhostId = 0 | 1 | 2 | 3;
-export type GhostAiRole = "free" | "hunter" | "patrol" | "cautious" | "coward" | "ambusher";
+export type GhostAiRole = "free" | "hunter" | "patrol" | "cautious" | "coward" | "ambusher" | "social";
 
 export interface Ghost {
   id: GhostId;

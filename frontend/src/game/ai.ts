@@ -324,6 +324,15 @@ export function chooseGhostHuntDirection(
         score += (10 - distToCorner) * 1.4;
         score += Math.min(spikeDistance, 6) * 0.8;
         break;
+      case "social":
+        // Social ghosts try to stay near teammates (within ~5 tiles) while still pressuring PG.
+        if (nearbyGhosts.length > 0) {
+          const distanceFromPack = Math.abs(nearestOtherGhost - 5);
+          score += (6 - Math.min(distanceFromPack, 6)) * 1.6;
+        }
+        score += (7 - distToPg) * 0.75;
+        score += continueBonus * 0.5;
+        break;
       case "free":
       default:
         score += (5 - distToPg) * 0.4;

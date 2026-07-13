@@ -1708,7 +1708,7 @@ export function useGhostMaze(opts?: {
   }, []);
 
   const cycleGhostAiRole = useCallback((ghostId: GhostId): GhostAiRole | null => {
-    const roles: GhostAiRole[] = ["free", "hunter", "patrol", "cautious", "coward", "ambusher"];
+    const roles: GhostAiRole[] = ["free", "hunter", "patrol", "cautious", "coward", "ambusher", "social"];
     const cur = stateRef.current;
     const ghost = cur.ghosts.find((entry) => entry.id === ghostId);
     if (!ghost) return null;

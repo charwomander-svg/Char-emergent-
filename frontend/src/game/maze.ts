@@ -41,9 +41,10 @@ function carveLine(grid: CellType[][], x1: number, y1: number, x2: number, y2: n
   }
 }
 
-function makeStaticBase(level: number): CellType[][] {
+function makeStaticBase(level: number, rand: () => number): CellType[][] {
   const grid = createWalledGrid();
-  const template = (level - 1) % 35;
+  const templateJitter = Math.floor(rand() * 35);
+  const template = (level - 1 + templateJitter) % 35;
 
   if (template >= 15) {
     const variant = template - 15;
@@ -409,7 +410,7 @@ export function generateMaze(
     seed !== undefined ? makeRng((seed ^ (level * 0x9e3779b1)) >>> 0) : Math.random;
 
   if (level % 5 !== 0) {
-    return decorateMaze(makeStaticBase(level), level, rand);
+    return decorateMaze(makeStaticBase(level, rand), level, rand);
   }
 
   const cols = MAZE_COLS;

@@ -175,6 +175,33 @@ export default function Settings() {
     </View>
   );
 
+  const ControlModeRow = ({
+    value,
+    onChange,
+  }: {
+    value: SettingsData["controlMode"];
+    onChange: (v: SettingsData["controlMode"]) => void;
+  }) => (
+    <View style={styles.row} testID="control-mode-row">
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>Controls</Text>
+        <Text style={styles.rowDesc}>Choose swipe, tap-to-move, or both</Text>
+      </View>
+      <View style={styles.modeSelector}>
+        {(["swipe", "tap", "both"] as const).map((mode) => (
+          <TouchableOpacity
+            key={mode}
+            style={[styles.modeBtn, value === mode && styles.modeBtnActive]}
+            onPress={() => onChange(mode)}
+            testID={`control-mode-${mode}`}
+          >
+            <Text style={[styles.modeBtnText, value === mode && styles.modeBtnTextActive]}>{mode.toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} testID="settings-screen">
       <View style={styles.header}>
@@ -246,6 +273,10 @@ export default function Settings() {
           value={settings.haptics}
           onChange={(v) => update("haptics", v)}
           testID="toggle-haptics"
+        />
+        <ControlModeRow
+          value={settings.controlMode}
+          onChange={(v) => update("controlMode", v)}
         />
         <Row
           label="CRT Scanlines"
@@ -437,6 +468,21 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
   stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
+  modeSelector: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modeBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 8,
+    backgroundColor: "#121a32",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  modeBtnActive: {
+    borderColor: "#FFD23F",
+    backgroundColor: "#202b4f",
+  },
+  modeBtnText: { color: "#c8d0f0", fontSize: 10, fontWeight: "900", letterSpacing: 0.4 },
+  modeBtnTextActive: { color: "#fff6d0" },
   musicCard: {
     backgroundColor: COLORS.uiPanel,
     borderRadius: 10,
