@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
+import { Platform, View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -19,6 +19,7 @@ import {
 
 export default function MainMenu() {
   const router = useRouter();
+  const [webMounted, setWebMounted] = useState(false);
   const { width } = useWindowDimensions();
   const isCompactMenu = width < 390;
   const { coins, economy, grantCoins } = useEconomy();
@@ -61,10 +62,25 @@ export default function MainMenu() {
     }, [refresh]),
   );
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    setWebMounted(true);
+  }, []);
+
   const go = (route: string) => {
     getSoundEngine().uiClick();
     router.push(route as any);
   };
+
+  if (Platform.OS === "web" && !webMounted) {
+    return (
+      <SafeAreaView style={styles.container} testID="main-menu">
+        <View style={styles.webBootPlaceholder}>
+          <Text style={styles.webBootText}>Loading menu…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -171,6 +187,8 @@ export default function MainMenu() {
             • Every 5th level is a bonus stage{"\n"}
             • Don&apos;t lose all ghosts or all pellets{"\n"}
             • 20 total ghost deaths in a stage is an auto-fail (resets each stage){"\n"}
+            • Keyboard: WASD/Arrows move, 1-4 select/hold to cycle AI, F1-F8 use powerups, Backspace exits{"\n"}
+            • Puppet Master Mode: G1 WASD, G2 YGHJ, G3 Arrows, G4 Numpad 8/4/2/6{"\n"}
             • Use 📘 TUTORIAL for complete systems and mode rules
           </Text>
         </View>
@@ -253,4 +271,15 @@ const styles = StyleSheet.create({
   },
   howToText: { color: "#FFFFFF", fontSize: 12, lineHeight: 18 },
   footer: { color: "#444466", fontSize: 11, marginTop: 4, marginBottom: 8, letterSpacing: 1, textAlign: "center" },
+  webBootPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  webBootText: {
+    color: "#9fb2e6",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
 });

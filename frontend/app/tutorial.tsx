@@ -24,6 +24,11 @@ const SECTIONS: TutorialSection[] = [
     title: "CONTROLS",
     body:
       "• Swipe: sets direction for armed ghosts.\n" +
+      "• Keyboard movement: WASD or Arrow keys.\n" +
+      "• Keyboard ghost controls: 1-4 selects a ghost, hold 1-4 to cycle that ghost's AI role.\n" +
+      "• Keyboard power-ups: F1-F8 uses the matching power-up slot in your HUD.\n" +
+      "• Puppet Master Mode: Ghost 1 uses WASD, Ghost 2 uses Y/G/H/J, Ghost 3 uses Arrow keys, Ghost 4 uses Numpad 8/4/2/6.\n" +
+      "• Backspace: leave run (with confirmation).\n" +
       "• Tap-to-move: tap a walkable tile and your armed ghosts path toward that spot (enable in Settings → Controls).\n" +
       "• We recommend using a controller for the best experience, but swiping is still good.\n" +
       "• Unarmed ghosts and Pellet Guy use passive AI movement.\n" +

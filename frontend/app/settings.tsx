@@ -279,6 +279,13 @@ export default function Settings() {
           onChange={(v) => update("controlMode", v)}
         />
         <Row
+          label="Puppet Master Mode"
+          desc="Control all four ghosts at once with split keyboard lanes"
+          value={settings.masterControlMode}
+          onChange={(v) => update("masterControlMode", v)}
+          testID="toggle-puppet-master-mode"
+        />
+        <Row
           label="CRT Scanlines"
           desc="Retro horizontal lines overlay"
           value={settings.scanlines}
