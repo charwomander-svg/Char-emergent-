@@ -18,7 +18,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "publicPath": "./"
     },
     "experiments": {
       "typedRoutes": true
