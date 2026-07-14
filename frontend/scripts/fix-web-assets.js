@@ -40,9 +40,21 @@ const moveAssets = (src, dest) => {
       }
       // Recursively move contents
       moveAssets(srcPath, destPath);
+      // Delete source directory after moving contents
+      try {
+        fs.rmdirSync(srcPath);
+      } catch (e) {
+        // Directory may not be empty or may have permission issues
+      }
     } else {
       // Copy file
       fs.copyFileSync(srcPath, destPath);
+      // Delete original file
+      try {
+        fs.unlinkSync(srcPath);
+      } catch (e) {
+        console.error(`  ✗ Could not delete original: ${srcPath}`);
+      }
       console.log(`  ✓ Moved: ${path.relative(assetsDir, destPath)}`);
     }
   });
@@ -51,29 +63,52 @@ const moveAssets = (src, dest) => {
 console.log('📋 Moving assets from dist/assets/assets/ to dist/assets/...');
 moveAssets(doubledAssetsDir, assetsDir);
 
-// Remove the now-empty doubled assets directory
-const removeEmptyDirs = (dir) => {
-  try {
-    const items = fs.readdirSync(dir);
-    items.forEach(item => {
-      const fullPath = path.join(dir, item);
-      if (fs.lstatSync(fullPath).isDirectory()) {
-        removeEmptyDirs(fullPath);
-      }
-    });
-    
-    // Remove directory if empty
-    const remaining = fs.readdirSync(dir);
-    if (remaining.length === 0 && dir !== assetsDir) {
-      fs.rmdirSync(dir);
-      console.log(`  ✓ Removed empty directory: ${dir}`);
+// Remove the now-empty doubled assets directory and any empty parent directories
+const removeEmptyDirs = (startDir, stopAt = null) => {
+  const collectDirs = (dir, dirs = []) => {
+    try {
+      if (!fs.existsSync(dir)) return dirs;
+      
+      const items = fs.readdirSync(dir);
+      dirs.push(dir);
+      
+      items.forEach(item => {
+        const fullPath = path.join(dir, item);
+        try {
+          if (fs.lstatSync(fullPath).isDirectory()) {
+            collectDirs(fullPath, dirs);
+          }
+        } catch (e) {
+          // Skip unreadable items
+        }
+      });
+      
+      return dirs;
+    } catch (e) {
+      return dirs;
     }
-  } catch (e) {
-    // Directory might already be removed
-  }
+  };
+  
+  // Collect all directories, then process in reverse order (deepest first)
+  const allDirs = collectDirs(startDir);
+  allDirs.reverse(); // Start from deepest
+  
+  allDirs.forEach(dir => {
+    try {
+      if (fs.existsSync(dir) && dir !== stopAt) {
+        const items = fs.readdirSync(dir);
+        if (items.length === 0) {
+          fs.rmdirSync(dir);
+          console.log(`  ✓ Removed empty directory: ${path.relative(distDir, dir)}`);
+        }
+      }
+    } catch (e) {
+      // Skip unreadable items or already-removed directories
+    }
+  });
 };
 
-removeEmptyDirs(doubledAssetsDir);
+removeEmptyDirs(doubledAssetsDir, assetsDir);
 
 // Fix JavaScript bundle references
 console.log('📝 Fixing asset references in JavaScript bundle...');
