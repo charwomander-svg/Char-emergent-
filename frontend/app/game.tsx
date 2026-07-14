@@ -178,7 +178,7 @@ export default function GameScreen() {
     return <View style={styles.webBootPlaceholder} />;
   }
 
-  return isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
+  return <FullGameScreen />;
 }
 
 function ItchGameScreen() {
@@ -1236,6 +1236,30 @@ function FullGameScreen() {
   const applyDirectionToArmedRef = useRef(applyDirectionToArmed);
   applyDirectionToArmedRef.current = applyDirectionToArmed;
 
+  const inventoryItems = useMemo(
+    () => POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
+      id,
+      def: POWER_UPS[id],
+      count: inventory[id] ?? 0,
+    })),
+    [inventory],
+  );
+  const activatePowerUp = useCallback((id: PowerUpId) => {
+    const applied = applyPowerUp(id);
+    if (!applied) return;
+    setRunStats((stats) => ({
+      ...stats,
+      powerUpsUsed: stats.powerUpsUsed + 1,
+      hardcoreRevivesUsed: stats.hardcoreRevivesUsed + (id === "hardcoreRevive" ? 1 : 0),
+    }));
+    if (themeId === "blood-moon" && id !== "hardcoreRevive" && Math.random() < 0.1) return;
+    consumeInventory(id);
+  }, [applyPowerUp, consumeInventory, themeId]);
+  const powerUpIdsForHotkeys = useMemo(
+    () => inventoryItems.map((item) => item.id),
+    [inventoryItems],
+  );
+
   useGamepad({
     onDirection: (_id, dir) => {
       applyDirectionToArmedRef.current(dir);
@@ -1267,7 +1291,6 @@ function FullGameScreen() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isItchWeb) return;
 
     const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
     const holdTriggered = new Set<GhostId>();
@@ -1359,7 +1382,6 @@ function FullGameScreen() {
   }, [
     activatePowerUp,
     cycleGhostAiRole,
-    isItchWeb,
     powerUpIdsForHotkeys,
     router,
     selectGhost,
@@ -1475,14 +1497,6 @@ function FullGameScreen() {
     }
     return list;
   }, [state.effects, themeId]);
-  const inventoryItems = useMemo(
-    () => POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
-      id,
-      def: POWER_UPS[id],
-      count: inventory[id] ?? 0,
-    })),
-    [inventory],
-  );
   const ghostToggleItems = useMemo(
     () => state.ghosts.map((ghost) => ({
       ghost,
@@ -1492,21 +1506,6 @@ function FullGameScreen() {
     [armedGhosts, state.ghosts, state.selectedGhostId],
   );
 
-  const activatePowerUp = useCallback((id: PowerUpId) => {
-    const applied = applyPowerUp(id);
-    if (!applied) return;
-    setRunStats((stats) => ({
-      ...stats,
-      powerUpsUsed: stats.powerUpsUsed + 1,
-      hardcoreRevivesUsed: stats.hardcoreRevivesUsed + (id === "hardcoreRevive" ? 1 : 0),
-    }));
-    if (themeId === "blood-moon" && id !== "hardcoreRevive" && Math.random() < 0.1) return;
-    consumeInventory(id);
-  }, [applyPowerUp, consumeInventory, themeId]);
-  const powerUpIdsForHotkeys = useMemo(
-    () => inventoryItems.map((item) => item.id),
-    [inventoryItems],
-  );
   const reviveToken = POWER_UPS.hardcoreRevive;
   const reviveTokenCount = inventory.hardcoreRevive ?? 0;
   const canUseReviveToken =

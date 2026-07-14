@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { View, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
@@ -9,15 +10,37 @@ import { useFullscreen } from "@/src/utils/useFullscreen";
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [webMounted, setWebMounted] = useState(false);
   const [loaded, error] = useIconFonts();
 
-  useFullscreen({ autoEnter: true });
+  useFullscreen({ autoEnter: Platform.OS !== "web" });
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
+    setWebMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
     if (loaded || error) {
       SplashScreen.hideAsync();
     }
   }, [loaded, error]);
+
+  if (Platform.OS === "web") {
+    if (!webMounted) {
+      return (
+        <View style={styles.splash}>
+          <Image
+            source={require("../assets/images/app-image.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    }
+    return <Stack screenOptions={{ headerShown: false }} />;
+  }
 
   // Show Charware logo on black while fonts load — overrides whatever the
   // native splash shows, works on every Android version without build config.
@@ -48,4 +71,3 @@ const styles = StyleSheet.create({
     height: 280,
   },
 });
-
