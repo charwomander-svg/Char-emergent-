@@ -196,5 +196,29 @@ htmlFiles.forEach(file => {
   }
 });
 
+// Copy public files to dist root
+console.log('📂 Copying public files to dist root...');
+
+const publicDir = path.join(__dirname, '../public');
+if (fs.existsSync(publicDir)) {
+  const publicFiles = fs.readdirSync(publicDir);
+  
+  publicFiles.forEach(file => {
+    const srcPath = path.join(publicDir, file);
+    const destPath = path.join(distDir, file);
+    
+    try {
+      if (fs.lstatSync(srcPath).isFile()) {
+        fs.copyFileSync(srcPath, destPath);
+        console.log(`  ✓ Copied: ${file}`);
+      }
+    } catch (e) {
+      console.error(`  ✗ Error copying ${file}: ${e.message}`);
+    }
+  });
+} else {
+  console.log('  ℹ️  No public directory found, skipping.');
+}
+
 console.log('✨ Asset path fixing complete!');
 
