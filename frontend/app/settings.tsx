@@ -1,69 +1,36 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, PanResponder, GestureResponderEvent, LayoutChangeEvent } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { getSoundEngine } from "@/src/game/sounds";
-
-// ---- Simple drag slider ----
-function VolumeSlider({ value, onChange, color = "#FFD23F" }: { value: number; onChange: (v: number) => void; color?: string }) {
-  const trackWidth = useRef(200);
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e: GestureResponderEvent) => {
-        const x = e.nativeEvent.locationX;
-        onChange(Math.max(0, Math.min(1, x / trackWidth.current)));
-      },
-      onPanResponderMove: (e: GestureResponderEvent) => {
-        const x = e.nativeEvent.locationX;
-        onChange(Math.max(0, Math.min(1, x / trackWidth.current)));
-      },
-    })
-  ).current;
-
-  return (
-    <View
-      style={sliderStyles.track}
-      onLayout={(e: LayoutChangeEvent) => { trackWidth.current = e.nativeEvent.layout.width; }}
-      {...panResponder.panHandlers}
-    >
-      <View style={[sliderStyles.fill, { width: `${value * 100}%` as any, backgroundColor: color }]} />
-      <View style={[sliderStyles.thumb, { left: `${value * 100}%` as any, borderColor: color }]} />
-    </View>
-  );
-}
-
-const sliderStyles = StyleSheet.create({
-  track: {
-    height: 20,
-    backgroundColor: "#111133",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#333355",
-    position: "relative",
-    marginTop: 8,
-    overflow: "visible",
-  },
-  fill: { position: "absolute", top: 0, left: 0, bottom: 0, borderRadius: 10 },
-  thumb: {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    borderWidth: 2,
-    top: -1,
-    marginLeft: -10,
-  },
-});
-// ----------------------------
+import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
+import { redeemPromoCode } from "@/src/game/api";
+import { getPlayerId } from "@/src/game/playerId";
+import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
+import type { PowerUpId } from "@/src/game/powerups";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const orderedSoundTestTracks = React.useMemo(() => {
+    const order = settings.soundTestOrder ?? [];
+    const orderMap = new Map(order.map((id, index) => [id, index]));
+    const favorites = new Set(settings.soundTestFavorites ?? []);
+    return [...SOUND_TEST_TRACKS].sort((a, b) => {
+      const favDiff = Number(favorites.has(b.id)) - Number(favorites.has(a.id));
+      if (favDiff !== 0) return favDiff;
+      const ai = orderMap.get(a.id);
+      const bi = orderMap.get(b.id);
+      if (ai != null && bi != null) return ai - bi;
+      if (ai != null) return -1;
+      if (bi != null) return 1;
+      return 0;
+    });
+  }, [settings.soundTestFavorites, settings.soundTestOrder]);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -75,15 +42,111 @@ export default function Settings() {
     saveSettings(next);
     if (k === "soundOn") {
       getSoundEngine().setEnabled(Boolean(v));
-      if (!v) getSoundEngine().stopMusic();
+      if (!v) {
+        getSoundEngine().stopMusic();
+        setActiveSoundTestTrack(null);
+      }
     }
     if (k === "musicOn") {
       if (v && settings.soundOn) getSoundEngine().startMusic();
-      if (!v) getSoundEngine().stopMusic();
+      if (!v) {
+        getSoundEngine().stopMusic();
+        setActiveSoundTestTrack(null);
+      }
     }
-    if (k === "sfxVolume") getSoundEngine().setSfxVolume(Number(v));
-    if (k === "musicVolume") getSoundEngine().setMusicVolume(Number(v));
+    if (k === "sfxVolume" || k === "musicVolume") {
+      getSoundEngine().setVolumes({
+        sfx: k === "sfxVolume" ? Number(v) : next.sfxVolume,
+        music: k === "musicVolume" ? Number(v) : next.musicVolume,
+      });
+    }
   };
+
+  const openExternal = async (url: string) => {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert("Link unavailable", url);
+      return;
+    }
+    await Linking.openURL(url);
+  };
+
+  const redeemSecretCode = async () => {
+    const cleaned = promoCode.trim();
+    if (!cleaned || redeemingPromo) return;
+    setRedeemingPromo(true);
+    try {
+      if (cleaned.toUpperCase() === "WARM0NGER") {
+        const next = {
+          ...settings,
+          devMode: true,
+          devInfiniteCoins: true,
+          devInfiniteItems: true,
+        };
+        setSettings(next);
+        await saveSettings(next);
+        Alert.alert("Dev mode unlocked", "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.");
+        setPromoCode("");
+        return;
+      }
+      const playerId = await getPlayerId();
+      const redeemed = await redeemPromoCode(cleaned, playerId);
+      const economy = await loadEconomy();
+      let nextEconomy = addCoins(economy, redeemed.rewards.coins ?? 0);
+      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
+        const id = rawId as PowerUpId;
+        if (typeof qty === "number" && qty > 0) {
+          nextEconomy = addInventory(nextEconomy, id, qty);
+        }
+      }
+      await saveEconomy(nextEconomy);
+      Alert.alert("Code redeemed", "Promo rewards added to your save.");
+      setPromoCode("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      Alert.alert("Redeem failed", message);
+    } finally {
+      setRedeemingPromo(false);
+    }
+  };
+
+  const NumberRow = ({
+    label,
+    desc,
+    value,
+    step,
+    min,
+    max,
+    onChange,
+    valueText,
+    testID,
+  }: {
+    label: string;
+    desc: string;
+    value: number;
+    step: number;
+    min: number;
+    max: number;
+    onChange: (v: number) => void;
+    valueText: string;
+    testID?: string;
+  }) => (
+    <View style={styles.row} testID={testID}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowDesc}>{desc}</Text>
+      </View>
+      <View style={styles.stepper}>
+        <TouchableOpacity onPress={() => onChange(Math.max(min, Number((value - step).toFixed(2))))} style={styles.stepBtn}>
+          <Text style={styles.stepBtnText}>-</Text>
+        </TouchableOpacity>
+        <Text style={styles.stepValue}>{valueText}</Text>
+        <TouchableOpacity onPress={() => onChange(Math.min(max, Number((value + step).toFixed(2))))} style={styles.stepBtn}>
+          <Text style={styles.stepBtnText}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   const Row = ({
     label,
@@ -112,6 +175,33 @@ export default function Settings() {
     </View>
   );
 
+  const ControlModeRow = ({
+    value,
+    onChange,
+  }: {
+    value: SettingsData["controlMode"];
+    onChange: (v: SettingsData["controlMode"]) => void;
+  }) => (
+    <View style={styles.row} testID="control-mode-row">
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>Controls</Text>
+        <Text style={styles.rowDesc}>Choose swipe, tap-to-move, or both</Text>
+      </View>
+      <View style={styles.modeSelector}>
+        {(["swipe", "tap", "both"] as const).map((mode) => (
+          <TouchableOpacity
+            key={mode}
+            style={[styles.modeBtn, value === mode && styles.modeBtnActive]}
+            onPress={() => onChange(mode)}
+            testID={`control-mode-${mode}`}
+          >
+            <Text style={[styles.modeBtnText, value === mode && styles.modeBtnTextActive]}>{mode.toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} testID="settings-screen">
       <View style={styles.header}>
@@ -122,7 +212,7 @@ export default function Settings() {
         <View style={{ width: 60 }} />
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={true}>
         <Row
           label="Sound Effects"
           desc="Pellet chomps, catches, level fanfare"
@@ -130,29 +220,70 @@ export default function Settings() {
           onChange={(v) => update("soundOn", v)}
           testID="toggle-sound"
         />
-        <View style={styles.sliderRow} testID="slider-sfx">
-          <Text style={styles.rowLabel}>SFX Volume</Text>
-          <Text style={styles.sliderValue}>{Math.round(settings.sfxVolume * 100)}%</Text>
-          <VolumeSlider value={settings.sfxVolume} onChange={(v) => update("sfxVolume", v)} color="#FFD23F" />
-        </View>
         <Row
           label="Background Music"
-          desc="Chiptune loop while playing"
+          desc="Main and bonus stage tracks"
           value={settings.musicOn}
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
         />
-        <View style={styles.sliderRow} testID="slider-music">
-          <Text style={styles.rowLabel}>Music Volume</Text>
-          <Text style={styles.sliderValue}>{Math.round(settings.musicVolume * 100)}%</Text>
-          <VolumeSlider value={settings.musicVolume} onChange={(v) => update("musicVolume", v)} color="#7FE8FF" />
-        </View>
+        <NumberRow
+          label="SFX Volume"
+          desc="Catch, combo, and gameplay sound levels"
+          value={settings.sfxVolume}
+          step={0.05}
+          min={0}
+          max={1}
+          onChange={(v) => update("sfxVolume", v)}
+          valueText={`${Math.round(settings.sfxVolume * 100)}%`}
+          testID="sfx-volume"
+        />
+        <NumberRow
+          label="Music Volume"
+          desc="Background track loudness"
+          value={settings.musicVolume}
+          step={0.05}
+          min={0}
+          max={1}
+          onChange={(v) => update("musicVolume", v)}
+          valueText={`${Math.round(settings.musicVolume * 100)}%`}
+          testID="music-volume"
+        />
+        <Row
+          label="Invert Stick Y"
+          desc="Invert vertical controller stick direction"
+          value={settings.gamepadInvertY}
+          onChange={(v) => update("gamepadInvertY", v)}
+          testID="toggle-invert-y"
+        />
+        <NumberRow
+          label="Controller Deadzone"
+          desc="How far stick must move before input triggers"
+          value={settings.gamepadDeadzone}
+          step={0.05}
+          min={0.2}
+          max={0.9}
+          onChange={(v) => update("gamepadDeadzone", v)}
+          valueText={settings.gamepadDeadzone.toFixed(2)}
+          testID="gamepad-deadzone"
+        />
         <Row
           label="Haptics"
           desc="Subtle vibrations on swipes and catches"
           value={settings.haptics}
           onChange={(v) => update("haptics", v)}
           testID="toggle-haptics"
+        />
+        <ControlModeRow
+          value={settings.controlMode}
+          onChange={(v) => update("controlMode", v)}
+        />
+        <Row
+          label="Puppet Master Mode"
+          desc="Control all four ghosts at once with split keyboard lanes"
+          value={settings.masterControlMode}
+          onChange={(v) => update("masterControlMode", v)}
+          testID="toggle-puppet-master-mode"
         />
         <Row
           label="CRT Scanlines"
@@ -168,7 +299,137 @@ export default function Settings() {
           onChange={(v) => update("reducedMotion", v)}
           testID="toggle-reduced-motion"
         />
-      </View>
+        <Row
+          label="High Contrast"
+          desc="Boost outlines and visibility for game entities"
+          value={settings.highContrast}
+          onChange={(v) => update("highContrast", v)}
+          testID="toggle-high-contrast"
+        />
+        <Row
+          label="Large HUD"
+          desc="Increase HUD size for readability"
+          value={settings.largeHud}
+          onChange={(v) => update("largeHud", v)}
+          testID="toggle-large-hud"
+        />
+        <View style={styles.musicCard}>
+          <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
+          <Text style={styles.musicCardBody}>
+            Enjoying the music? Chardcore is a musical artist with 8 albums released. You might like it, so we are
+            providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
+            free. She is awesome like that.
+          </Text>
+          <View style={styles.musicLinkRow}>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://charware.dev/instrumetal")}
+              testID="instrumetal-link"
+            >
+              <Text style={styles.musicLinkBtnText}>INSTRUMETAL (FREE)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://open.spotify.com/artist/23uBgaylUzFwSFkLRPxX80")}
+              testID="spotify-link"
+            >
+              <Text style={styles.musicLinkBtnText}>SPOTIFY</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.musicLinkBtn}
+              onPress={() => openExternal("https://charware.dev")}
+              testID="charware-link"
+            >
+              <Text style={styles.musicLinkBtnText}>CHARWARE.DEV</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.musicCardSub}>Tap a track to preview your favorites.</Text>
+          {orderedSoundTestTracks.map((entry) => (
+            <TouchableOpacity
+              key={entry.id}
+              style={[
+                styles.soundTestBtn,
+                activeSoundTestTrack === entry.id && styles.soundTestBtnActive,
+              ]}
+              onPress={() => {
+                if (activeSoundTestTrack === entry.id) {
+                  getSoundEngine().stopMusic();
+                  setActiveSoundTestTrack(null);
+                  return;
+                }
+                getSoundEngine().startMusic(entry.track);
+                setActiveSoundTestTrack(entry.id);
+                const nextOrder = [entry.id, ...(settings.soundTestOrder ?? []).filter((id) => id !== entry.id)];
+                update("soundTestOrder", nextOrder);
+              }}
+              testID={`sound-test-${entry.id}`}
+            >
+              <View style={styles.soundTestHeader}>
+                <Text style={styles.soundTestTitle}>{entry.label}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const current = new Set(settings.soundTestFavorites ?? []);
+                    if (current.has(entry.id)) current.delete(entry.id);
+                    else current.add(entry.id);
+                    update("soundTestFavorites", Array.from(current));
+                  }}
+                  style={styles.favoriteBtn}
+                  testID={`sound-test-fav-${entry.id}`}
+                >
+                  <Text style={styles.favoriteBtnText}>
+                    {(settings.soundTestFavorites ?? []).includes(entry.id) ? "★" : "☆"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.soundTestSub}>{entry.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.musicCard}>
+          <Text style={styles.musicCardTitle}>PROMO / SECRET CODE</Text>
+          <Text style={styles.musicCardSub}>Enter a code to claim rewards or unlock hidden features.</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              value={promoCode}
+              onChangeText={setPromoCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="ENTER CODE"
+              placeholderTextColor="#7d88a8"
+              style={styles.promoInput}
+              testID="promo-code-input"
+            />
+            <TouchableOpacity
+              onPress={redeemSecretCode}
+              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
+              disabled={redeemingPromo}
+              testID="promo-code-submit"
+            >
+              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {settings.devMode && (
+          <View style={styles.musicCard} testID="dev-mode-card">
+            <Text style={styles.musicCardTitle}>DEV MODE</Text>
+            <Text style={styles.musicCardSub}>Unlocked via secret code. These cheats stay hidden from normal players.</Text>
+            <Row
+              label="Infinite Coins"
+              desc="Coin spending checks always pass"
+              value={settings.devInfiniteCoins}
+              onChange={(v) => update("devInfiniteCoins", v)}
+              testID="toggle-dev-infinite-coins"
+            />
+            <Row
+              label="Infinite Items"
+              desc="Power-ups never consume inventory"
+              value={settings.devInfiniteItems}
+              onChange={(v) => update("devInfiniteItems", v)}
+              testID="toggle-dev-infinite-items"
+            />
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -201,7 +462,35 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: "#FFFFFF", fontWeight: "bold", fontSize: 15 },
   rowDesc: { color: "#CCCCDD", fontSize: 11, marginTop: 2 },
-  sliderRow: {
+  stepper: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#121a32",
+  },
+  stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
+  stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
+  modeSelector: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modeBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 8,
+    backgroundColor: "#121a32",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  modeBtnActive: {
+    borderColor: "#FFD23F",
+    backgroundColor: "#202b4f",
+  },
+  modeBtnText: { color: "#c8d0f0", fontSize: 10, fontWeight: "900", letterSpacing: 0.4 },
+  modeBtnTextActive: { color: "#fff6d0" },
+  musicCard: {
     backgroundColor: COLORS.uiPanel,
     borderRadius: 10,
     paddingHorizontal: 14,
@@ -209,6 +498,68 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORS.uiBorder,
+    gap: 8,
   },
-  sliderValue: { color: "#CCCCDD", fontSize: 11, marginTop: 2 },
+  musicCardTitle: { color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 1 },
+  musicCardBody: { color: "#d9def8", fontSize: 12, lineHeight: 18 },
+  musicCardSub: { color: "#aeb9e8", fontSize: 11, fontWeight: "700" },
+  musicLinkRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  musicLinkBtn: {
+    borderWidth: 1,
+    borderColor: "#5f6aa0",
+    borderRadius: 8,
+    backgroundColor: "#121a32",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  musicLinkBtnText: { color: "#e7edff", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+  soundTestBtn: {
+    borderWidth: 1,
+    borderColor: "#394572",
+    borderRadius: 8,
+    backgroundColor: "#10172d",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  soundTestBtnActive: {
+    borderColor: "#FFD23F",
+    backgroundColor: "#202b4f",
+  },
+  soundTestHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  favoriteBtn: {
+    borderWidth: 1,
+    borderColor: "#6a74ab",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#141d38",
+  },
+  favoriteBtnText: { color: "#FFE082", fontSize: 12, fontWeight: "900" },
+  soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
+  soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
+  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#394572",
+    borderRadius: 8,
+    backgroundColor: "#10172d",
+    color: "#f4f7ff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  promoButton: {
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    borderRadius: 8,
+    backgroundColor: "#202b4f",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  promoButtonDisabled: {
+    opacity: 0.6,
+  },
+  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
 });

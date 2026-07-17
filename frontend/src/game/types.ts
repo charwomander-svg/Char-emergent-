@@ -1,6 +1,6 @@
 // Game type definitions
 
-import type { BossState } from "./boss";
+import type { BonusGameState } from "./bonusGame";
 
 export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 // 0 = empty path (no pellet)
@@ -15,6 +15,7 @@ export type CellType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Direction = "up" | "down" | "left" | "right" | "none";
 
 export type GhostId = 0 | 1 | 2 | 3;
+export type GhostAiRole = "free" | "hunter" | "patrol" | "cautious" | "coward" | "ambusher" | "social";
 
 export interface Ghost {
   id: GhostId;
@@ -27,9 +28,11 @@ export interface Ghost {
   vulnerable: boolean;
   vulnerableUntil: number; // timestamp
   alive: boolean;
+  permaDead?: boolean;
   respawnAt: number;
   spawnX: number;
   spawnY: number;
+  aiRole: GhostAiRole;
 }
 
 export interface PelletGuy {
@@ -63,6 +66,8 @@ export interface ActiveEffects {
   fastRespawn: boolean;
   // optional decoy ghost the AI treats as a threat to evade
   decoy: { x: number; y: number; until: number; ghostId: GhostId } | null;
+  teamPhaseUntil: number;
+  spikeArmUntilByCell: Record<string, number>;
 }
 
 export interface GameState {
@@ -86,8 +91,8 @@ export interface GameState {
   // Each successive death increases the respawn cooldown.
   ghostDeathsThisLevel: number;
   effects: ActiveEffects;
-  // Boss state — non-null only on boss levels (every 5 levels). Drives the
-  // alternate win condition (deplete HP via 3 catches) plus phase-specific
-  // mechanics like teleport and lunge.
-  boss: BossState | null;
+  // Bonus game state — non-null only on bonus levels (every 5 levels).
+  // Drives the timer-based bonus round mechanic (Rally Round, Galaga Blitz,
+  // Dig Dug Dash) instead of the old boss fight system.
+  bonusGame: BonusGameState | null;
 }

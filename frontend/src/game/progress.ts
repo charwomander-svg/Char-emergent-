@@ -1,5 +1,5 @@
 // Character unlock progression
-// Stores total catches, highest level, perfect clears in local storage.
+// Stores total catches, highest level, and high score in local storage.
 // Themes unlock at certain milestones.
 
 import { storage } from "@/src/utils/storage";
@@ -9,19 +9,30 @@ const KEY = "ghostMaze.progress.v1";
 export interface ProgressData {
   highestLevel: number; // highest level reached
   totalCatches: number; // cumulative catches across all games
-  perfectClears: number; // levels cleared with 100% pellets remaining
+  perfectClears?: number; // legacy field — kept for migration compatibility, no longer tracked
   selectedThemeId: string;
   unlockedThemes: string[]; // theme IDs unlocked
   highScore: number;
+  bestHardcoreSurvivalMs?: number;
+  levelStars?: Record<number, LevelStarRecord>;
+}
+
+export interface LevelStarRecord {
+  cleared: boolean;
+  noGhostLoss: boolean;
+  highPellets: boolean;
+  gold: boolean;
 }
 
 const DEFAULT_PROGRESS: ProgressData = {
   highestLevel: 1,
   totalCatches: 0,
-  perfectClears: 0,
+  perfectClears: 0, // legacy — no longer incremented
   selectedThemeId: "classic",
   unlockedThemes: ["classic"],
   highScore: 0,
+  bestHardcoreSurvivalMs: 0,
+  levelStars: {},
 };
 
 export async function loadProgress(): Promise<ProgressData> {
@@ -43,6 +54,61 @@ export async function saveProgress(p: ProgressData): Promise<void> {
   }
 }
 
+export function getLevelStarRecord(progress: ProgressData, level: number): LevelStarRecord {
+  const existing = progress.levelStars?.[level];
+  return {
+    cleared: !!existing?.cleared,
+    noGhostLoss: !!existing?.noGhostLoss,
+    highPellets: !!existing?.highPellets,
+    gold: !!existing?.gold,
+  };
+}
+
+export function countLevelStars(record: LevelStarRecord): number {
+  return Number(record.cleared) + Number(record.noGhostLoss) + Number(record.highPellets);
+}
+
+export function getTotalStars(progress: ProgressData): number {
+  const stars = progress.levelStars ?? {};
+  return Object.values(stars).reduce(
+    (total, record) =>
+      total +
+      countLevelStars({
+        cleared: !!record?.cleared,
+        noGhostLoss: !!record?.noGhostLoss,
+        highPellets: !!record?.highPellets,
+        gold: !!record?.gold,
+      }),
+    0,
+  );
+}
+
+export function getTotalGoldStars(progress: ProgressData): number {
+  const stars = progress.levelStars ?? {};
+  return Object.values(stars).reduce((total, record) => total + Number(!!record?.gold), 0);
+}
+
+export function mergeLevelStarRecord(
+  progress: ProgressData,
+  level: number,
+  update: Partial<LevelStarRecord>,
+): ProgressData {
+  const current = getLevelStarRecord(progress, level);
+  const next: LevelStarRecord = {
+    cleared: current.cleared || !!update.cleared,
+    noGhostLoss: current.noGhostLoss || !!update.noGhostLoss,
+    highPellets: current.highPellets || !!update.highPellets,
+    gold: current.gold || !!update.gold,
+  };
+  return {
+    ...progress,
+    levelStars: {
+      ...(progress.levelStars ?? {}),
+      [level]: next,
+    },
+  };
+}
+
 // Theme definitions
 export interface Theme {
   id: string;
@@ -52,6 +118,7 @@ export interface Theme {
   pelletColor: string;
   hidden: boolean;
   unlockHint: string;
+  passive?: string;
   unlockedAt: (p: ProgressData) => boolean;
 }
 
@@ -74,6 +141,7 @@ export const THEMES: Theme[] = [
     pelletColor: "#00FF88",
     hidden: false,
     unlockHint: "Reach Level 3",
+    passive: "Afterglow: super pellet vulnerability is 20% shorter.",
     unlockedAt: (p) => p.highestLevel >= 3,
   },
   {
@@ -84,6 +152,7 @@ export const THEMES: Theme[] = [
     pelletColor: "#ECF0F1",
     hidden: false,
     unlockHint: "Reach Level 5",
+    passive: "Ghost Phase: rarely phase through danger but cannot catch during phase.",
     unlockedAt: (p) => p.highestLevel >= 5,
   },
   {
@@ -94,17 +163,140 @@ export const THEMES: Theme[] = [
     pelletColor: "#FFFFFF",
     hidden: false,
     unlockHint: "Reach Level 7",
+    passive: "Polarity Flip: rarely reverses Pellet Guy's direction.",
     unlockedAt: (p) => p.highestLevel >= 7,
   },
   {
-    id: "candy",
-    name: "Candy Crush",
+    id: "dark-knights",
+    name: "Dark Knights",
+    ghostColors: ["#111827", "#374151", "#6B7280", "#9CA3AF"],
+    pelletGuyColor: "#FBBF24",
+    pelletColor: "#D1D5DB",
+    hidden: false,
+    unlockHint: "Reach Level 12",
+    passive: "Oath Shield: one teamwide mistake shield per run.",
+    unlockedAt: (p) => p.highestLevel >= 12,
+  },
+  {
+    id: "static-squad",
+    name: "Static Squad",
+    ghostColors: ["#F8FAFC", "#38BDF8", "#A78BFA", "#F472B6"],
+    pelletGuyColor: "#FDE047",
+    pelletColor: "#BAE6FD",
+    hidden: false,
+    unlockHint: "Reach Level 15",
+    passive: "Short Circuit: first barricade each level fizzles instantly.",
+    unlockedAt: (p) => p.highestLevel >= 15,
+  },
+  {
+    id: "graveyard-shift",
+    name: "Graveyard Shift",
+    ghostColors: ["#4B5563", "#14532D", "#581C87", "#7F1D1D"],
+    pelletGuyColor: "#D9F99D",
+    pelletColor: "#A7F3D0",
+    hidden: false,
+    unlockHint: "Reach Level 18",
+    passive: "Last Call: first ghost death each level respawns 25% faster.",
+    unlockedAt: (p) => p.highestLevel >= 18,
+  },
+  {
+    id: "solar-flare",
+    name: "Solar Flare",
+    ghostColors: ["#F97316", "#FACC15", "#FB7185", "#FDE68A"],
+    pelletGuyColor: "#FFFFFF",
+    pelletColor: "#FDBA74",
+    hidden: false,
+    unlockHint: "Reach Level 20",
+    passive: "Sunburst: super pellets briefly reveal Pellet Guy.",
+    unlockedAt: (p) => p.highestLevel >= 20,
+  },
+  {
+    id: "frostbyte",
+    name: "Frostbyte",
+    ghostColors: ["#67E8F9", "#0EA5E9", "#E0F2FE", "#38BDF8"],
+    pelletGuyColor: "#F0FDFA",
+    pelletColor: "#CFFAFE",
+    hidden: false,
+    unlockHint: "Reach Level 22",
+    passive: "Deep Freeze: first Freeze each level lasts +1s.",
+    unlockedAt: (p) => p.highestLevel >= 22,
+  },
+  {
+    id: "ironworks",
+    name: "Ironworks",
+    ghostColors: ["#78716C", "#A16207", "#44403C", "#D6D3D1"],
+    pelletGuyColor: "#FCD34D",
+    pelletColor: "#FDBA74",
+    hidden: false,
+    unlockHint: "Reach Level 24",
+    passive: "Safety Latch: spikes take 1s to arm after appearing.",
+    unlockedAt: (p) => p.highestLevel >= 24,
+  },
+  {
+    id: "void-choir",
+    name: "Void Choir",
+    ghostColors: ["#312E81", "#581C87", "#1E1B4B", "#7C3AED"],
+    pelletGuyColor: "#E0E7FF",
+    pelletColor: "#C4B5FD",
+    hidden: false,
+    unlockHint: "Reach Level 28",
+    passive: "Distant Echo: Pellet Guy respawns farther from ghosts.",
+    unlockedAt: (p) => p.highestLevel >= 28,
+  },
+  {
+    id: "royal-haunts",
+    name: "Royal Haunts",
+    ghostColors: ["#7E22CE", "#FBBF24", "#BE123C", "#0F766E"],
+    pelletGuyColor: "#FDE68A",
+    pelletColor: "#DDD6FE",
+    hidden: false,
+    unlockHint: "Reach Level 30",
+    passive: "Crown Time: bonus stages last +1s.",
+    unlockedAt: (p) => p.highestLevel >= 30,
+  },
+  {
+    id: "jackpot-crew",
+    name: "Jackpot Crew",
+    ghostColors: ["#22C55E", "#FACC15", "#EF4444", "#3B82F6"],
+    pelletGuyColor: "#FDE047",
+    pelletColor: "#BBF7D0",
+    hidden: false,
+    unlockHint: "Earn 500 total catches",
+    passive: "Lucky Break: 5% chance level-clear coins double.",
+    unlockedAt: (p) => p.totalCatches >= 500,
+  },
+  {
+    id: "sweet-chaos",
+    name: "Sweet Chaos",
     ghostColors: ["#FF6F61", "#FFB347", "#77DD77", "#84A9C0"],
     pelletGuyColor: "#FFD8E2",
     pelletColor: "#FF69B4",
     hidden: false,
     unlockHint: "100 Total Catches",
+    passive: "Candy Tax: +5% Ghost Coins from level clears.",
     unlockedAt: (p) => p.totalCatches >= 100,
+  },
+  {
+    id: "marathon-squad",
+    name: "Marathon Squad",
+    ghostColors: ["#22D3EE", "#A78BFA", "#F59E0B", "#34D399"],
+    pelletGuyColor: "#F8FAFC",
+    pelletColor: "#BAE6FD",
+    hidden: false,
+    unlockHint: "Reach Level 51",
+    passive: "Trail Mix: each ghost move has a small chance to drop a pellet on empty ground.",
+    unlockedAt: (p) => p.highestLevel >= 51,
+  },
+  {
+    id: "golden-girls",
+    name: "Golden Girls",
+    ghostColors: ["#FDE047", "#FACC15", "#EAB308", "#CA8A04"],
+    pelletGuyColor: "#FFF7D6",
+    pelletColor: "#FDE68A",
+    hidden: false,
+    unlockHint: "Reach Level 101",
+    passive: "Golden Luck: Pellet Guy respawns faster with a 25% proc chance.",
+    unlockedAt: (p) => p.highestLevel >= 101,
   },
   // Hidden / secret
   {
@@ -114,8 +306,9 @@ export const THEMES: Theme[] = [
     pelletGuyColor: "#000000",
     pelletColor: "#FF1744",
     hidden: true,
-    unlockHint: "??? (Achieve a perfect clear)",
-    unlockedAt: (p) => p.perfectClears >= 1,
+    unlockHint: "??? (Reach Level 25)",
+    passive: "Blood Pact: 10% chance not to consume normal power-ups.",
+    unlockedAt: (p) => p.highestLevel >= 25,
   },
   {
     id: "rainbow",
@@ -125,10 +318,22 @@ export const THEMES: Theme[] = [
     pelletColor: "#FFFFFF",
     hidden: true,
     unlockHint: "??? (Reach Level 10)",
+    passive: "Prism Start: short speed boost at level start.",
     unlockedAt: (p) => p.highestLevel >= 10,
   },
 ];
 
 export function getTheme(id: string): Theme {
   return THEMES.find((t) => t.id === id) || THEMES[0];
+}
+
+export function computeUnlockedThemeIds(progress: ProgressData): string[] {
+  return THEMES.filter((theme) => theme.unlockedAt(progress)).map((theme) => theme.id);
+}
+
+export function withUnlockedThemes(progress: ProgressData): ProgressData {
+  return {
+    ...progress,
+    unlockedThemes: computeUnlockedThemeIds(progress),
+  };
 }

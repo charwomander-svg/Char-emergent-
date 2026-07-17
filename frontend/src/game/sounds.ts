@@ -1,6 +1,7 @@
-// Hybrid sound engine: bundled WAV SFX + MP3 background music via expo-audio.
+// Hybrid sound engine: bundled WAV files via expo-audio on all platforms.
 
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
+import type { BonusGameType } from "./bonusGame";
 
 type SfxKey =
   | "chomp"
@@ -13,6 +14,15 @@ type SfxKey =
   | "win"
   | "lose"
   | "uiClick";
+export type MusicTrack =
+  | "main"
+  | "tier2"
+  | "tier3"
+  | "tier4"
+  | "bonus"
+  | "bonusHunt"
+  | "instrumetalA"
+  | "instrumetalB";
 
 // Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
 const SFX_SOURCES: Record<SfxKey, number> = {
@@ -28,14 +38,48 @@ const SFX_SOURCES: Record<SfxKey, number> = {
   uiClick: require("@/assets/sounds/ui_click.wav"),
 };
 
-const MUSIC_SOURCE = require("@/assets/sounds/blinkys_revenge.mp3");
-const BOSS_MUSIC_SOURCE = require("@/assets/sounds/panic_protocol_ghost_king.mp3");
+const MUSIC_SOURCES: Record<MusicTrack, number> = {
+  main: require("@/assets/sounds/blinky_revenge.mp3"),
+  tier2: require("@/assets/sounds/blinkys_revenge.mp3"),
+  tier3: require("@/assets/sounds/blinky_revenge.mp3"),
+  tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
+  bonus: require("@/assets/sounds/ghost_king.mp3"),
+  bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
+  instrumetalA: require("@/assets/sounds/cloudy.mp3"),
+  instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
+};
+
+const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
+
+export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType | null): MusicTrack {
+  if (bonusType) return bonusType === "powerHunt" ? "bonusHunt" : "bonus";
+  const safeLevel = Math.max(1, Math.floor(level));
+  const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
+  return LEVEL_MUSIC_ROTATION[tierIndex];
+}
+
+export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
+  { id: "arcade-1", label: "Arcade: Blinky's Revenge", track: "main", description: "Levels 1–10" },
+  { id: "arcade-2", label: "Arcade: Ghost Maze Song 2", track: "tier2", description: "Levels 11–20" },
+  { id: "arcade-3", label: "Arcade: Song 3", track: "tier3", description: "Levels 21–30" },
+  { id: "arcade-4", label: "Arcade: Corrupted Nightmare", track: "tier4", description: "Levels 31+" },
+  { id: "bonus", label: "Bonus Stage Theme", track: "bonus", description: "Dedicated bonus music" },
+  { id: "bonus-hunt", label: "Bonus Hunt Theme", track: "bonusHunt", description: "Power Hunt levels" },
+  { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
+  { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
+];
+
+const TRACK_LABEL_BY_ID = Object.fromEntries(
+  SOUND_TEST_TRACKS.map((entry) => [entry.track, entry.label]),
+) as Record<MusicTrack, string>;
+
+export function getMusicTrackLabel(track: MusicTrack): string {
+  return TRACK_LABEL_BY_ID[track] ?? track;
+}
 
 interface SoundEngine {
   enabled: boolean;
   setEnabled: (b: boolean) => void;
-  setSfxVolume: (v: number) => void;
-  setMusicVolume: (v: number) => void;
   chomp: () => void;
   pellet: () => void;
   superPellet: () => void;
@@ -46,47 +90,22 @@ interface SoundEngine {
   levelWin: () => void;
   levelLose: () => void;
   uiClick: () => void;
-  startMusic: (boss?: boolean) => void;
+  startMusic: (track?: MusicTrack) => void;
   stopMusic: () => void;
-}
-
-// --- Music players (MP3 loop, all platforms) ---
-let musicPlayer: AudioPlayer | null = null;
-let bossMusicPlayer: AudioPlayer | null = null;
-
-function getMusicPlayer(): AudioPlayer | null {
-  if (musicPlayer) return musicPlayer;
-  try {
-    musicPlayer = createAudioPlayer(MUSIC_SOURCE);
-    musicPlayer.loop = true;
-    musicPlayer.volume = 0.45;
-    return musicPlayer;
-  } catch {
-    return null;
-  }
-}
-
-function getBossMusicPlayer(): AudioPlayer | null {
-  if (bossMusicPlayer) return bossMusicPlayer;
-  try {
-    bossMusicPlayer = createAudioPlayer(BOSS_MUSIC_SOURCE);
-    bossMusicPlayer.loop = true;
-    bossMusicPlayer.volume = 0.5;
-    return bossMusicPlayer;
-  } catch {
-    return null;
-  }
-}
-
-function stopAllMusic() {
-  try { if (musicPlayer?.playing) musicPlayer.pause(); } catch {}
-  try { if (bossMusicPlayer?.playing) bossMusicPlayer.pause(); } catch {}
+  setVolumes: (volumes: { sfx: number; music: number }) => void;
+  fadeMusicTo: (target: number, durationMs: number) => void;
 }
 
 // --- expo-audio: pool of players per SFX so rapid retriggers don't cut off ---
 const POOL_SIZE = 3;
 type Pool = { players: AudioPlayer[]; next: number };
 const pools: Partial<Record<SfxKey, Pool>> = {};
+const musicPlayers: Partial<Record<MusicTrack, AudioPlayer>> = {};
+let activeMusicTrack: MusicTrack | null = null;
+let sfxVolume = 0.6;
+let musicBaseVolume = 0.28;
+let musicDuckUntil = 0;
+let musicFadeInterval: ReturnType<typeof setInterval> | null = null;
 
 function getPool(key: SfxKey): Pool | null {
   let p = pools[key];
@@ -95,7 +114,7 @@ function getPool(key: SfxKey): Pool | null {
     const players: AudioPlayer[] = [];
     for (let i = 0; i < POOL_SIZE; i++) {
       const player = createAudioPlayer(SFX_SOURCES[key]);
-      player.volume = 0.6;
+      player.volume = sfxVolume;
       players.push(player);
     }
     p = { players, next: 0 };
@@ -112,16 +131,54 @@ function playSfx(key: SfxKey) {
   const player = p.players[p.next];
   p.next = (p.next + 1) % p.players.length;
   try {
+    if (key === "catch" || key === "combo" || key === "ghostEaten" || key === "super") {
+      musicDuckUntil = Date.now() + 240;
+      applyMusicVolumeNow();
+    }
     player.seekTo(0);
     player.play();
   } catch {}
 }
 
+function getMusicPlayer(track: MusicTrack): AudioPlayer | null {
+  const existing = musicPlayers[track];
+  if (existing) return existing;
+  try {
+    const player = createAudioPlayer(MUSIC_SOURCES[track]);
+    player.loop = true;
+    player.volume = musicBaseVolume;
+    musicPlayers[track] = player;
+    return player;
+  } catch {
+    return null;
+  }
+}
+
+function pausePlayer(player: AudioPlayer | null | undefined) {
+  if (!player) return;
+  try {
+    player.pause();
+  } catch {}
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function getMusicTargetVolume() {
+  return (Date.now() < musicDuckUntil ? 0.5 : 1) * musicBaseVolume;
+}
+
+function applyMusicVolumeNow() {
+  const target = getMusicTargetVolume();
+  (Object.values(musicPlayers) as (AudioPlayer | undefined)[]).forEach((player) => {
+    if (!player) return;
+    player.volume = target;
+  });
+}
+
 export function createSoundEngine(): SoundEngine {
   let enabled = true;
-  let currentSfxVolume = 0.6;
-  let currentMusicVolume = 0.45;
-
   const safePlay = (key: SfxKey) => {
     if (!enabled) return;
     try {
@@ -136,19 +193,6 @@ export function createSoundEngine(): SoundEngine {
       this.enabled = b;
       if (!b) this.stopMusic();
     },
-    setSfxVolume(v) {
-      currentSfxVolume = Math.max(0, Math.min(1, v));
-      // Apply to all existing pool players
-      for (const key of Object.keys(pools) as SfxKey[]) {
-        const p = pools[key];
-        if (p) p.players.forEach((pl) => { try { pl.volume = currentSfxVolume; } catch {} });
-      }
-    },
-    setMusicVolume(v) {
-      currentMusicVolume = Math.max(0, Math.min(1, v));
-      try { if (musicPlayer) musicPlayer.volume = currentMusicVolume; } catch {}
-      try { if (bossMusicPlayer) bossMusicPlayer.volume = currentMusicVolume; } catch {}
-    },
     chomp: () => safePlay("chomp"),
     pellet: () => safePlay("pellet"),
     superPellet: () => safePlay("super"),
@@ -159,18 +203,59 @@ export function createSoundEngine(): SoundEngine {
     levelWin: () => safePlay("win"),
     levelLose: () => safePlay("lose"),
     uiClick: () => safePlay("uiClick"),
-    startMusic(boss = false) {
+    startMusic(track = "main") {
       if (!enabled) return;
+      if (activeMusicTrack === track) {
+        const currentPlayer = getMusicPlayer(track);
+        if (!currentPlayer || currentPlayer.playing) return;
+      } else {
+        pausePlayer(activeMusicTrack ? musicPlayers[activeMusicTrack] : null);
+      }
+      const player = getMusicPlayer(track);
+      if (!player || player.playing) return;
       try {
-        stopAllMusic();
-        const p = boss ? getBossMusicPlayer() : getMusicPlayer();
-        if (!p) return;
-        p.volume = currentMusicVolume;
-        if (!p.playing) p.play();
+        player.seekTo(0);
+        player.play();
+        activeMusicTrack = track;
       } catch {}
     },
     stopMusic() {
-      try { stopAllMusic(); } catch {}
+      pausePlayer(activeMusicTrack ? musicPlayers[activeMusicTrack] : null);
+      activeMusicTrack = null;
+    },
+    setVolumes(volumes) {
+      sfxVolume = clamp01(volumes.sfx);
+      musicBaseVolume = clamp01(volumes.music);
+      Object.values(pools).forEach((pool) => {
+        pool?.players.forEach((player) => {
+          player.volume = sfxVolume;
+        });
+      });
+      applyMusicVolumeNow();
+    },
+    fadeMusicTo(target, durationMs) {
+      const clamped = clamp01(target);
+      if (musicFadeInterval) {
+        clearInterval(musicFadeInterval);
+        musicFadeInterval = null;
+      }
+      if (durationMs <= 0) {
+        musicBaseVolume = clamped;
+        applyMusicVolumeNow();
+        return;
+      }
+      const start = musicBaseVolume;
+      const startedAt = Date.now();
+      musicFadeInterval = setInterval(() => {
+        const elapsed = Date.now() - startedAt;
+        const t = Math.min(1, elapsed / durationMs);
+        musicBaseVolume = start + (clamped - start) * t;
+        applyMusicVolumeNow();
+        if (t >= 1) {
+          if (musicFadeInterval) clearInterval(musicFadeInterval);
+          musicFadeInterval = null;
+        }
+      }, 30);
     },
   };
 }

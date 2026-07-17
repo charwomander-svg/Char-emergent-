@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,122 +7,157 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Linking,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import {
+  initConnection,
+  endConnection,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  purchaseErrorListener,
+  purchaseUpdatedListener,
+  ErrorCode,
+  type Purchase,
+  type PurchaseError,
+  type Product,
+} from "react-native-iap";
 import { COLORS } from "@/src/game/constants";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";
+import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
 import { getSoundEngine } from "@/src/game/sounds";
-import {
-  fetchPacks,
-  createCheckoutSession,
-  getPlayerBalance,
-  type CoinPack,
-} from "@/src/game/payments";
-import { getPlayerId } from "@/src/game/playerId";
 
-function getWebOrigin(): string {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return (
-    (typeof process !== "undefined" && (process as any).env?.EXPO_PUBLIC_BACKEND_URL) ||
-    ""
-  );
-}
+// SKU → coins mapping (must match Play Console in-app product IDs exactly)
+const COIN_SKUS: { sku: string; coins: number; label: string; price: string; badge?: string }[] = [
+  { sku: "ghost_coins_100",   coins: 100,   label: "Starter Pack",  price: "$0.99" },
+  { sku: "ghost_coins_250",   coins: 250,   label: "Small Pack",    price: "$1.99" },
+  { sku: "ghost_coins_500",   coins: 500,   label: "Medium Pack",   price: "$3.99", badge: "POPULAR" },
+  { sku: "ghost_coins_1200",  coins: 1200,  label: "Big Pack",      price: "$7.99", badge: "BEST VALUE" },
+  { sku: "ghost_coins_2500",  coins: 2500,  label: "Mega Pack",     price: "$14.99" },
+  { sku: "ghost_coins_6000",  coins: 6000,  label: "Ultimate Pack", price: "$29.99", badge: "MEGA DEAL" },
+];
 
 export default function Shop() {
   const router = useRouter();
-  const { coins, inventory, buyPowerUp, syncServerBalance } = useEconomy();
+  const [runtimeSettings, setRuntimeSettings] = useState({
+    devInfiniteCoins: DEFAULT_SETTINGS.devInfiniteCoins,
+    devInfiniteItems: DEFAULT_SETTINGS.devInfiniteItems,
+  });
+  const { coins, inventory, buyPowerUp, grantCoins } = useEconomy(runtimeSettings);
 
-  const [packs, setPacks] = useState<CoinPack[]>([]);
-  const [loadingPacks, setLoadingPacks] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [iapReady, setIapReady] = useState(false);
+  const [loadingIap, setLoadingIap] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string>("");
+  const [storeError, setStoreError] = useState<string | null>(null);
 
-  // Load coin packs from backend on mount
   useEffect(() => {
-    let cancelled = false;
-    setLoadingPacks(true);
-    fetchPacks()
-      .then((p) => {
-        if (!cancelled) setPacks(p);
-      })
-      .catch((e) => {
-        console.warn("Failed to fetch coin packs", e);
-        if (!cancelled) setPacks([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingPacks(false);
+    loadSettings().then((settings) => {
+      setRuntimeSettings({
+        devInfiniteCoins: settings.devInfiniteCoins,
+        devInfiniteItems: settings.devInfiniteItems,
       });
-    return () => {
-      cancelled = true;
-    };
+    });
   }, []);
 
-  const restoreBalance = useCallback(async () => {
-    try {
-      const playerId = await getPlayerId();
-      const serverBalance = await getPlayerBalance(playerId);
-      const delta = syncServerBalance(serverBalance);
-      if (delta > 0) {
-        setSyncMessage(`Synced +${delta.toLocaleString()} coins from your account.`);
-      } else {
-        setSyncMessage("Balance already up to date.");
-      }
-    } catch {
-      setSyncMessage("Could not sync your balance right now.");
-    }
-  }, [syncServerBalance]);
-
   useEffect(() => {
-    restoreBalance();
-  }, [restoreBalance]);
+    let purchaseUpdateSub: ReturnType<typeof purchaseUpdatedListener>;
+    let purchaseErrorSub: ReturnType<typeof purchaseErrorListener>;
+    let mounted = true;
+
+    const setup = async () => {
+      try {
+        await initConnection();
+        const prods = await fetchProducts({
+          skus: COIN_SKUS.map((s) => s.sku),
+          type: "in-app",
+        });
+        if (!mounted) return;
+        setProducts((prods ?? []) as Product[]);
+        setIapReady((prods?.length ?? 0) > 0);
+        setStoreError((prods?.length ?? 0) > 0 ? null : "No Google Play products were returned.");
+
+        purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
+          const purchasedSku =
+            purchase.productId ??
+            (Array.isArray((purchase as any).productIds) ? (purchase as any).productIds[0] : null) ??
+            null;
+          const entry = purchasedSku ? COIN_SKUS.find((s) => s.sku === purchasedSku) : undefined;
+          if (entry) {
+            grantCoins(entry.coins);
+            Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
+          }
+          await finishTransaction({ purchase, isConsumable: true });
+          setPurchasing(null);
+        });
+
+        purchaseErrorSub = purchaseErrorListener((error: PurchaseError) => {
+          if (error.code !== ErrorCode.UserCancelled) {
+            Alert.alert("Purchase failed", error.message || "Something went wrong.");
+          }
+          setPurchasing(null);
+        });
+      } catch (error: any) {
+        if (!mounted) return;
+        setIapReady(false);
+        setStoreError(error?.message || "Google Play Billing could not be initialized.");
+      } finally {
+        if (mounted) setLoadingIap(false);
+      }
+    };
+
+    if (Platform.OS === "android") {
+      void setup();
+    } else {
+      setLoadingIap(false);
+    }
+
+    return () => {
+      mounted = false;
+      purchaseUpdateSub?.remove();
+      purchaseErrorSub?.remove();
+      void endConnection();
+    };
+  }, [grantCoins]);
+
+  const onBuyPack = async (sku: string) => {
+    if (purchasing || !iapReady) return;
+    getSoundEngine().uiClick();
+    setPurchasing(sku);
+    try {
+      await requestPurchase({
+        request: {
+          google: {
+            skus: [sku],
+          },
+        },
+        type: "in-app",
+      });
+      // result handled by purchaseUpdatedListener
+    } catch (e: any) {
+      if (e?.code !== ErrorCode.UserCancelled) {
+        Alert.alert("Purchase failed", e?.message || "Could not start purchase.");
+      }
+      setPurchasing(null);
+    }
+  };
 
   const onBuyPower = (id: keyof typeof POWER_UPS) => {
     getSoundEngine().uiClick();
     const ok = buyPowerUp(id);
     if (!ok) {
-      Alert.alert("Not enough coins", "Earn more Ghost Coins by playing, or get a coin pack.");
+      Alert.alert("Not enough coins", "Earn more Ghost Coins by playing, or buy a coin pack.");
     }
   };
 
-  const onBuyPack = async (pack: CoinPack) => {
-    if (purchasing) return;
-    getSoundEngine().uiClick();
-    setPurchasing(pack.id);
-    try {
-      const playerId = await getPlayerId();
-      const origin = getWebOrigin();
-      if (!origin) {
-        Alert.alert("Setup error", "Could not determine app origin for payment redirect.");
-        return;
-      }
-      const session = await createCheckoutSession(pack.id, playerId, origin);
-      // Open Stripe Checkout
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.location.assign(session.checkout_url);
-      } else {
-        await Linking.openURL(session.checkout_url);
-        // On native, send user to the in-app pending screen so we can poll
-        router.push({
-          pathname: "/checkout/success",
-          params: { session_id: session.session_id },
-        });
-      }
-    } catch (e: any) {
-      console.error("Stripe checkout failed", e);
-      Alert.alert("Purchase failed", e?.message || "Could not start checkout. Try again.");
-    } finally {
-      setPurchasing(null);
-    }
-  };
-
-  const formatPrice = (p: CoinPack) =>
-    `$${(p.price_cents / 100).toFixed(2)}`;
+  // Merge Play Store prices into SKU list when available
+  const packs = COIN_SKUS.map((entry) => {
+    const prod = products.find((p) => ((p as any).id ?? (p as any).productId) === entry.sku);
+    return { ...entry, livePrice: prod?.displayPrice ?? entry.price };
+  });
 
   return (
     <SafeAreaView style={styles.container} testID="shop-screen">
@@ -139,69 +174,70 @@ export default function Shop() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Coin packs */}
         <Text style={styles.sectionTitle}>GHOST COIN PACKS</Text>
-        <Text style={styles.subTitle}>
-          Buy coins to unlock more power-ups. No ads. Ever.
-        </Text>
+        <Text style={styles.subTitle}>Buy coins to unlock more power-ups. No ads. Ever.</Text>
 
-        {loadingPacks ? (
+        {loadingIap ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="#FFD23F" />
-            <Text style={styles.loadingText}>Loading packs…</Text>
+            <Text style={styles.loadingText}>Loading…</Text>
           </View>
-        ) : packs.length === 0 ? (
-          <Text style={styles.emptyText}>
-            Coin packs are temporarily unavailable. Please try again later.
-          </Text>
         ) : (
-          <View style={styles.packsGrid}>
-            {packs.map((p) => {
-              const isLoading = purchasing === p.id;
-              const isBest = p.badge === "BEST VALUE";
-              const isMega = p.badge === "MEGA DEAL";
-              const border = isBest ? "#FF477E" : isMega ? "#A06DFF" : "#FFD23F";
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.packBtn, { borderColor: border }, isLoading && { opacity: 0.5 }]}
-                  onPress={() => onBuyPack(p)}
-                  disabled={!!purchasing}
-                  testID={`pack-${p.id}`}
-                  activeOpacity={0.8}
-                >
-                  {p.badge && (
-                    <View style={[styles.badge, { backgroundColor: border }]}>
-                      <Text style={styles.badgeText}>{p.badge}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.packCoins}>🪙 {p.coins.toLocaleString()}</Text>
-                  <Text style={styles.packLabel}>GHOST COINS</Text>
-                  <View style={styles.packPriceWrap}>
-                    {isLoading ? (
-                      <ActivityIndicator color="#FFFF00" size="small" />
-                    ) : (
-                      <Text style={styles.packPrice}>{formatPrice(p)}</Text>
+          <>
+            {!iapReady && Platform.OS === "android" && (
+              <View style={styles.comingSoonBanner}>
+                <Text style={styles.comingSoonText}>⚙️ STORE UNAVAILABLE</Text>
+                <Text style={styles.comingSoonSub}>
+                  {storeError || "Google Play Billing could not be initialized."}
+                </Text>
+              </View>
+            )}
+            <View style={styles.packsGrid}>
+              {packs.map((p) => {
+                const isLoading = purchasing === p.sku;
+                const isBest = p.badge === "BEST VALUE";
+                const isMega = p.badge === "MEGA DEAL";
+                const border = isBest ? "#FF477E" : isMega ? "#A06DFF" : "#FFD23F";
+                return (
+                  <TouchableOpacity
+                    key={p.sku}
+                    style={[styles.packBtn, { borderColor: border }, (!iapReady || !!purchasing) && { opacity: 0.5 }]}
+                    onPress={() => onBuyPack(p.sku)}
+                    disabled={!iapReady || !!purchasing}
+                    testID={`pack-${p.sku}`}
+                    activeOpacity={0.8}
+                  >
+                    {p.badge && (
+                      <View style={[styles.badge, { backgroundColor: border }]}>
+                        <Text style={styles.badgeText}>{p.badge}</Text>
+                      </View>
                     )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    <Text style={styles.packCoins}>🪙 {p.coins.toLocaleString()}</Text>
+                    <Text style={styles.packLabel}>GHOST COINS</Text>
+                    <View style={styles.packPriceWrap}>
+                      {isLoading ? (
+                        <ActivityIndicator color="#FFFF00" size="small" />
+                      ) : (
+                        <Text style={styles.packPrice}>{p.livePrice}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
         )}
 
         <Text style={styles.legalText}>
-          Secure checkout by Stripe. Payments are processed in test mode in this preview.
+          Purchases are processed securely through Google Play.
         </Text>
-        <TouchableOpacity style={styles.restoreBtn} onPress={restoreBalance} testID="restore-balance-btn">
-          <Text style={styles.restoreBtnText}>↻ RESTORE / SYNC BALANCE</Text>
-        </TouchableOpacity>
-        {!!syncMessage && <Text style={styles.syncText}>{syncMessage}</Text>}
 
         {/* Power-up grid */}
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>POWER-UPS</Text>
-        {POWER_UP_ORDER.map((id) => {
+        {POWER_UP_ORDER.filter((id) => id !== "fastRespawn" && id !== "reveal" && id !== "decoy").map((id) => {
           const def = POWER_UPS[id];
           const owned = inventory[id] ?? 0;
           const canAfford = coins >= def.cost;
+          const atLimit = def.maxOwned != null && owned >= def.maxOwned;
           return (
             <View key={id} style={[styles.row, { borderColor: def.color }]} testID={`shop-row-${id}`}>
               <View style={[styles.iconWrap, { backgroundColor: def.color + "22" }]}>
@@ -210,19 +246,18 @@ export default function Shop() {
               <View style={styles.rowText}>
                 <Text style={[styles.rowName, { color: def.color }]}>{def.name}</Text>
                 <Text style={styles.rowDesc}>{def.description}</Text>
-                <Text style={styles.rowOwned}>OWNED: {owned}</Text>
+                <Text style={styles.rowOwned}>
+                  OWNED: {owned}{def.maxOwned != null ? `/${def.maxOwned}` : ""}
+                </Text>
               </View>
               <TouchableOpacity
-                style={[
-                  styles.buyBtn,
-                  !canAfford && { opacity: 0.4 },
-                ]}
+                style={[styles.buyBtn, (!canAfford || atLimit) && { opacity: 0.4 }]}
                 onPress={() => onBuyPower(id)}
-                disabled={!canAfford}
+                disabled={!canAfford || atLimit}
                 testID={`buy-${id}`}
               >
                 <Text style={styles.buyText}>🪙 {def.cost}</Text>
-                <Text style={styles.buyLabel}>BUY</Text>
+                <Text style={styles.buyLabel}>{atLimit ? "MAX" : "BUY"}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -273,6 +308,17 @@ const styles = StyleSheet.create({
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   loadingText: { color: "#FFD23F", fontSize: 13 },
   emptyText: { color: "#888899", fontSize: 12, padding: 16, textAlign: "center" },
+  comingSoonBanner: {
+    backgroundColor: "#1a0a00",
+    borderWidth: 1,
+    borderColor: "#ff8800",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  comingSoonText: { color: "#ff8800", fontWeight: "900", fontSize: 12, letterSpacing: 1 },
+  comingSoonSub: { color: "#cc6600", fontSize: 10, marginTop: 4, textAlign: "center" },
   packsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

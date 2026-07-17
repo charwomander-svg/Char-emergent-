@@ -16,6 +16,10 @@ import {
   saveProgress,
   Theme,
 } from "@/src/game/progress";
+import {
+  syncPlayGames,
+  syncProgressAchievements,
+} from "@/src/game/playGames";
 import { getSoundEngine } from "@/src/game/sounds";
 
 export default function CharactersScreen() {
@@ -23,7 +27,11 @@ export default function CharactersScreen() {
   const [progress, setProgress] = useState<ProgressData | null>(null);
 
   useEffect(() => {
-    loadProgress().then(setProgress);
+    loadProgress().then((next) => {
+      setProgress(next);
+      void syncProgressAchievements(next);
+      void syncPlayGames();
+    });
   }, []);
 
   if (!progress) {
@@ -68,9 +76,6 @@ export default function CharactersScreen() {
         </Text>
         <Text style={styles.statLine}>
           TOTAL CATCHES: <Text style={styles.statVal}>{progress.totalCatches}</Text>
-        </Text>
-        <Text style={styles.statLine}>
-          PERFECT CLEARS: <Text style={styles.statVal}>{progress.perfectClears}</Text>
         </Text>
       </View>
 
@@ -129,6 +134,11 @@ export default function CharactersScreen() {
               <Text style={styles.unlockText}>
                 {unlocked ? "✓ Unlocked" : `🔒 ${t.unlockHint}`}
               </Text>
+              {t.passive && (
+                <Text style={styles.passiveText}>
+                  {unlocked ? t.passive : "Passive: ???"}
+                </Text>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -243,5 +253,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     letterSpacing: 0.5,
+  },
+  passiveText: {
+    color: "#C7D2FE",
+    fontSize: 11,
+    marginTop: 6,
+    lineHeight: 16,
   },
 });

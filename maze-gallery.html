@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Maze Thumbnails Gallery</title>
+  <style>
+    body{font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:#0b0b0d;color:#e6eef8;padding:24px}
+    h1{font-size:20px;margin:0 0 12px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+    .card{background:#081018;border:1px solid #122;box-shadow:0 2px 6px rgba(0,0,0,0.6);padding:8px;border-radius:6px}
+    .thumb{width:100%;height:auto;display:block;border-radius:4px;background:#040405}
+    .caption{font-size:12px;color:#9fb3d6;margin-top:6px;display:flex;justify-content:space-between;align-items:center}
+    a.button{background:#162b3a;color:#cfe8ff;padding:6px 8px;border-radius:4px;text-decoration:none;font-weight:600;font-size:12px}
+    footer{margin-top:18px;font-size:12px;color:#89a3bf}
+  </style>
+</head>
+<body>
+  <h1>Maze Thumbnails (1–15)</h1>
+  <p>Click a thumbnail to open the full SVG or use the "SVG" link to download/view the vector file.</p>
+  <div class="grid">
+    <!-- Tiles -->
+    <!-- Generated list -->
+    <script>
+      const container = document.currentScript.parentElement;
+      for(let i=1;i<=15;i++){
+        const n = String(i).padStart(2,'0');
+        const png = `maze-${n}.png`;
+        const svg = `maze-${n}.svg`;
+        const card = document.createElement('div'); card.className='card';
+        const img = document.createElement('img'); img.src=png; img.alt=`Maze ${n}`; img.className='thumb';
+        img.onclick = ()=> window.open(svg, '_blank');
+        const cap = document.createElement('div'); cap.className='caption';
+        const title = document.createElement('div'); title.textContent = `Maze ${n}`;
+        const link = document.createElement('a'); link.href = svg; link.className='button'; link.textContent='SVG'; link.target='_blank';
+        cap.appendChild(title); cap.appendChild(link);
+        card.appendChild(img); card.appendChild(cap);
+        container.appendChild(card);
+      }
+    </script>
+  </div>
+  <footer>Open this file from the repo root in a browser (double-click or use Live Server). Thumbnails are the PNGs at the repo root.</footer>
+</body>
+</html>

@@ -13,8 +13,9 @@ import {
 } from "./economy";
 import type { PowerUpId } from "./powerups";
 import { POWER_UPS } from "./powerups";
+import type { SettingsData } from "./settings";
 
-export function useEconomy() {
+export function useEconomy(devSettings?: Pick<SettingsData, "devInfiniteCoins" | "devInfiniteItems"> | null) {
   const [economy, setEconomy] = useState<EconomyData | null>(null);
   const econRef = useRef<EconomyData | null>(null);
   econRef.current = economy;
@@ -48,25 +49,32 @@ export function useEconomy() {
       const cur = econRef.current;
       if (!cur) return false;
       const def = POWER_UPS[id];
+      const owned = cur.inventory[id] ?? 0;
+      if (def.maxOwned != null && owned + qty > def.maxOwned) return false;
+      if (devSettings?.devInfiniteItems) {
+        persist(_addInventory(cur, id, qty));
+        return true;
+      }
       const cost = def.cost * qty;
       const spent = _spendCoins(cur, cost);
       if (!spent) return false;
       persist(_addInventory(spent, id, qty));
       return true;
     },
-    [persist],
+    [devSettings?.devInfiniteItems, persist],
   );
 
   const useInventory = useCallback(
     (id: PowerUpId): boolean => {
       const cur = econRef.current;
       if (!cur) return false;
+      if (devSettings?.devInfiniteItems) return true;
       const next = _consumeInventory(cur, id);
       if (!next) return false;
       persist(next);
       return true;
     },
-    [persist],
+    [devSettings?.devInfiniteItems, persist],
   );
 
   const grantCoins = useCallback(
@@ -76,6 +84,19 @@ export function useEconomy() {
       persist(_addCoins(cur, amount));
     },
     [persist],
+  );
+
+  const spendCoins = useCallback(
+    (amount: number, options?: { ignoreInfiniteCoins?: boolean }): boolean => {
+      const cur = econRef.current;
+      if (!cur) return false;
+      if (devSettings?.devInfiniteCoins && !options?.ignoreInfiniteCoins) return true;
+      const next = _spendCoins(cur, amount);
+      if (!next) return false;
+      persist(next);
+      return true;
+    },
+    [devSettings?.devInfiniteCoins, persist],
   );
 
   const syncServerBalance = useCallback(
@@ -95,6 +116,7 @@ export function useEconomy() {
     economy,
     earnCoins,
     grantCoins,
+    spendCoins,
     buyPowerUp,
     useInventory,
     syncServerBalance,

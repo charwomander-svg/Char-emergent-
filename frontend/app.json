@@ -1,19 +1,28 @@
 {
   "expo": {
     "name": "Ghost Maze",
-    "slug": "ghost-maze",
+    "slug": "frontend",
     "version": "1.0.0",
     "icon": "./assets/images/icon.png",
-    "splash": {
-      "image": "./assets/images/charware_splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000010"
-    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0d0d1a",
+          "image": "./assets/images/app-image.png",
+          "imageWidth": 200
+        }
+      ]
+    ],
     "android": {
+      "package": "dev.charware.ghost_maze",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000010"
+        "backgroundColor": "#000000"
       }
+    },
+    "ios": {
+      "icon": "./assets/images/icon.png"
     },
     "web": {
       "bundler": "metro",
@@ -26,7 +35,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "69685359-2e2c-42d9-be37-fbddfcd81004"
+        "projectId": "5787827f-262b-4bfe-99fa-155b43855268"
       }
     },
     "owner": "chardcore"

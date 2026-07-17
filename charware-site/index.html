@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Charware — Game Development Studio</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0d1a;
+      color: #e0e0ff;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .logo {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      color: #00f0ff;
+      text-shadow: 0 0 20px #00f0ff88, 0 0 40px #00f0ff44;
+      margin-bottom: 0.25rem;
+    }
+    .tagline {
+      font-size: 0.85rem;
+      letter-spacing: 0.3em;
+      color: #8888aa;
+      text-transform: uppercase;
+      margin-bottom: 3rem;
+    }
+    .game-card {
+      border: 1px solid #00f0ff44;
+      border-radius: 12px;
+      padding: 2rem 2.5rem;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+      background: #12122288;
+      box-shadow: 0 0 40px #00f0ff11;
+    }
+    .game-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .game-subtitle {
+      font-size: 0.8rem;
+      color: #00f0ff;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+    .game-desc {
+      font-size: 0.9rem;
+      color: #aaaacc;
+      line-height: 1.7;
+      margin-bottom: 1.75rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #00f0ff66;
+      border-radius: 20px;
+      padding: 0.35rem 1rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      color: #00f0ff;
+      margin: 0.25rem;
+    }
+    .badges { margin-bottom: 1.75rem; }
+    .store-btn {
+      display: inline-block;
+      background: #00f0ff;
+      color: #0d0d1a;
+      font-family: 'Courier New', monospace;
+      font-weight: 900;
+      font-size: 0.9rem;
+      letter-spacing: 0.15em;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      text-transform: uppercase;
+      box-shadow: 0 0 20px #00f0ff44;
+      transition: box-shadow 0.2s;
+    }
+    .store-btn:hover { box-shadow: 0 0 35px #00f0ffaa; }
+    .coming-soon {
+      font-size: 0.75rem;
+      color: #8888aa;
+      letter-spacing: 0.2em;
+      margin-top: 0.75rem;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.7rem;
+      color: #55557a;
+      letter-spacing: 0.15em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">CHARWARE</div>
+  <div class="tagline">Game Development Studio</div>
+
+  <div class="game-card">
+    <div class="game-title">👻 GHOST MAZE</div>
+    <div class="game-subtitle">The Reverse Pac-Man Experience</div>
+    <p class="game-desc">
+      You are the ghost. Hunt down the player before they eat all the pellets.
+      Race through 50 hand-crafted levels, unlock themes, and climb the global leaderboard.
+    </p>
+    <div class="badges">
+      <span class="badge">50 LEVELS</span>
+      <span class="badge">SPEEDRUN MODE</span>
+      <span class="badge">DAILY CHALLENGE</span>
+      <span class="badge">LEADERBOARDS</span>
+    </div>
+    <a class="store-btn" href="https://play.google.com/store" target="_blank">Coming to Google Play</a>
+    <div class="coming-soon">Android · iOS coming soon</div>
+  </div>
+
+  <footer>© 2026 Charware Game Development Studio · charware.dev</footer>
+</body>
+</html>

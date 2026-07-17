@@ -1,6 +1,8 @@
 // API client for Ghost Maze backend (leaderboard + daily seed)
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL ?? "";
+const DEFAULT_BACKEND_URL = "https://ghost-maze-backend.onrender.com";
+const envBase = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();
+const BASE = (envBase && envBase.length > 0 ? envBase : DEFAULT_BACKEND_URL).replace(/\/+$/, "");
 
 export interface DailySeed {
   seed_date: string;
@@ -14,7 +16,7 @@ export interface ScoreEntry {
   level: number;
   catches: number;
   theme_id: string;
-  mode: "classic" | "daily" | "speedrun";
+  mode: "classic" | "daily" | "speedrun" | "timeattack";
   daily_seed_date?: string | null;
   run_time_ms?: number | null;
   timestamp: string;
@@ -26,9 +28,26 @@ export interface ScoreSubmission {
   level: number;
   catches: number;
   theme_id?: string;
-  mode: "classic" | "daily" | "speedrun";
+  mode: "classic" | "daily" | "speedrun" | "timeattack";
   daily_seed_date?: string;
   run_time_ms?: number;
+}
+
+export interface LeaderboardSummary {
+  overall_best: ScoreEntry | null;
+  level_bests: ScoreEntry[];
+  aggregate_bests: ScoreEntry[];
+}
+
+export interface PromoRewards {
+  coins: number;
+  powerUps: Record<string, number>;
+}
+
+export interface PromoRedeemResponse {
+  code: string;
+  message: string;
+  rewards: PromoRewards;
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -58,11 +77,28 @@ export async function submitScore(s: ScoreSubmission): Promise<ScoreEntry> {
 }
 
 export async function fetchLeaderboard(
-  mode: "classic" | "daily" | "speedrun" | "all" = "classic",
+  mode: "classic" | "daily" | "speedrun" | "timeattack" | "all" = "classic",
   options?: { daily_seed_date?: string; limit?: number },
 ): Promise<ScoreEntry[]> {
   const params = new URLSearchParams({ mode });
   if (options?.daily_seed_date) params.set("daily_seed_date", options.daily_seed_date);
   if (options?.limit) params.set("limit", String(options.limit));
   return http<ScoreEntry[]>(`/leaderboard?${params.toString()}`);
+}
+
+export async function fetchLeaderboardSummary(
+  mode: "classic" | "speedrun" | "timeattack",
+): Promise<LeaderboardSummary> {
+  const params = new URLSearchParams({ mode });
+  return http<LeaderboardSummary>(`/leaderboard-summary?${params.toString()}`);
+}
+
+export async function redeemPromoCode(code: string, playerId: string): Promise<PromoRedeemResponse> {
+  return http<PromoRedeemResponse>("/promo/redeem", {
+    method: "POST",
+    body: JSON.stringify({
+      code,
+      player_id: playerId,
+    }),
+  });
 }

@@ -9,9 +9,19 @@ export interface SettingsData {
   haptics: boolean;
   soundOn: boolean;
   musicOn: boolean;
-  reducedMotion: boolean;
   sfxVolume: number;
   musicVolume: number;
+  gamepadInvertY: boolean;
+  gamepadDeadzone: number;
+  reducedMotion: boolean;
+  highContrast: boolean;
+  largeHud: boolean;
+  controlMode: "swipe" | "tap" | "both";
+  soundTestFavorites: string[];
+  soundTestOrder: string[];
+  devMode: boolean;
+  devInfiniteCoins: boolean;
+  devInfiniteItems: boolean;
 }
 
 export const DEFAULT_SETTINGS: SettingsData = {
@@ -19,9 +29,19 @@ export const DEFAULT_SETTINGS: SettingsData = {
   haptics: true,
   soundOn: true,
   musicOn: true,
-  reducedMotion: false,
   sfxVolume: 0.6,
   musicVolume: 0.45,
+  gamepadInvertY: false,
+  gamepadDeadzone: 0.55,
+  reducedMotion: false,
+  highContrast: false,
+  largeHud: false,
+  controlMode: "swipe",
+  soundTestFavorites: [],
+  soundTestOrder: [],
+  devMode: false,
+  devInfiniteCoins: false,
+  devInfiniteItems: false,
 };
 
 export async function loadSettings(): Promise<SettingsData> {

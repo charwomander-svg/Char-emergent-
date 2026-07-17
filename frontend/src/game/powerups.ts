@@ -12,7 +12,8 @@ export type PowerUpId =
   | "magnet"
   | "reveal"
   | "decoy"
-  | "rewind";
+  | "rewind"
+  | "hardcoreRevive";
 
 export interface PowerUpDef {
   id: PowerUpId;
@@ -21,6 +22,7 @@ export interface PowerUpDef {
   short: string; // short label for shop tile
   description: string;
   cost: number;
+  maxOwned?: number;
   durationMs?: number;
   /**
    * Activation kind:
@@ -40,7 +42,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Speed",
     icon: "⚡",
     description: "All ghosts move 60% faster for 6 seconds.",
-    cost: 30,
+    cost: 45,
     durationMs: 6000,
     kind: "buff",
     color: "#FFD23F",
@@ -51,7 +53,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Tele",
     icon: "🌀",
     description: "Warp the selected ghost next to Pellet Guy.",
-    cost: 100,
+    cost: 85,
     kind: "targeted",
     color: "#A06DFF",
   },
@@ -61,7 +63,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Freeze",
     icon: "❄️",
     description: "Pellet Guy is frozen in place for 4 seconds.",
-    cost: 100,
+    cost: 60,
     durationMs: 4000,
     kind: "buff",
     color: "#5BC0EB",
@@ -72,7 +74,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Shield",
     icon: "🛡️",
     description: "Selected ghost absorbs the next spike trap.",
-    cost: 25,
+    cost: 40,
     kind: "targeted",
     color: "#9BC53D",
   },
@@ -102,7 +104,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Key",
     icon: "🗝️",
     description: "Instantly open one barricade.",
-    cost: 10,
+    cost: 25,
     kind: "instant",
     color: "#FFEA00",
   },
@@ -112,7 +114,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Magnet",
     icon: "🧲",
     description: "Pellet Guy is pulled toward the nearest ghost for 5s.",
-    cost: 75,
+    cost: 70,
     durationMs: 5000,
     kind: "buff",
     color: "#FF477E",
@@ -149,15 +151,33 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     kind: "instant",
     color: "#FF6B6B",
   },
+  hardcoreRevive: {
+    id: "hardcoreRevive",
+    name: "Revive Token",
+    short: "Revive",
+    icon: "💀",
+    description: "Hardcore only: revive one permanently dead ghost. Limit 1.",
+    cost: 500,
+    maxOwned: 1,
+    kind: "instant",
+    color: "#FF477E",
+  },
 };
 
+// Purchasable first (these are the 8 shown in the HUD inventory bar).
+// Remaining items stay functional but are not sold in the shop.
 export const POWER_UP_ORDER: PowerUpId[] = [
   "speedBoost",
   "freeze",
   "teleport",
-  "magnet",
   "shield",
   "key",
-  "pelletScatter",
+  "magnet",
   "rewind",
+  "pelletScatter",
+  "hardcoreRevive",
+  // Not sold in the store:
+  "fastRespawn",
+  "reveal",
+  "decoy",
 ];

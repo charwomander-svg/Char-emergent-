@@ -36,11 +36,25 @@ export interface CheckoutStatus {
   player_total_coins?: number | null;
 }
 
-export async function fetchPacks(): Promise<CoinPack[]> {
-  const res = await fetch(`${API_BASE}/checkout/packs`);
-  if (!res.ok) throw new Error(`Failed to load packs (${res.status})`);
-  return res.json();
+export async function fetchPacks(): Promise<{ packs: CoinPack[]; live: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/checkout/packs`);
+    if (res.status === 503) return { packs: FALLBACK_PACKS, live: false };
+    if (!res.ok) throw new Error(`Failed to load packs (${res.status})`);
+    return { packs: await res.json(), live: true };
+  } catch {
+    return { packs: FALLBACK_PACKS, live: false };
+  }
 }
+
+// Mirrors backend COIN_PACKS — shown in the shop even when the backend is
+// offline or Stripe is not yet configured, so the layout is always visible.
+export const FALLBACK_PACKS: CoinPack[] = [
+  { id: "pack_small",  name: "Starter Coin Pack",  price_cents: 99,  currency: "usd", coins: 100,  description: "100 Ghost Coins" },
+  { id: "pack_medium", name: "Booster Coin Pack",  price_cents: 299, currency: "usd", coins: 400,  description: "400 Ghost Coins", badge: "POPULAR" },
+  { id: "pack_large",  name: "Big Coin Pack",       price_cents: 499, currency: "usd", coins: 1000, description: "1000 Ghost Coins", badge: "BEST VALUE" },
+  { id: "pack_xl",     name: "Mega Coin Pack",      price_cents: 999, currency: "usd", coins: 2500, description: "2500 Ghost Coins", badge: "MEGA DEAL" },
+];
 
 export async function createCheckoutSession(
   packId: string,

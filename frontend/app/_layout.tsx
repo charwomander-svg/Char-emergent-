@@ -1,47 +1,57 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { Platform } from "react-native";
+import { View, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { useFullscreen } from "@/src/utils/useFullscreen";
 
 SplashScreen.preventAutoHideAsync();
 
-// Try to load the Charware studio logo; fall back gracefully if not yet placed.
-let charwareLogo: number | null = null;
-try {
-  charwareLogo = require("@/assets/images/charware_splash.png");
-} catch {}
-
 export default function RootLayout() {
+  const [webMounted, setWebMounted] = useState(false);
   const [loaded, error] = useIconFonts();
-  const [showSplash, setShowSplash] = useState(true);
 
-  useFullscreen({ autoEnter: true });
+  useFullscreen({ autoEnter: Platform.OS !== "web" });
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
+    setWebMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
     if (loaded || error) {
       SplashScreen.hideAsync();
-      // Show studio splash for 2.2 s after fonts load
-      const t = setTimeout(() => setShowSplash(false), 2200);
-      return () => clearTimeout(t);
     }
   }, [loaded, error]);
 
-  if (!loaded && !error) return null;
+  if (Platform.OS === "web") {
+    if (!webMounted) {
+      return (
+        <View style={styles.splash}>
+          <Image
+            source={require("../assets/images/app-image.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    }
+    return <Stack screenOptions={{ headerShown: false }} />;
+  }
 
-  if (showSplash) {
+  // Show Charware logo on black while fonts load — overrides whatever the
+  // native splash shows, works on every Android version without build config.
+  if (!loaded && !error) {
     return (
-      <View style={splash.container}>
-        {charwareLogo ? (
-          <Image source={charwareLogo} style={splash.logo} resizeMode="contain" />
-        ) : (
-          <>
-            <Text style={splash.title}>CHARWARE</Text>
-            <Text style={splash.sub}>STUDIOS</Text>
-          </>
-        )}
+      <View style={styles.splash}>
+        <Image
+          source={require("../assets/images/app-image.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -49,24 +59,15 @@ export default function RootLayout() {
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 
-const splash = StyleSheet.create({
-  container: {
+const styles = StyleSheet.create({
+  splash: {
     flex: 1,
-    backgroundColor: "#000010",
+    backgroundColor: "#0d0d1a",
     alignItems: "center",
     justifyContent: "center",
   },
-  logo: { width: 260, height: 260 },
-  title: {
-    color: "#FFFF00",
-    fontSize: 36,
-    fontWeight: "900",
-    letterSpacing: 6,
-  },
-  sub: {
-    color: "#CCCCCC",
-    fontSize: 14,
-    letterSpacing: 8,
-    marginTop: 4,
+  logo: {
+    width: 280,
+    height: 280,
   },
 });

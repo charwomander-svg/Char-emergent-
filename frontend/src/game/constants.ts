@@ -13,7 +13,7 @@ export const COLORS = {
   pelletGuy: "#FFFF00",
   pelletGuyMouth: "#000000",
   ghosts: ["#FF0000", "#FFB8FF", "#00FFFF", "#FFB852"], // red, pink, cyan, orange
-  ghostNames: ["Spook", "Shriek", "Creep", "Wail"],
+  ghostNames: ["Ember", "Blush", "Rime", "Rust"],
   ghostEyes: "#FFFFFF",
   ghostPupil: "#0000FF",
   ghostVulnerable: "#2121DE",
@@ -36,11 +36,16 @@ export const SPEED = {
 // Power-up balance
 // Power-up balance
 export const SUPER_PELLET_DURATION_MS = 6000;
+export const SUPER_PELLET_RESPAWN_MS = 19000;
 export const COMBO_WINDOW_MS = 1500;
 export const RESPAWN_MS = 1500;
 export const READY_DURATION_MS = 1500;
 export const CATCH_TO_WIN = 3;
 export const STARTING_LIVES = 3;
+export const TIME_ATTACK_DURATION_MS = 3 * 60 * 1000;
+
+// Total number of levels in the game. Clearing level 50 ends the game.
+export const MAX_LEVELS = 50;
 
 // Respawn cooldown scaling: each prior death on the current level adds this
 // multiplier of the base. Formula: base * (1 + prior_deaths * STEP), capped.
@@ -59,7 +64,7 @@ export const TRAP_DROP_MAX_CHANCE = 0.12;
 export const MAX_ACTIVE_TRAPS = 3;
 export const BARRICADE_DURATION_MS = 8000;
 export const SPIKE_PROBABILITY = 0.65; // vs barricade
-export const SCORE_SPIKED_GHOST_PENALTY = -150;
+export const SCORE_SPIKED_GHOST_PENALTY = 0;
 
 // Scoring
 export const SCORE_PELLET = 10;
@@ -67,3 +72,11 @@ export const SCORE_SUPER_PELLET = 50;
 export const SCORE_CATCH = 200;
 export const SCORE_COMBO_BONUS = 300; // per extra ghost in combo
 export const SCORE_PER_PERCENT_REMAINING = 20; // level-end bonus
+export const SCORE_GHOST_EAT = 400; // points for pellet-guy eating a vulnerable ghost
+export const SCORE_SHINY_CATCH = 1000; // bonus points for catching shiny pellet guy
+
+// Shiny Pellet Guy tuning
+export const SHINY_ROLL_INTERVAL_MS = 12000;
+export const SHINY_SPAWN_CHANCE = 0.06;
+export const SHINY_DURATION_MS = 3200;
+export const SHINY_PELLET_GUY_SPEED_MULTIPLIER = 0.82;

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, Animated, Easing } from "react-native";
+import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
-import type { BossState } from "@/src/game/boss";
-import { bossVisualScale, bossAuraColor, bossIsLunging } from "@/src/game/boss";
+import type { BonusGameState } from "@/src/game/bonusGame";
+import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED } from "@/src/game/constants";
 
 interface Props {
@@ -13,7 +13,24 @@ interface Props {
   selectedGhostId: number;
   ready: boolean;
   level: number;
-  boss?: BossState | null;
+  bonusGame?: BonusGameState | null;
+  highContrast?: boolean;
+}
+
+function getWallPalette(level: number) {
+  const tier = Math.floor((Math.max(1, level) - 1) / 10) % 5;
+  switch (tier) {
+    case 1:
+      return { wall: "#0E8A2D", wallInner: "#42D96B" };
+    case 2:
+      return { wall: "#9E1A1A", wallInner: "#FF5A5A" };
+    case 3:
+      return { wall: "#5A22A6", wallInner: "#B47CFF" };
+    case 4:
+      return { wall: "#121212", wallInner: "#555555" };
+    default:
+      return { wall: COLORS.wall, wallInner: COLORS.wallInner };
+  }
 }
 
 // Smooth position hook — interpolates grid coords to pixel coords with
@@ -67,13 +84,34 @@ function speedScale(level: number): number {
   return Math.max(0.55, 1 - (level - 1) * 0.05);
 }
 
+function useChompAnimation(duration = 120) {
+  const chompAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chompAnim, { toValue: 0, duration, useNativeDriver: true }),
+        Animated.timing(chompAnim, { toValue: 1, duration, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [chompAnim, duration]);
+
+  return chompAnim;
+}
+
 // Cell renderer - memoized for performance
 const Cell = React.memo(function Cell({
   type,
   size,
+  wallColor,
+  wallInnerColor,
 }: {
   type: CellType;
   size: number;
+  wallColor: string;
+  wallInnerColor: string;
 }) {
   if (type === 1) {
     // wall
@@ -81,7 +119,13 @@ const Cell = React.memo(function Cell({
       <View
         style={[
           styles.wall,
-          { width: size, height: size, borderRadius: Math.max(2, size * 0.18) },
+          {
+            width: size,
+            height: size,
+            borderRadius: Math.max(2, size * 0.18),
+            backgroundColor: wallColor,
+            borderColor: wallInnerColor,
+          },
         ]}
       />
     );
@@ -208,12 +252,14 @@ const GhostSprite = React.memo(function GhostSprite({
   selected,
   ready,
   moveDuration,
+  highContrast = false,
 }: {
   ghost: Ghost;
   size: number;
   selected: boolean;
   ready: boolean;
   moveDuration: number;
+  highContrast?: boolean;
 }) {
   const { animX, animY } = useSmoothPosition(ghost.x, ghost.y, moveDuration, size);
 
@@ -272,7 +318,7 @@ const GhostSprite = React.memo(function GhostSprite({
             height: size,
             borderRadius: size / 2,
             borderWidth: 2,
-            borderColor: "#FFFFFF",
+            borderColor: highContrast ? "#FFFF00" : "#FFFFFF",
             opacity: 0.85,
           }}
         />
@@ -439,13 +485,21 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
   size,
   moveDuration,
   visualScale = 1,
+  vulnerable = false,
+  highContrast = false,
 }: {
   pg: PelletGuy;
   size: number;
   moveDuration: number;
   visualScale?: number;
+  vulnerable?: boolean;
+  highContrast?: boolean;
 }) {
   const { animX, animY } = useSmoothPosition(pg.x, pg.y, moveDuration, size);
+
+  // Chomp animation runs on the native thread — completely decoupled from JS
+  // game-loop renders so it never blinks or stutters. Must be before early return.
+  const chompAnim = useChompAnimation();
 
   if (!pg.alive) {
     // explosion / star
@@ -497,8 +551,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
     }
   })();
 
-  // Mouth toggle (chomp animation)
-  const chomp = Math.floor(performance.now() / 120) % 2 === 0;
+
 
   return (
     <Animated.View
@@ -525,39 +578,49 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           height: size * 0.85,
           margin: size * 0.075,
           borderRadius: size * 0.425,
-          backgroundColor: COLORS.pelletGuy,
+          backgroundColor: vulnerable ? COLORS.ghostVulnerable : COLORS.pelletGuy,
+          borderWidth: highContrast ? 2 : 0,
+          borderColor: highContrast ? "#111111" : "transparent",
           transform: [{ rotate: rotation }],
           overflow: "hidden",
         }}
       >
-        {chomp && (
-          <>
-            <View
-              style={{
-                position: "absolute",
-                left: size * 0.425,
-                top: 0,
-                width: size * 0.5,
-                height: size * 0.425,
-                backgroundColor: COLORS.background,
-                transform: [{ skewY: "-25deg" }],
-                transformOrigin: "left bottom",
-              } as any}
-            />
-            <View
-              style={{
-                position: "absolute",
-                left: size * 0.425,
-                top: size * 0.425,
-                width: size * 0.5,
-                height: size * 0.425,
-                backgroundColor: COLORS.background,
-                transform: [{ skewY: "25deg" }],
-                transformOrigin: "left top",
-              } as any}
-            />
-          </>
-        )}
+        {/* Mouth — opacity animated on native thread */}
+        <Animated.View
+          style={{
+            opacity: chompAnim,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.425,
+              top: 0,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
+              transform: [{ skewY: "-25deg" }],
+              transformOrigin: "left bottom",
+            } as any}
+          />
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.425,
+              top: size * 0.425,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
+              transform: [{ skewY: "25deg" }],
+              transformOrigin: "left top",
+            } as any}
+          />
+        </Animated.View>
       </View>
     </Animated.View>
   );
@@ -571,7 +634,8 @@ export default function MazeRenderer({
   selectedGhostId,
   ready,
   level,
-  boss,
+  bonusGame,
+  highContrast = false,
 }: Props) {
   if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
@@ -580,11 +644,7 @@ export default function MazeRenderer({
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
-
-  // Boss visuals — aura tint + sprite scale + active lunge flash.
-  const bossScale = bossVisualScale(boss ?? null);
-  const aura = bossAuraColor(boss ?? null);
-  const lunging = bossIsLunging(boss ?? null, performance.now());
+  const wallPalette = getWallPalette(level);
 
   return (
     <View
@@ -601,7 +661,13 @@ export default function MazeRenderer({
       {maze.map((row, y) => (
         <View key={y} style={{ flexDirection: "row" }}>
           {row.map((cell, x) => (
-            <Cell key={x} type={cell} size={cellSize} />
+            <Cell
+              key={x}
+              type={cell}
+              size={cellSize}
+              wallColor={wallPalette.wall}
+              wallInnerColor={wallPalette.wallInner}
+            />
           ))}
         </View>
       ))}
@@ -617,25 +683,64 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        {/* Boss aura beneath Pellet Guy (pulses red while lunging) */}
-        {boss && aura && pelletGuy.alive && (
-          <BossAuraSprite
-            x={pelletGuy.x}
-            y={pelletGuy.y}
+        {/* Bonus game items */}
+        {bonusGame &&
+          bonusGame.items
+            .filter((item) => !item.collected)
+            .map((item, idx) =>
+              bonusGame.type === "powerHunt" ? (
+                <PelletGuySprite
+                  key={idx}
+                  pg={{
+                    x: item.x,
+                    y: item.y,
+                    spawnX: item.x,
+                    spawnY: item.y,
+                    direction: "left",
+                    alive: true,
+                    respawnAt: 0,
+                  }}
+                  size={cellSize}
+                  moveDuration={0}
+                  visualScale={0.92}
+                  vulnerable
+                  highContrast={highContrast}
+                />
+              ) : (
+                <BonusItemSprite
+                  key={idx}
+                  x={item.x}
+                  y={item.y}
+                  size={cellSize}
+                  emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                  moveDuration={pgDuration}
+                  moving={false}
+                />
+              ),
+            )}
+        {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
+          <BonusItemSprite
+            x={bonusGame.huntPellet.x}
+            y={bonusGame.huntPellet.y}
             size={cellSize}
-            scale={bossScale + (lunging ? 0.25 : 0)}
-            color={aura}
-            lunging={lunging}
-            moveDuration={pgDuration}
+            emoji="🟡"
+            moveDuration={0}
+            moving={false}
           />
         )}
-        <PelletGuySprite
-          pg={pelletGuy}
-          size={cellSize}
-          moveDuration={pgDuration}
-          visualScale={bossScale}
-        />
-        {ghosts.map((g) => (
+        {/* Pellet Guy — hidden during bonus rounds */}
+        {!bonusGame && (
+          <PelletGuySprite
+            pg={pelletGuy}
+            size={cellSize}
+            moveDuration={pgDuration}
+            visualScale={1}
+            highContrast={highContrast}
+          />
+        )}
+        {ghosts
+          .filter((g) => !bonusGame || g.id === selectedGhostId)
+          .map((g) => (
           <GhostSprite
             key={g.id}
             ghost={g}
@@ -643,6 +748,7 @@ export default function MazeRenderer({
             selected={g.id === selectedGhostId}
             ready={ready}
             moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
+            highContrast={highContrast}
           />
         ))}
       </View>
@@ -651,46 +757,25 @@ export default function MazeRenderer({
 }
 
 // ---------------------------------------------------------------------------
-// Boss aura — a soft animated circle behind the Pellet Guy showing the phase
-// color and pulsing while a phase-3 lunge is active.
+// Bonus item — a simple emoji overlay rendered at a fixed grid cell
+// (for flags, targets) or with smooth movement (for Pookas).
 // ---------------------------------------------------------------------------
-const BossAuraSprite = React.memo(function BossAuraSprite({
+const BonusItemSprite = React.memo(function BonusItemSprite({
   x,
   y,
   size,
-  scale,
-  color,
-  lunging,
+  emoji,
   moveDuration,
+  moving,
 }: {
   x: number;
   y: number;
   size: number;
-  scale: number;
-  color: string;
-  lunging: boolean;
+  emoji: string;
   moveDuration: number;
+  moving: boolean;
 }) {
-  const { animX, animY } = useSmoothPosition(x, y, moveDuration, size);
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [pulse]);
-
-  const auraSize = size * scale * 1.5;
-  const offset = (auraSize - size) / 2;
-  const opacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: lunging ? [0.55, 0.95] : [0.25, 0.55],
-  });
-
+  const { animX, animY } = useSmoothPosition(x, y, moving ? moveDuration : 0, size);
   return (
     <Animated.View
       style={[
@@ -698,29 +783,17 @@ const BossAuraSprite = React.memo(function BossAuraSprite({
         {
           width: size,
           height: size,
-          left: -offset,
-          top: -offset,
           transform: [
             { translateX: animX },
             { translateY: animY },
           ],
           pointerEvents: "none",
+          alignItems: "center",
+          justifyContent: "center",
         },
       ]}
     >
-      <Animated.View
-        style={{
-          width: auraSize,
-          height: auraSize,
-          borderRadius: auraSize / 2,
-          backgroundColor: color,
-          opacity,
-          shadowColor: color,
-          shadowOpacity: 1,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 0 },
-        }}
-      />
+      <Text style={{ fontSize: size * 0.6, lineHeight: size }}>{emoji}</Text>
     </Animated.View>
   );
 });

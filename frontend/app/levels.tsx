@@ -2,33 +2,31 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { COLORS } from "@/src/game/constants";
-import { loadProgress, ProgressData } from "@/src/game/progress";
+import { COLORS, MAX_LEVELS } from "@/src/game/constants";
+import {
+  countLevelStars,
+  getLevelStarRecord,
+  loadProgress,
+  ProgressData,
+} from "@/src/game/progress";
 import { getSoundEngine } from "@/src/game/sounds";
-import { SPEEDRUN_SEEDS } from "@/src/game/speedrun";
 
 export default function Levels() {
   const router = useRouter();
   const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [speedrunMode, setSpeedrunMode] = useState(false);
 
   useEffect(() => {
     loadProgress().then(setProgress);
   }, []);
 
   const highest = progress?.highestLevel ?? 1;
-  const maxShown = Math.max(20, highest + 4);
+  const maxShown = MAX_LEVELS;
   const levels = Array.from({ length: maxShown }, (_, i) => i + 1);
 
   const playLevel = (lv: number) => {
-    if (lv > highest && !speedrunMode) return;
+    if (lv > highest) return;
     getSoundEngine().uiClick();
-    if (speedrunMode) {
-      const seed = SPEEDRUN_SEEDS[lv - 1] ?? SPEEDRUN_SEEDS[0];
-      router.push(`/game?mode=speedrun&level=${lv}&seed=${seed}`);
-    } else {
-      router.push(`/game?mode=classic&level=${lv}`);
-    }
+    router.push(`/game?mode=classic&level=${lv}`);
   };
 
   return (
@@ -40,37 +38,21 @@ export default function Levels() {
         <Text style={styles.title}>LEVELS</Text>
         <View style={{ width: 60 }} />
       </View>
-
-      {/* Speedrun toggle */}
-      <TouchableOpacity
-        style={[styles.speedrunToggle, speedrunMode && styles.speedrunToggleActive]}
-        onPress={() => { getSoundEngine().uiClick(); setSpeedrunMode((v) => !v); }}
-        testID="speedrun-toggle"
-      >
-        <Text style={[styles.speedrunToggleText, speedrunMode && styles.speedrunToggleTextActive]}>
-          ⏱ SPEEDRUN MODE {speedrunMode ? "ON" : "OFF"}
-        </Text>
-        {speedrunMode && (
-          <Text style={styles.speedrunSubtext}>Static seeds · All levels unlocked · Frame timer</Text>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.subtitle}>
-        {speedrunMode ? "SPEEDRUN — All levels open" : `Reached Level ${highest}`}
-      </Text>
+      <Text style={styles.subtitle}>Reached Level {highest} / {MAX_LEVELS}</Text>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.grid}>
           {levels.map((lv) => {
-            const locked = lv > highest && !speedrunMode;
-            const isBoss = lv % 5 === 0;
+            const locked = lv > highest;
+            const isBonus = lv % 5 === 0;
+            const stars = progress ? getLevelStarRecord(progress, lv) : null;
+            const starCount = stars ? countLevelStars(stars) : 0;
             return (
               <TouchableOpacity
                 key={lv}
                 style={[
                   styles.cell,
-                  isBoss && styles.bossCell,
+                  isBonus && styles.bonusCell,
                   locked && styles.lockedCell,
-                  speedrunMode && styles.speedrunCell,
                 ]}
                 onPress={() => playLevel(lv)}
                 disabled={locked}
@@ -81,15 +63,34 @@ export default function Levels() {
                 ) : (
                   <>
                     <Text style={styles.cellNum}>{lv}</Text>
-                    {isBoss && <Text style={styles.bossTag}>BOSS</Text>}
-                    {speedrunMode && <Text style={styles.srTag}>SR</Text>}
+                    {isBonus && <Text style={styles.bonusTag}>BONUS</Text>}
+                    {!isBonus && (
+                      <View style={styles.starRow}>
+                        {Array.from({ length: 3 }, (_, index) => {
+                          const filled = index < starCount;
+                          const glyph = stars?.gold ? "★" : filled ? "★" : "☆";
+                          return (
+                            <Text
+                              key={`${lv}-star-${index}`}
+                              style={[
+                                styles.star,
+                                filled && styles.starFilled,
+                                stars?.gold && styles.goldStar,
+                              ]}
+                            >
+                              {glyph}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                    )}
                   </>
                 )}
               </TouchableOpacity>
             );
           })}
         </View>
-        <Text style={styles.hint}>Boss levels every 5 levels — the boss mechanics arrive in the next update.</Text>
+        <Text style={styles.hint}>Bonus stages every 5 levels — Speed Rally, Star Blitz, and Inflator.</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -109,29 +110,6 @@ const styles = StyleSheet.create({
   },
   back: { color: "#FFFF00", fontWeight: "bold", fontSize: 14, letterSpacing: 1 },
   title: { color: "#FFFF00", fontWeight: "900", fontSize: 22, letterSpacing: 3 },
-  speedrunToggle: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#444466",
-    backgroundColor: COLORS.uiPanel,
-    alignItems: "center",
-  },
-  speedrunToggleActive: {
-    borderColor: "#7FE8FF",
-    backgroundColor: "#0d1a2e",
-  },
-  speedrunToggleText: {
-    color: "#888899",
-    fontWeight: "bold",
-    fontSize: 13,
-    letterSpacing: 2,
-  },
-  speedrunToggleTextActive: { color: "#7FE8FF" },
-  speedrunSubtext: { color: "#7FE8FF", opacity: 0.7, fontSize: 10, marginTop: 2, letterSpacing: 1 },
   subtitle: { color: "#FFB897", textAlign: "center", paddingVertical: 10, fontSize: 12, letterSpacing: 1 },
   scroll: { padding: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", gap: 10 },
@@ -145,12 +123,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bossCell: { borderColor: "#FF1744", backgroundColor: "#22000a" },
+  bonusCell: { borderColor: "#A06DFF", backgroundColor: "#130a22" },
   lockedCell: { borderColor: "#222244", opacity: 0.5 },
-  speedrunCell: { borderColor: "#7FE8FF" },
   cellNum: { color: "#FFFFFF", fontWeight: "900", fontSize: 22, letterSpacing: 1 },
   lockedIcon: { fontSize: 20 },
-  bossTag: { color: "#FF1744", fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
-  srTag: { color: "#7FE8FF", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  bonusTag: { color: "#A06DFF", fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  starRow: { flexDirection: "row", gap: 2, marginTop: 4 },
+  star: { color: "#485075", fontSize: 11, fontWeight: "900" },
+  starFilled: { color: "#9fb4ff" },
+  goldStar: { color: "#ffd54a" },
   hint: { color: "#666688", fontSize: 11, marginTop: 16, fontStyle: "italic", textAlign: "center" },
 });

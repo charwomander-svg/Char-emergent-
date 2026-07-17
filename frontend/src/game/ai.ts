@@ -66,7 +66,16 @@ export function getPelletDifficultyProfile(level: number): PelletDifficultyProfi
   if (level <= 12) {
     return { tier: "expert", senseRadius: 10, continueChance: 0.45, weightedRandom: false };
   }
-  return { tier: "nightmare", senseRadius: 12, continueChance: 0.35, weightedRandom: false };
+  // Nightmare tier (levels 13+): continue scaling through level 50.
+  // senseRadius: 12 → 15 (full-map awareness by ~level 43)
+  // continueChance: 0.35 → 0.18 (more unpredictable, harder to predict path)
+  const extra = Math.min(level - 13, 37); // 0 at lvl 13, 37 at lvl 50
+  return {
+    tier: "nightmare",
+    senseRadius: Math.min(15, 12 + Math.floor(extra / 13)),
+    continueChance: Math.max(0.18, 0.35 - extra * 0.0046),
+    weightedRandom: false,
+  };
 }
 
 export function choosePelletGuyDirection(
@@ -172,11 +181,67 @@ export function applyDirection(
   dir: Direction,
 ): { x: number; y: number } {
   const [dx, dy] = DELTAS[dir];
-  return { x: x + dx, y: y + dy };
+  const nx = x + dx;
+  const ny = y + dy;
+  return { x: nx, y: ny };
 }
 
 export function opposite(dir: Direction): Direction {
   return OPPOSITE[dir];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function chooseWeighted<T>(items: { value: T; weight: number }[]): T {
+  const total = items.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * total;
+  for (const item of items) {
+    roll -= item.weight;
+    if (roll <= 0) return item.value;
+  }
+  return items[items.length - 1].value;
+}
+
+function findNearestSpikeDistance(maze: CellType[][], x: number, y: number): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (let yy = 0; yy < maze.length; yy++) {
+    for (let xx = 0; xx < maze[0].length; xx++) {
+      if (maze[yy][xx] !== 6) continue;
+      best = Math.min(best, Math.abs(xx - x) + Math.abs(yy - y));
+    }
+  }
+  return best;
+}
+
+function getCornerTargets(maze: CellType[][]): { x: number; y: number }[] {
+  const width = maze[0]?.length ?? 0;
+  const height = maze.length;
+  const rawCorners = [
+    { x: 1, y: 1 },
+    { x: Math.max(1, width - 2), y: 1 },
+    { x: 1, y: Math.max(1, height - 2) },
+    { x: Math.max(1, width - 2), y: Math.max(1, height - 2) },
+  ];
+  return rawCorners.filter((corner, index, arr) =>
+    arr.findIndex((candidate) => candidate.x === corner.x && candidate.y === corner.y) === index &&
+    isWalkable(maze, corner.x, corner.y, false),
+  );
+}
+
+function projectPelletGuyTarget(
+  maze: CellType[][],
+  pelletGuy: PelletGuy,
+  predictionSteps: number,
+): { x: number; y: number } {
+  let target = { x: pelletGuy.x, y: pelletGuy.y };
+  for (let step = 0; step < predictionSteps; step++) {
+    const next = applyDirection(target.x, target.y, pelletGuy.direction);
+    if (!isWalkable(maze, next.x, next.y, true)) break;
+    target = next;
+  }
+  return target;
 }
 
 /**
@@ -190,6 +255,7 @@ export function chooseGhostHuntDirection(
   ghost: Ghost,
   pelletGuy: PelletGuy,
   level: number,
+  ghosts: Ghost[] = [],
 ): Direction {
   const validDirs = getValidDirections(maze, ghost.x, ghost.y, false);
   if (validDirs.length === 0) return ghost.direction;
@@ -198,22 +264,109 @@ export function chooseGhostHuntDirection(
   let candidates = validDirs.filter((d) => d !== rev);
   if (candidates.length === 0) candidates = validDirs;
 
-  // Score by Manhattan distance to PG — lower is better
-  const scored = candidates.map((d) => {
-    const [dx, dy] = DELTAS[d];
-    const dist = Math.abs(ghost.x + dx - pelletGuy.x) + Math.abs(ghost.y + dy - pelletGuy.y);
-    return { dir: d, dist };
+  const aggression = clamp(0.4 + (level - 1) * 0.05, 0.4, 0.9);
+  const predictionSteps = level >= 20 ? 3 : level >= 10 ? 2 : 1;
+  const predictedTarget = projectPelletGuyTarget(maze, pelletGuy, predictionSteps);
+  const nearestSpikeCurrent = findNearestSpikeDistance(maze, ghost.x, ghost.y);
+  const nearbyGhosts = ghosts.filter((entry) => entry.id !== ghost.id && entry.alive);
+  const corners = getCornerTargets(maze);
+  const nearestCorner = corners.length === 0
+    ? { x: ghost.spawnX, y: ghost.spawnY }
+    : corners.reduce((best, corner) => {
+        const bestDist = Math.abs(best.x - ghost.x) + Math.abs(best.y - ghost.y);
+        const cornerDist = Math.abs(corner.x - ghost.x) + Math.abs(corner.y - ghost.y);
+        return cornerDist < bestDist ? corner : best;
+      }, corners[0]);
+  const role = ghost.aiRole;
+  const trapThreatBias = clamp((6 - nearestSpikeCurrent) * 0.6, 0, 3);
+
+  const scored = candidates.map((dir) => {
+    const [dx, dy] = DELTAS[dir];
+    const nx = ghost.x + dx;
+    const ny = ghost.y + dy;
+    const distToPg = Math.abs(nx - pelletGuy.x) + Math.abs(ny - pelletGuy.y);
+    const distToPredictedPg = Math.abs(nx - predictedTarget.x) + Math.abs(ny - predictedTarget.y);
+    const distToSpawn = Math.abs(nx - ghost.spawnX) + Math.abs(ny - ghost.spawnY);
+    const distToCorner = Math.abs(nx - nearestCorner.x) + Math.abs(ny - nearestCorner.y);
+    const spikeDistance = findNearestSpikeDistance(maze, nx, ny);
+    const nearestOtherGhost = nearbyGhosts.length === 0
+      ? 6
+      : Math.min(...nearbyGhosts.map((entry) => Math.abs(entry.x - nx) + Math.abs(entry.y - ny)));
+    const continueBonus = dir === ghost.direction ? 1 : 0;
+    const interceptGain =
+      (Math.abs(ghost.x - predictedTarget.x) + Math.abs(ghost.y - predictedTarget.y)) - distToPredictedPg;
+
+    let score = (6 - distToPg) * aggression;
+    score += continueBonus * 0.4;
+
+    switch (role) {
+      case "hunter":
+        score += (8 - distToPg) * 1.45;
+        score += interceptGain * 0.5;
+        break;
+      case "ambusher":
+        score += (10 - distToPredictedPg) * 1.85;
+        score += interceptGain * 1.2;
+        score += continueBonus * 0.2;
+        break;
+      case "patrol":
+        score += continueBonus * 1.6;
+        score += (6 - distToSpawn) * 1.1;
+        score += (5 - distToPg) * 0.35;
+        break;
+      case "cautious":
+        score += distToPg * 0.85;
+        score += Math.min(spikeDistance, 6) * (0.75 + trapThreatBias * 0.15);
+        score += nearestOtherGhost * 0.15;
+        break;
+      case "coward":
+        score += distToPg * 1.25;
+        score += (10 - distToCorner) * 1.4;
+        score += Math.min(spikeDistance, 6) * 0.8;
+        break;
+      case "social":
+        // Social ghosts try to stay near teammates (within ~5 tiles) while still pressuring PG.
+        if (nearbyGhosts.length > 0) {
+          const distanceFromPack = Math.abs(nearestOtherGhost - 5);
+          score += (6 - Math.min(distanceFromPack, 6)) * 1.6;
+        }
+        score += (7 - distToPg) * 0.75;
+        score += continueBonus * 0.5;
+        break;
+      case "free":
+      default:
+        score += (5 - distToPg) * 0.4;
+        score += continueBonus * 0.3;
+        break;
+    }
+
+    if (spikeDistance <= 1) score -= 3.5;
+    if (distToPg === 0) score += role === "cautious" || role === "coward" ? -4 : 3;
+
+    return { dir, score };
   });
-  scored.sort((a, b) => a.dist - b.dist);
 
-  // Aggression ramps from 0.40 at level 1 to 0.85 at level 10+
-  const aggression = Math.min(0.85, 0.40 + (level - 1) * 0.05);
+  scored.sort((a, b) => b.score - a.score);
 
-  if (Math.random() < aggression) {
-    // Pick best direction (with tie-breaking randomness)
-    const best = scored[0].dist;
-    const top = scored.filter((s) => s.dist === best);
-    return top[Math.floor(Math.random() * top.length)].dir;
+  let topCount = 3;
+  if (role === "ambusher" || role === "hunter") topCount = 2;
+  if (role === "coward") topCount = Math.min(2, scored.length);
+  const topChoices = scored.slice(0, Math.min(topCount, scored.length));
+
+  const randomness = role === "free"
+    ? clamp(0.5 - level * 0.015, 0.2, 0.5)
+    : role === "coward"
+      ? 0.28
+      : clamp(0.32 - level * 0.01, 0.08, 0.32);
+
+  if (Math.random() < randomness) {
+    return topChoices[Math.floor(Math.random() * topChoices.length)].dir;
   }
-  return candidates[Math.floor(Math.random() * candidates.length)];
+
+  const bestScore = topChoices[0].score;
+  const weights = topChoices.map((choice) => ({
+    value: choice.dir,
+    weight: Math.max(1, Math.round((choice.score - bestScore + 4) * 100)),
+  }));
+  return chooseWeighted(weights);
 }
