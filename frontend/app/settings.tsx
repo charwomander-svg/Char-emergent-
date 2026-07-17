@@ -16,6 +16,7 @@ export default function Settings() {
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [promoFeedback, setPromoFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const orderedSoundTestTracks = React.useMemo(() => {
     const order = settings.soundTestOrder ?? [];
     const orderMap = new Map(order.map((id, index) => [id, index]));
@@ -75,6 +76,7 @@ export default function Settings() {
     const cleaned = promoCode.trim();
     if (!cleaned || redeemingPromo) return;
     setRedeemingPromo(true);
+    setPromoFeedback(null);
     try {
       if (cleaned.toUpperCase() === "WARM0NGER") {
         const next = {
@@ -85,7 +87,9 @@ export default function Settings() {
         };
         setSettings(next);
         await saveSettings(next);
-        Alert.alert("Dev mode unlocked", "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.");
+        const message = "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.";
+        setPromoFeedback({ kind: "success", message });
+        Alert.alert("Dev mode unlocked", message);
         setPromoCode("");
         return;
       }
@@ -100,10 +104,21 @@ export default function Settings() {
         }
       }
       await saveEconomy(nextEconomy);
-      Alert.alert("Code redeemed", "Promo rewards added to your save.");
+      const coins = redeemed.rewards.coins ?? 0;
+      const powerUps = Object.entries(redeemed.rewards.powerUps ?? {})
+        .filter(([, qty]) => typeof qty === "number" && qty > 0)
+        .map(([id, qty]) => `${qty} ${id}`);
+      const rewards = [
+        coins > 0 ? `${coins.toLocaleString()} Ghost Coins` : null,
+        ...powerUps,
+      ].filter(Boolean);
+      const message = rewards.length > 0 ? `Added ${rewards.join(", ")} to your save.` : redeemed.message;
+      setPromoFeedback({ kind: "success", message });
+      Alert.alert("Code redeemed", message);
       setPromoCode("");
     } catch (error) {
       const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      setPromoFeedback({ kind: "error", message });
       Alert.alert("Redeem failed", message);
     } finally {
       setRedeemingPromo(false);
@@ -145,6 +160,17 @@ export default function Settings() {
           <Text style={styles.stepBtnText}>+</Text>
         </TouchableOpacity>
       </View>
+      {promoFeedback && (
+        <Text
+          style={[
+            styles.promoFeedback,
+            promoFeedback.kind === "success" ? styles.promoFeedbackSuccess : styles.promoFeedbackError,
+          ]}
+          testID="promo-code-feedback"
+        >
+          {promoFeedback.message}
+        </Text>
+      )}
     </View>
   );
 
@@ -562,4 +588,23 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  promoFeedback: {
+    borderWidth: 1,
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  promoFeedbackSuccess: {
+    backgroundColor: "rgba(40, 167, 69, 0.16)",
+    borderColor: "#39D98A",
+    color: "#B7FFD2",
+  },
+  promoFeedbackError: {
+    backgroundColor: "rgba(255, 79, 112, 0.14)",
+    borderColor: "#FF6B8A",
+    color: "#FFD1DC",
+  },
 });
