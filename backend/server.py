@@ -35,6 +35,8 @@ else:
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+BACKEND_BUILD_ID = "promo-codes-2026-07-17"
+
 
 @app.on_event("startup")
 async def startup_db():
@@ -62,7 +64,15 @@ async def index():
 
 @api_router.get("/")
 async def root():
-    return {"message": "Ghost Maze API"}
+    return {"message": "Ghost Maze API", "build": BACKEND_BUILD_ID}
+
+
+@api_router.get("/version")
+async def version():
+    return {
+        "build": BACKEND_BUILD_ID,
+        "built_in_promo_codes": sorted(BUILT_IN_PROMO_CODES.keys()),
+    }
 
 
 @api_router.post("/status", response_model=StatusCheck)
@@ -175,6 +185,21 @@ class PromoRedeemResponse(BaseModel):
 
 _PROMO_CODES_CACHE: Optional[dict[str, dict[str, Any]]] = None
 
+BUILT_IN_PROMO_CODES: dict[str, dict[str, Any]] = {
+    "CHAR6000": {
+        "code": "CHAR6000",
+        "active": True,
+        "max_redemptions": 5,
+        "rewards": {"coins": 6000},
+    },
+    "DAILY100": {
+        "code": "DAILY100",
+        "active": True,
+        "redemption_period": "daily",
+        "rewards": {"coins": 100},
+    },
+}
+
 
 def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
     global _PROMO_CODES_CACHE
@@ -183,14 +208,14 @@ def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
 
     raw = os.getenv("PROMO_CODES_JSON", "").strip()
     if not raw:
-        _PROMO_CODES_CACHE = {}
+        _PROMO_CODES_CACHE = BUILT_IN_PROMO_CODES
         return _PROMO_CODES_CACHE
 
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         logger.exception("Invalid PROMO_CODES_JSON")
-        _PROMO_CODES_CACHE = {}
+        _PROMO_CODES_CACHE = BUILT_IN_PROMO_CODES
         return _PROMO_CODES_CACHE
 
     codes: dict[str, dict[str, Any]] = {}
@@ -214,8 +239,8 @@ def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
             item["code"] = code
             codes[code] = item
 
-    _PROMO_CODES_CACHE = codes
-    return codes
+    _PROMO_CODES_CACHE = {**BUILT_IN_PROMO_CODES, **codes}
+    return _PROMO_CODES_CACHE
 
 
 @api_router.get("/daily-seed", response_model=DailySeedInfo)
@@ -411,16 +436,19 @@ async def promo_redeem(body: PromoRedeemRequest):
     redemptions = db.promo_redemptions
     promo_codes = db.promo_codes
 
-    redemption_id = f"{code}:{player_id}"
-    already = await redemptions.find_one({"_id": redemption_id}, {"_id": 1})
-    if already:
-        raise HTTPException(status_code=409, detail="Code already redeemed for this player")
-
-    promo = await promo_codes.find_one({"_id": code})
+    promo = _load_env_promo_codes().get(code)
     if promo is None:
-        promo = _load_env_promo_codes().get(code)
+        promo = await promo_codes.find_one({"_id": code})
         if promo is None:
             raise HTTPException(status_code=404, detail="Promo code not found")
+
+    redemption_period = promo.get("redemption_period")
+    redemption_window = utc_today_str() if redemption_period == "daily" else None
+    redemption_id = f"{code}:{player_id}:{redemption_window}" if redemption_window else f"{code}:{player_id}"
+    already = await redemptions.find_one({"_id": redemption_id}, {"_id": 1})
+    if already:
+        message = "Code already redeemed for this player today" if redemption_window else "Code already redeemed for this player"
+        raise HTTPException(status_code=409, detail=message)
 
     if promo.get("active", True) is False:
         raise HTTPException(status_code=400, detail="Promo code is inactive")
@@ -476,12 +504,14 @@ async def promo_redeem(body: PromoRedeemRequest):
                 "_id": redemption_id,
                 "code": code,
                 "player_id": player_id,
+                "redemption_window": redemption_window,
                 "rewards": {"coins": safe_coins, "powerUps": safe_power_ups},
                 "created_at": now,
             }
         )
     except DuplicateKeyError:
-        raise HTTPException(status_code=409, detail="Code already redeemed for this player")
+        message = "Code already redeemed for this player today" if redemption_window else "Code already redeemed for this player"
+        raise HTTPException(status_code=409, detail=message)
 
     return PromoRedeemResponse(
         code=code,
