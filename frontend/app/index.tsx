@@ -315,20 +315,6 @@ export default function MainMenu() {
           )}
         </View>
 
-        <View style={styles.howToWrap}>
-          <Text style={styles.howToTitle}>NEWS</Text>
-          <Text style={styles.howToText}>
-            • New: Interactive practice flow in Tutorial{"\n"}
-            • New: Leaderboard now shows submission state{"\n"}
-            • New: Daily promo support with per-day limits{"\n"}
-            • QA fixes: stats totals, mission catch sync, paused-run back confirmation{"\n"}
-            • Use 📘 TUTORIAL for complete gameplay guidance
-          </Text>
-          <TouchableOpacity style={styles.newsBtn} onPress={() => go("/news")} testID="news-open-btn">
-            <Text style={styles.newsBtnText}>OPEN FULL NEWS</Text>
-          </TouchableOpacity>
-        </View>
-
         {showReleaseNotes && (
           <View style={styles.releaseNotesCard} testID="release-notes-card">
             <Text style={styles.releaseNotesTitle}>WHAT&apos;S NEW</Text>
@@ -451,24 +437,6 @@ const styles = StyleSheet.create({
   promoHistoryTitle: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   promoHistoryText: { color: "#f4f7ff", fontSize: 12, fontWeight: "900" },
   promoHistorySub: { color: "#c6d1f3", fontSize: 11, fontWeight: "700", marginTop: 2 },
-  howToWrap: {
-    width: "100%", padding: 12, backgroundColor: COLORS.uiPanel, borderRadius: 8, borderWidth: 1, borderColor: COLORS.uiBorder,
-  },
-  howToTitle: {
-    color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 8, textAlign: "center",
-  },
-  howToText: { color: "#FFFFFF", fontSize: 12, lineHeight: 18 },
-  newsBtn: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "#7FE8FF",
-    borderRadius: 8,
-    backgroundColor: "#11223d",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  newsBtnText: { color: "#b8f4ff", fontWeight: "900", fontSize: 11, letterSpacing: 0.8 },
   releaseNotesCard: {
     width: "100%",
     padding: 12,
