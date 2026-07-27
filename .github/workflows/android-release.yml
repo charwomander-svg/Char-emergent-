@@ -48,13 +48,13 @@ jobs:
             -storepass "$KEYSTORE_PASSWORD" \
             -alias "$KEY_ALIAS" | grep -E "SHA1:|SHA256:"
 
-      - name: Build AAB + APK
+      - name: Build AAB
         working-directory: frontend/android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease assembleRelease --no-daemon --no-parallel --max-workers=1
+        run: ./gradlew bundleRelease --no-daemon
 
       - name: Verify artifact signing certificate
         working-directory: frontend/android
@@ -69,9 +69,3 @@ jobs:
         with:
           name: app-release-aab
           path: frontend/android/app/build/outputs/bundle/release/app-release.aab
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: frontend/android/app/build/outputs/apk/release/app-release.apk
