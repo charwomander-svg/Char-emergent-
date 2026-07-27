@@ -211,6 +211,9 @@ export default function MainMenu() {
         <TouchableOpacity style={styles.playBtn} onPress={() => go("/game")} testID="play-btn">
           <Text style={styles.playBtnText}>▶ START RUN</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.tutorialHeroBtn} onPress={() => go("/tutorial")} testID="tutorial-hero-btn">
+          <Text style={styles.tutorialHeroBtnText}>📘 PLAYABLE TUTORIAL</Text>
+        </TouchableOpacity>
 
         <View style={styles.modeGrid}>
           <TouchableOpacity style={[styles.modeCard, isCompactMenu && styles.modeCardCompact, { borderColor: "#7FE8FF" }]} onPress={() => go("/speedrun")} testID="speedrun-btn">
@@ -380,6 +383,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFF00", paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: "#ff5f74", alignItems: "center",
   },
   playBtnText: { color: "#000000", fontWeight: "900", fontSize: 18, letterSpacing: 1.3 },
+  tutorialHeroBtn: {
+    width: "100%",
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#6caef1",
+    backgroundColor: "#132446",
+    paddingVertical: 11,
+    alignItems: "center",
+  },
+  tutorialHeroBtnText: { color: "#d9edff", fontWeight: "900", fontSize: 14, letterSpacing: 1.1 },
   modeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   modeCard: { width: "48%", borderRadius: 10, borderWidth: 1, backgroundColor: "#121a31", paddingHorizontal: 10, paddingVertical: 10 },
   modeCardCompact: { width: "100%" },
