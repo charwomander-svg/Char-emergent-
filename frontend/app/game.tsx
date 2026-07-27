@@ -87,6 +87,9 @@ interface HiddenMedal {
   label: string;
 }
 
+type LeaderboardSubmissionState = "pending" | "submitted" | "offline" | "ineligible" | null;
+type PracticeStep = "arm" | "direction" | "catch" | "done";
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -201,8 +204,10 @@ function ItchGameScreen() {
     seed?: string;
     seedDate?: string;
     level?: string;
+    practice?: string;
   }>();
   const mode = getGameMode(params.mode);
+  const isPracticeMode = params.practice === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
@@ -704,6 +709,8 @@ function FullGameScreen() {
   const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
   const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [submissionState, setSubmissionState] = useState<LeaderboardSubmissionState>(null);
+  const [practiceStep, setPracticeStep] = useState<PracticeStep>(isPracticeMode ? "arm" : "done");
   const [endlessContinueCount, setEndlessContinueCount] = useState(0);
   const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
   const [endlessBlessingChoices, setEndlessBlessingChoices] = useState<EndlessBlessingChoice[]>([]);
@@ -719,6 +726,7 @@ function FullGameScreen() {
   const runSessionStartedRef = useRef(false);
   const runSessionStartAtRef = useRef<number | null>(null);
   const runSessionRecordedRef = useRef(false);
+  const practiceInitRef = useRef(false);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -760,6 +768,14 @@ function FullGameScreen() {
   }, [armedGhosts, setControlledGhosts]);
 
   useEffect(() => {
+    if (!isPracticeMode || practiceInitRef.current) return;
+    if (state.status !== "ready" || state.level !== 1 || state.score !== 0) return;
+    practiceInitRef.current = true;
+    setArmedGhosts([]);
+    setStatusToast("PRACTICE 1/3: ARM ONE GHOST");
+  }, [isPracticeMode, state.level, state.score, state.status]);
+
+  useEffect(() => {
     if (state.status === "paused") {
       getSoundEngine().fadeMusicTo(0.08, 180);
       return;
@@ -797,7 +813,10 @@ function FullGameScreen() {
       const finalMs = computeTimerMs();
       setElapsedMs(finalMs);
       saveBestRunMs(finalMs).then(setBestRunMs);
-      submitFinalScore("SPEEDRUN", finalMs).catch(() => {});
+      setSubmissionState("pending");
+      void submitFinalScore("SPEEDRUN", finalMs)
+        .then(() => setSubmissionState("submitted"))
+        .catch(() => setSubmissionState("offline"));
       void queueAchievementUnlock("gottaGoFast");
       if (state.level >= MAX_LEVELS) {
         const finalLevel = previousLevelRef.current;
@@ -811,9 +830,19 @@ function FullGameScreen() {
       submittedSpeedrunRef.current = true;
       const finalMs = Math.min(computeTimerMs(), TIME_ATTACK_DURATION_MS);
       setElapsedMs(finalMs);
-      submitFinalScore("TIME ATTACK").catch(() => {});
+      setSubmissionState("pending");
+      void submitFinalScore("TIME ATTACK")
+        .then(() => setSubmissionState("submitted"))
+        .catch(() => setSubmissionState("offline"));
     }
   }, [computeTimerMs, mode, platformServicesEnabled, state.level, state.status, submitFinalScore]);
+
+  useEffect(() => {
+    if (state.status !== "gameOver") return;
+    if (submissionState != null) return;
+    if (mode === "speedrun" || mode === "timeattack") return;
+    setSubmissionState("ineligible");
+  }, [mode, state.status, submissionState]);
 
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
@@ -861,6 +890,9 @@ function FullGameScreen() {
       setEndlessBlessingChoices([]);
       setEndlessBlessingSummary("");
       criticalPelletPingedLevelRef.current = 0;
+      setSubmissionState(null);
+      setPracticeStep(isPracticeMode ? "arm" : "done");
+      practiceInitRef.current = false;
       setRunStats({
         catches: 0,
         longestCombo: 0,
@@ -1137,9 +1169,13 @@ function FullGameScreen() {
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
       setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
+      if (isPracticeMode && practiceStep === "catch") {
+        setPracticeStep("done");
+        setStatusToast("PRACTICE COMPLETE ✓");
+      }
     }
     previousCatchesRef.current = state.catches;
-  }, [state.catches]);
+  }, [isPracticeMode, practiceStep, state.catches]);
 
   useEffect(() => {
     if (state.comboCount > previousComboRef.current) {
@@ -1274,20 +1310,34 @@ function FullGameScreen() {
     } catch {}
     selectGhost(ghostId);
     setArmedGhosts((prev) => {
+      let next: GhostId[];
       if (prev.includes(ghostId)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== ghostId);
+        if (prev.length === 1) {
+          next = prev;
+        } else {
+          next = prev.filter((id) => id !== ghostId);
+        }
+      } else {
+        next = [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
       }
-      return [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
+      if (isPracticeMode && practiceStep === "arm" && next.length > 0) {
+        setPracticeStep("direction");
+        setStatusToast("PRACTICE 2/3: SWIPE OR PRESS A DIRECTION");
+      }
+      return next;
     });
-  }, [selectGhost]);
+  }, [isPracticeMode, practiceStep, selectGhost]);
 
   const applyDirectionToArmed = useCallback((dir: Direction) => {
+    if (isPracticeMode && practiceStep === "direction" && stateRef.current.status === "playing") {
+      setPracticeStep("catch");
+      setStatusToast("PRACTICE 3/3: CATCH PELLET GUY ONCE");
+    }
     const targets = armedGhosts.length > 0 ? armedGhosts : [stateRef.current.selectedGhostId];
     const selectedGhostId = stateRef.current.selectedGhostId;
     targets.forEach((id) => setGhostDirection(id, dir));
     if (targets.length > 1) selectGhost(selectedGhostId);
-  }, [armedGhosts, selectGhost, setGhostDirection]);
+  }, [armedGhosts, isPracticeMode, practiceStep, selectGhost, setGhostDirection]);
 
   const moveArmedGhostsTowardCell = useCallback((targetX: number, targetY: number) => {
     const current = stateRef.current;
@@ -1639,6 +1689,15 @@ function FullGameScreen() {
       ],
     };
   }, [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
+  const submissionStatusText = useMemo(() => {
+    if (state.status !== "gameOver" || !submissionState) return null;
+    if (submissionState === "pending") return "LEADERBOARD: PENDING SUBMISSION";
+    if (submissionState === "submitted") return "LEADERBOARD: SUBMITTED";
+    if (submissionState === "offline") return "LEADERBOARD: OFFLINE (WILL NEED RETRY)";
+    return mode === "speedrun" || mode === "timeattack"
+      ? "LEADERBOARD: INELIGIBLE FOR THIS RUN"
+      : "LEADERBOARD: INELIGIBLE FOR THIS MODE";
+  }, [mode, state.status, submissionState]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1878,6 +1937,11 @@ function FullGameScreen() {
               )}
               {state.status === "gameOver" && (
                 <>
+                  {submissionStatusText && (
+                    <View style={styles.submissionStateCard} testID="leaderboard-submission-state">
+                      <Text style={styles.submissionStateText}>{submissionStatusText}</Text>
+                    </View>
+                  )}
                   <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
                     <Text style={styles.stateBtnText}>NEW GAME</Text>
                   </TouchableOpacity>
@@ -2376,6 +2440,16 @@ const styles = StyleSheet.create({
   },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "stretch" },
+  submissionStateCard: {
+    minWidth: 210,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#4f9cff",
+    backgroundColor: "#102040",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  submissionStateText: { color: "#cbe2ff", fontWeight: "900", fontSize: 10, letterSpacing: 0.6 },
   starSummaryCard: {
     minWidth: 180,
     borderRadius: 8,

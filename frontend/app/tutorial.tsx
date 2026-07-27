@@ -149,6 +149,13 @@ export default function TutorialScreen() {
         <View style={styles.headerCard}>
           <Text style={styles.title}>TUTORIAL</Text>
           <Text style={styles.subtitle}>Complete guide to modes, systems, and progression</Text>
+          <TouchableOpacity
+            style={styles.practiceBtn}
+            onPress={() => router.push("/game?mode=classic&practice=1")}
+            testID="tutorial-practice-btn"
+          >
+            <Text style={styles.practiceBtnText}>▶ START INTERACTIVE PRACTICE</Text>
+          </TouchableOpacity>
         </View>
 
         {SECTIONS.map((section) => (
@@ -185,6 +192,17 @@ const styles = StyleSheet.create({
   },
   title: { color: "#FFFF00", fontSize: 22, fontWeight: "900", letterSpacing: 2.5 },
   subtitle: { color: "#b9d3ff", fontSize: 12, fontWeight: "700" },
+  practiceBtn: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    backgroundColor: "#1c2a46",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
+  },
+  practiceBtnText: { color: "#FFF4BF", fontWeight: "900", letterSpacing: 0.6, fontSize: 12 },
   card: {
     borderRadius: 10,
     borderWidth: 1,
