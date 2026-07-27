@@ -624,10 +624,15 @@ function FullGameScreen() {
     seed?: string;
     seedDate?: string;
     level?: string;
+    practice?: string;
+    ispracticemode?: string;
+    isPracticeMode?: string;
   }>();
   const mode = getGameMode(params.mode);
   const isItchWeb = isItchWebRuntime();
   const platformServicesEnabled = !isItchWeb;
+  const isPracticeMode =
+    params.practice === "1" || params.ispracticemode === "1" || params.isPracticeMode === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);

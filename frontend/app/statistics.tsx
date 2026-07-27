@@ -17,6 +17,7 @@ import {
   loadStatistics,
   type StatisticsData,
 } from "@/src/game/statistics";
+import { loadEconomy, type EconomyData } from "@/src/game/economy";
 
 function formatMs(ms: number): string {
   if (ms <= 0) return "--";
@@ -32,10 +33,12 @@ export default function StatisticsScreen() {
   const router = useRouter();
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [stats, setStats] = useState<StatisticsData>(DEFAULT_STATISTICS);
+  const [economy, setEconomy] = useState<EconomyData | null>(null);
 
   useEffect(() => {
     loadProgress().then(setProgress);
     loadStatistics().then(setStats);
+    loadEconomy().then(setEconomy);
   }, []);
 
   const unlockedTeams = progress ? computeUnlockedThemeIds(progress).length : 0;
@@ -63,6 +66,7 @@ export default function StatisticsScreen() {
         ["Bonus Clears", String(stats.bonusClears)],
         ["Total Playtime", formatDuration(stats.totalPlaytimeMs)],
         ["Total Score Earned", String(stats.totalScoreEarned)],
+        ["Total Coins Spent", String(economy?.lifetimeCoinsSpent ?? 0)],
       ],
     },
     {
