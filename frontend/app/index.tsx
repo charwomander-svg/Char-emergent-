@@ -211,7 +211,7 @@ export default function MainMenu() {
         <TouchableOpacity style={styles.playBtn} onPress={() => go("/game")} testID="play-btn">
           <Text style={styles.playBtnText}>▶ START RUN</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tutorialHeroBtn} onPress={() => go("/tutorial")} testID="tutorial-hero-btn">
+        <TouchableOpacity style={styles.tutorialHeroBtn} onPress={() => go("/game?practice=1")} testID="tutorial-hero-btn">
           <Text style={styles.tutorialHeroBtnText}>📘 PLAYABLE TUTORIAL</Text>
         </TouchableOpacity>
 
