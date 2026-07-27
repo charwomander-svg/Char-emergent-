@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform, View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
-import { getSoundEngine } from "@/src/game/sounds";
+import { chooseMusicTrack, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadSettings } from "@/src/game/settings";
 import {
@@ -16,10 +16,13 @@ import {
   loadProgress,
   THEMES,
 } from "@/src/game/progress";
+import { storage } from "@/src/utils/storage";
+
+const RELEASE_NOTES_SEEN_KEY = "ghostMaze.releaseNotesSeen.v1";
+const RELEASE_NOTES_VERSION = "2026-07-26-production-polish";
 
 export default function MainMenu() {
   const router = useRouter();
-  const [webMounted, setWebMounted] = useState(false);
   const { width } = useWindowDimensions();
   const isCompactMenu = width < 390;
   const { coins, economy, grantCoins } = useEconomy();
@@ -28,17 +31,22 @@ export default function MainMenu() {
   const [totalStars, setTotalStars] = useState(0);
   const [totalGoldStars, setTotalGoldStars] = useState(0);
   const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const { missions, completedCount, rewardClaimed, rewardCoins, dateKey, refresh } =
     useDailyMissions(economy ? grantCoins : undefined);
 
   useEffect(() => {
     let mounted = true;
-    void syncPlayGames();
+    if (Platform.OS === "android") {
+      void syncPlayGames();
+    }
     loadSettings().then((s) => {
       if (!mounted) return;
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
-      if (s.soundOn && s.musicOn) getSoundEngine().startMusic();
+      if (s.soundOn && s.musicOn) {
+        getSoundEngine().startMusic(chooseMusicTrack(1, null, s.musicLibrary ?? "everything"));
+      }
     });
     loadProgress().then((p) => {
       if (!mounted) return;
@@ -49,6 +57,11 @@ export default function MainMenu() {
       setTotalGoldStars(getTotalGoldStars(p));
       const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
       setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
+    });
+    storage.getItem(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
+      if (seen !== RELEASE_NOTES_VERSION) {
+        setShowReleaseNotes(true);
+      }
     });
     return () => {
       mounted = false;
@@ -62,25 +75,15 @@ export default function MainMenu() {
     }, [refresh]),
   );
 
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    setWebMounted(true);
-  }, []);
-
   const go = (route: string) => {
     getSoundEngine().uiClick();
     router.push(route as any);
   };
 
-  if (Platform.OS === "web" && !webMounted) {
-    return (
-      <SafeAreaView style={styles.container} testID="main-menu">
-        <View style={styles.webBootPlaceholder}>
-          <Text style={styles.webBootText}>Loading menu…</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const dismissReleaseNotes = () => {
+    setShowReleaseNotes(false);
+    void storage.setItem(RELEASE_NOTES_SEEN_KEY, RELEASE_NOTES_VERSION);
+  };
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -149,6 +152,7 @@ export default function MainMenu() {
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/statistics")} testID="statistics-btn"><Text style={styles.actionBtnText}>📊 STATISTICS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/tutorial")} testID="tutorial-btn"><Text style={styles.actionBtnText}>📘 TUTORIAL</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/news")} testID="news-btn"><Text style={styles.actionBtnText}>📰 NEWS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
         </View>
@@ -180,20 +184,35 @@ export default function MainMenu() {
         </View>
 
         <View style={styles.howToWrap}>
-          <Text style={styles.howToTitle}>HOW TO PLAY</Text>
+          <Text style={styles.howToTitle}>NEWS</Text>
           <Text style={styles.howToText}>
-            • Catch Pellet Guy 3 times to clear{"\n"}
-            • Swipe to direct armed ghosts{"\n"}
-            • Every 5th level is a bonus stage{"\n"}
-            • Don&apos;t lose all ghosts or all pellets{"\n"}
-            • 20 total ghost deaths in a stage is an auto-fail (resets each stage){"\n"}
-            • Keyboard: WASD/Arrows move, 1-4 select/hold to cycle AI, F1-F8 use powerups, Backspace exits{"\n"}
-            • Puppet Master Mode: G1 WASD, G2 YGHJ, G3 Arrows, G4 Numpad 8/4/2/6{"\n"}
-            • Use 📘 TUTORIAL for complete systems and mode rules
+            • New: Interactive practice flow in Tutorial{"\n"}
+            • New: Leaderboard now shows submission state{"\n"}
+            • New: Daily promo support with per-day limits{"\n"}
+            • QA fixes: stats totals, mission catch sync, paused-run back confirmation{"\n"}
+            • Use 📘 TUTORIAL for complete gameplay guidance
           </Text>
+          <TouchableOpacity style={styles.newsBtn} onPress={() => go("/news")} testID="news-open-btn">
+            <Text style={styles.newsBtnText}>OPEN FULL NEWS</Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>v1.0 · HUDFD</Text>
+        {showReleaseNotes && (
+          <View style={styles.releaseNotesCard} testID="release-notes-card">
+            <Text style={styles.releaseNotesTitle}>WHAT&apos;S NEW</Text>
+            <Text style={styles.releaseNotesText}>
+              • Interactive tutorial practice{"\n"}
+              • Leaderboard submission states + retry guidance{"\n"}
+              • Promo redemption confirmation and history{"\n"}
+              • Stability fixes from QA round
+            </Text>
+            <TouchableOpacity style={styles.releaseNotesBtn} onPress={dismissReleaseNotes} testID="release-notes-dismiss">
+              <Text style={styles.releaseNotesBtnText}>GOT IT</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <Text style={styles.footer}>v1.0 - HUDFD - SPRITEFIX2</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -270,16 +289,37 @@ const styles = StyleSheet.create({
     color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 8, textAlign: "center",
   },
   howToText: { color: "#FFFFFF", fontSize: 12, lineHeight: 18 },
+  newsBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#7FE8FF",
+    borderRadius: 8,
+    backgroundColor: "#11223d",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  newsBtnText: { color: "#b8f4ff", fontWeight: "900", fontSize: 11, letterSpacing: 0.8 },
+  releaseNotesCard: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FFD23F",
+    backgroundColor: "#1c1b2f",
+    gap: 8,
+  },
+  releaseNotesTitle: { color: "#FFF4A3", fontWeight: "900", fontSize: 14, letterSpacing: 1.4 },
+  releaseNotesText: { color: "#f2f4ff", fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  releaseNotesBtn: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    borderRadius: 8,
+    backgroundColor: "#2b2545",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  releaseNotesBtnText: { color: "#FFF4A3", fontWeight: "900", fontSize: 11, letterSpacing: 0.8 },
   footer: { color: "#444466", fontSize: 11, marginTop: 4, marginBottom: 8, letterSpacing: 1, textAlign: "center" },
-  webBootPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  webBootText: {
-    color: "#9fb2e6",
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
 });

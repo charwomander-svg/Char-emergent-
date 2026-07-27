@@ -2,13 +2,23 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
-import { redeemPromoCode } from "@/src/game/api";
+import { chooseMusicTrack, getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
+import { fetchApiVersion, redeemPromoCode } from "@/src/game/api";
 import { getPlayerId } from "@/src/game/playerId";
 import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
 import type { PowerUpId } from "@/src/game/powerups";
+import { storage } from "@/src/utils/storage";
+
+const PROMO_HISTORY_KEY = "ghostMaze.promoHistory.v1";
+
+interface PromoHistoryEntry {
+  code: string;
+  redeemedAt: string;
+  summary: string;
+}
 
 export default function Settings() {
   const router = useRouter();
@@ -16,6 +26,9 @@ export default function Settings() {
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [promoFeedback, setPromoFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [promoHistory, setPromoHistory] = useState<PromoHistoryEntry | null>(null);
+  const [backendBuild, setBackendBuild] = useState<string>("unknown");
   const orderedSoundTestTracks = React.useMemo(() => {
     const order = settings.soundTestOrder ?? [];
     const orderMap = new Map(order.map((id, index) => [id, index]));
@@ -34,6 +47,13 @@ export default function Settings() {
 
   useEffect(() => {
     loadSettings().then(setSettings);
+    storage.getItem(PROMO_HISTORY_KEY, null).then((value) => {
+      if (!value || typeof value !== "object") return;
+      const maybe = value as PromoHistoryEntry;
+      if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
+      setPromoHistory(maybe);
+    });
+    fetchApiVersion().then((info) => setBackendBuild(info.build)).catch(() => setBackendBuild("offline"));
   }, []);
 
   const update = <K extends keyof SettingsData>(k: K, v: SettingsData[K]) => {
@@ -48,7 +68,7 @@ export default function Settings() {
       }
     }
     if (k === "musicOn") {
-      if (v && settings.soundOn) getSoundEngine().startMusic();
+      if (v && settings.soundOn) getSoundEngine().startMusic(chooseMusicTrack(1, null, next.musicLibrary));
       if (!v) {
         getSoundEngine().stopMusic();
         setActiveSoundTestTrack(null);
@@ -75,6 +95,7 @@ export default function Settings() {
     const cleaned = promoCode.trim();
     if (!cleaned || redeemingPromo) return;
     setRedeemingPromo(true);
+    setPromoFeedback(null);
     try {
       if (cleaned.toUpperCase() === "WARM0NGER") {
         const next = {
@@ -85,7 +106,12 @@ export default function Settings() {
         };
         setSettings(next);
         await saveSettings(next);
-        Alert.alert("Dev mode unlocked", "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.");
+        const message = "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.";
+        setPromoFeedback({ kind: "success", message });
+        if (settings.haptics) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        Alert.alert("Dev mode unlocked", message);
         setPromoCode("");
         return;
       }
@@ -100,10 +126,31 @@ export default function Settings() {
         }
       }
       await saveEconomy(nextEconomy);
-      Alert.alert("Code redeemed", "Promo rewards added to your save.");
+      const coins = redeemed.rewards.coins ?? 0;
+      const powerUps = Object.entries(redeemed.rewards.powerUps ?? {})
+        .filter(([, qty]) => typeof qty === "number" && qty > 0)
+        .map(([id, qty]) => `${qty} ${id}`);
+      const rewards = [
+        coins > 0 ? `${coins.toLocaleString()} Ghost Coins` : null,
+        ...powerUps,
+      ].filter(Boolean);
+      const message = rewards.length > 0 ? `Added ${rewards.join(", ")} to your save.` : redeemed.message;
+      setPromoFeedback({ kind: "success", message });
+      const history: PromoHistoryEntry = {
+        code: cleaned.toUpperCase(),
+        redeemedAt: new Date().toISOString(),
+        summary: message,
+      };
+      if (settings.haptics) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      setPromoHistory(history);
+      void storage.setItem(PROMO_HISTORY_KEY, history);
+      Alert.alert("Code redeemed", message);
       setPromoCode("");
     } catch (error) {
       const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      setPromoFeedback({ kind: "error", message });
       Alert.alert("Redeem failed", message);
     } finally {
       setRedeemingPromo(false);
@@ -202,6 +249,33 @@ export default function Settings() {
     </View>
   );
 
+  const MusicLibraryRow = ({
+    value,
+    onChange,
+  }: {
+    value: SettingsData["musicLibrary"];
+    onChange: (v: SettingsData["musicLibrary"]) => void;
+  }) => (
+    <View style={styles.row} testID="music-library-row">
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>Music Library</Text>
+        <Text style={styles.rowDesc}>Choose chiptunes, Instrumetal, or everything</Text>
+      </View>
+      <View style={styles.modeSelector}>
+        {(["chiptunes", "instrumetal", "everything"] as const).map((mode) => (
+          <TouchableOpacity
+            key={mode}
+            style={[styles.modeBtn, value === mode && styles.modeBtnActive]}
+            onPress={() => onChange(mode)}
+            testID={`music-library-${mode}`}
+          >
+            <Text style={[styles.modeBtnText, value === mode && styles.modeBtnTextActive]}>{mode.toUpperCase()}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} testID="settings-screen">
       <View style={styles.header}>
@@ -226,6 +300,15 @@ export default function Settings() {
           value={settings.musicOn}
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
+        />
+        <MusicLibraryRow
+          value={settings.musicLibrary}
+          onChange={(v) => {
+            update("musicLibrary", v);
+            if (settings.soundOn && settings.musicOn) {
+              getSoundEngine().startMusic(chooseMusicTrack(1, null, v));
+            }
+          }}
         />
         <NumberRow
           label="SFX Volume"
@@ -316,7 +399,7 @@ export default function Settings() {
         <View style={styles.musicCard}>
           <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
           <Text style={styles.musicCardBody}>
-            Enjoying the music? Chardcore is a musical artist with 8 albums released. You might like it, so we are
+            Enjoying the music? Chardcore is a music artist with 9 albums released. You might like it, so we are
             providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
             free. She is awesome like that.
           </Text>
@@ -408,6 +491,27 @@ export default function Settings() {
               <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
             </TouchableOpacity>
           </View>
+          {promoFeedback && (
+            <Text
+              style={[
+                styles.promoFeedback,
+                promoFeedback.kind === "success" ? styles.promoFeedbackSuccess : styles.promoFeedbackError,
+              ]}
+              testID="promo-code-feedback"
+            >
+              {promoFeedback.message}
+            </Text>
+          )}
+          {promoHistory && (
+            <View style={styles.promoHistoryCard} testID="promo-code-history">
+              <Text style={styles.promoHistoryTitle}>LAST REDEEMED</Text>
+              <Text style={styles.promoHistoryText}>{promoHistory.code}</Text>
+              <Text style={styles.promoHistoryText}>
+                {new Date(promoHistory.redeemedAt).toLocaleString()}
+              </Text>
+              <Text style={styles.promoHistorySub}>{promoHistory.summary}</Text>
+            </View>
+          )}
         </View>
         {settings.devMode && (
           <View style={styles.musicCard} testID="dev-mode-card">
@@ -429,6 +533,10 @@ export default function Settings() {
             />
           </View>
         )}
+        <View style={styles.buildInfoCard} testID="backend-build-info">
+          <Text style={styles.buildInfoLabel}>BACKEND BUILD</Text>
+          <Text style={styles.buildInfoValue}>{backendBuild}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -562,4 +670,46 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  promoFeedback: {
+    borderWidth: 1,
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  promoFeedbackSuccess: {
+    backgroundColor: "rgba(40, 167, 69, 0.16)",
+    borderColor: "#39D98A",
+    color: "#B7FFD2",
+  },
+  promoFeedbackError: {
+    backgroundColor: "rgba(255, 79, 112, 0.14)",
+    borderColor: "#FF6B8A",
+    color: "#FFD1DC",
+  },
+  promoHistoryCard: {
+    borderWidth: 1,
+    borderColor: "#5f6aa0",
+    borderRadius: 8,
+    backgroundColor: "#10172d",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  promoHistoryTitle: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  promoHistoryText: { color: "#f4f7ff", fontSize: 12, fontWeight: "900" },
+  promoHistorySub: { color: "#c6d1f3", fontSize: 11, fontWeight: "700", marginTop: 2 },
+  buildInfoCard: {
+    backgroundColor: COLORS.uiPanel,
+    borderWidth: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  buildInfoLabel: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  buildInfoValue: { color: "#f4f7ff", fontSize: 12, fontWeight: "900", marginTop: 3 },
 });

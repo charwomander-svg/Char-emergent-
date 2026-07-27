@@ -7,6 +7,8 @@ import {
   PanResponder,
   useWindowDimensions,
   Animated,
+  Alert,
+  BackHandler,
   type GestureResponderEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +17,7 @@ import * as Haptics from "expo-haptics";
 
 import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
-import { CATCH_TO_WIN, MAZE_COLS, MAZE_ROWS, MAX_LEVELS, TIME_ATTACK_DURATION_MS } from "@/src/game/constants";
+import { CATCH_TO_WIN, MAX_LEVELS, TIME_ATTACK_DURATION_MS } from "@/src/game/constants";
 import type { Direction, GhostAiRole, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
@@ -54,6 +56,13 @@ function fmtDeltaMs(ms: number): string {
   return `${sign}${fmtMs(Math.abs(ms))}`;
 }
 
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 interface RunStats {
   catches: number;
   longestCombo: number;
@@ -77,6 +86,9 @@ interface HiddenMedal {
   emoji: string;
   label: string;
 }
+
+type LeaderboardSubmissionState = "pending" | "submitted" | "offline" | "ineligible" | null;
+type PracticeStep = "arm" | "direction" | "catch" | "done";
 
 function escapeHtml(value: string) {
   return value
@@ -178,9 +190,14 @@ export default function GameScreen() {
     return <View style={styles.webBootPlaceholder} />;
   }
 
-  return <FullGameScreen />;
+  return (
+    <GameplayErrorBoundary label="game route">
+      <FullGameScreen />
+    </GameplayErrorBoundary>
+  );
 }
 
+/* eslint-disable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
 function ItchGameScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -188,8 +205,10 @@ function ItchGameScreen() {
     seed?: string;
     seedDate?: string;
     level?: string;
+    practice?: string;
   }>();
   const mode = getGameMode(params.mode);
+  const isPracticeMode = params.practice === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
@@ -231,10 +250,11 @@ function ItchGameScreen() {
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
+      timerRunningFromRef.current = nowMs();
     }
+    /* eslint-enable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
     if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
+      timerAccumulatedRef.current += nowMs() - timerRunningFromRef.current;
       timerRunningFromRef.current = null;
     }
   }, [mode, state.status]);
@@ -253,7 +273,7 @@ function ItchGameScreen() {
     let raf = 0;
     const frame = () => {
       if (timerRunningFromRef.current != null) {
-        setElapsedMs(timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current));
+        setElapsedMs(timerAccumulatedRef.current + (nowMs() - timerRunningFromRef.current));
       }
       raf = requestAnimationFrame(frame);
     };
@@ -290,6 +310,13 @@ function ItchGameScreen() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
+    if (!isItchWeb) {
+      const existingHost = document.getElementById("ghost-maze-itch-overlay");
+      if (existingHost?.parentNode) {
+        existingHost.parentNode.removeChild(existingHost);
+      }
+      return;
+    }
 
     let host = document.getElementById("ghost-maze-itch-overlay");
     if (!host) {
@@ -301,10 +328,10 @@ function ItchGameScreen() {
     const overlay = host;
     const cellSize = Math.max(
       10,
-      Math.floor(Math.min((window.innerWidth - 24) / MAZE_COLS, (window.innerHeight * 0.42) / MAZE_ROWS)),
+      Math.floor(Math.min((window.innerWidth - 24) / mazeCols, (window.innerHeight * 0.42) / mazeRows)),
     );
-    const boardWidth = cellSize * MAZE_COLS;
-    const boardHeight = cellSize * MAZE_ROWS;
+    const boardWidth = cellSize * mazeCols;
+    const boardHeight = cellSize * mazeRows;
     const catchesGoal = mode === "endless" && endlessBlessings.quickClear ? 2 : CATCH_TO_WIN;
     const title = mode === "timeattack" ? `TIME LEFT ${fmtMs(timeAttackRemainingMs)}` : `${mode.toUpperCase()} · LEVEL ${state.level}`;
 
@@ -363,7 +390,7 @@ function ItchGameScreen() {
           <div style="font-size:24px;font-weight:900">Ghost Maze</div>
           <div style="font-size:14px;color:#c8d0f0;text-align:center">${escapeHtml(title)}</div>
           <div style="font-size:12px;color:#e6ebff;text-align:center">SCORE ${state.score} · CATCHES ${state.catches}/${catchesGoal} · PG ${pelletGuyLivesRemaining} · GHOSTS ${ghostLivesRemaining} · COINS ${coins}</div>
-          <div style="position:relative;width:${boardWidth}px;height:${boardHeight}px;background:#02040a;border:2px solid #3d4d88;display:grid;grid-template-columns:repeat(${MAZE_COLS}, ${cellSize}px);grid-template-rows:repeat(${MAZE_ROWS}, ${cellSize}px)">${cellsHtml}${pelletGuyHtml}${ghostsHtml}${bonusItemsHtml}</div>
+          <div style="position:relative;width:${boardWidth}px;height:${boardHeight}px;background:#02040a;border:2px solid #3d4d88;display:grid;grid-template-columns:repeat(${mazeCols}, ${cellSize}px);grid-template-rows:repeat(${mazeRows}, ${cellSize}px)">${cellsHtml}${pelletGuyHtml}${ghostsHtml}${bonusItemsHtml}</div>
           <div style="min-height:36px;font-size:13px;color:#ffd6f5;text-align:center;white-space:pre-wrap">${escapeHtml(state.message ?? "Ready.")}</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
             ${state.ghosts
@@ -530,6 +557,7 @@ function ItchGameScreen() {
     state.status,
     timeAttackRemainingMs,
     togglePause,
+    isItchWeb,
   ]);
 
   return (
@@ -632,11 +660,13 @@ function FullGameScreen() {
   });
   const { width, height } = useWindowDimensions();
   const [mazeAreaSize, setMazeAreaSize] = useState({ width: 0, height: 0 });
+  const mazeCols = state.maze[0]?.length ?? 15;
+  const mazeRows = state.maze.length || 19;
   const cellSize = Math.max(
     12,
     Math.floor(Math.min(
-      (mazeAreaSize.width > 0 ? mazeAreaSize.width : width) / MAZE_COLS,
-      (mazeAreaSize.height > 0 ? mazeAreaSize.height : height) / MAZE_ROWS,
+      (mazeAreaSize.width > 0 ? mazeAreaSize.width : width) / mazeCols,
+      (mazeAreaSize.height > 0 ? mazeAreaSize.height : height) / mazeRows,
     )),
   );
   const [armedGhosts, setArmedGhosts] = useState<GhostId[]>([0]);
@@ -681,6 +711,8 @@ function FullGameScreen() {
   const [bestHardcoreSurvivalMs, setBestHardcoreSurvivalMs] = useState(0);
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
   const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [submissionState, setSubmissionState] = useState<LeaderboardSubmissionState>(null);
+  const [practiceStep, setPracticeStep] = useState<PracticeStep>(isPracticeMode ? "arm" : "done");
   const [endlessContinueCount, setEndlessContinueCount] = useState(0);
   const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
   const [endlessBlessingChoices, setEndlessBlessingChoices] = useState<EndlessBlessingChoice[]>([]);
@@ -688,7 +720,7 @@ function FullGameScreen() {
   const seenBonusTutorialsRef = useRef<Set<string>>(new Set());
   const criticalPelletPingedLevelRef = useRef<number>(0);
   const previousPelletsRef = useRef(state.pelletsRemaining);
-  const levelStartAtRef = useRef<number>(performance.now());
+  const levelStartAtRef = useRef<number>(nowMs());
   const bestLevelClearMsRef = useRef<number | null>(null);
   const hardcoreTimerAccumulatedRef = useRef(0);
   const hardcoreTimerRunningFromRef = useRef<number | null>(null);
@@ -696,6 +728,7 @@ function FullGameScreen() {
   const runSessionStartedRef = useRef(false);
   const runSessionStartAtRef = useRef<number | null>(null);
   const runSessionRecordedRef = useRef(false);
+  const practiceInitRef = useRef(false);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -737,6 +770,14 @@ function FullGameScreen() {
   }, [armedGhosts, setControlledGhosts]);
 
   useEffect(() => {
+    if (!isPracticeMode || practiceInitRef.current) return;
+    if (state.status !== "ready" || state.level !== 1 || state.score !== 0) return;
+    practiceInitRef.current = true;
+    setArmedGhosts([]);
+    setStatusToast("PRACTICE 1/3: ARM ONE GHOST");
+  }, [isPracticeMode, state.level, state.score, state.status]);
+
+  useEffect(() => {
     if (state.status === "paused") {
       getSoundEngine().fadeMusicTo(0.08, 180);
       return;
@@ -757,16 +798,16 @@ function FullGameScreen() {
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
-    return timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current);
+    return timerAccumulatedRef.current + (nowMs() - timerRunningFromRef.current);
   }, []);
 
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
+      timerRunningFromRef.current = nowMs();
     }
     if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
+      timerAccumulatedRef.current += nowMs() - timerRunningFromRef.current;
       timerRunningFromRef.current = null;
     }
     if (mode === "speedrun" && state.status === "gameOver" && !submittedSpeedrunRef.current) {
@@ -774,7 +815,10 @@ function FullGameScreen() {
       const finalMs = computeTimerMs();
       setElapsedMs(finalMs);
       saveBestRunMs(finalMs).then(setBestRunMs);
-      submitFinalScore("SPEEDRUN", finalMs).catch(() => {});
+      setSubmissionState("pending");
+      void submitFinalScore("SPEEDRUN", finalMs)
+        .then(() => setSubmissionState("submitted"))
+        .catch(() => setSubmissionState("offline"));
       void queueAchievementUnlock("gottaGoFast");
       if (state.level >= MAX_LEVELS) {
         const finalLevel = previousLevelRef.current;
@@ -788,9 +832,19 @@ function FullGameScreen() {
       submittedSpeedrunRef.current = true;
       const finalMs = Math.min(computeTimerMs(), TIME_ATTACK_DURATION_MS);
       setElapsedMs(finalMs);
-      submitFinalScore("TIME ATTACK").catch(() => {});
+      setSubmissionState("pending");
+      void submitFinalScore("TIME ATTACK")
+        .then(() => setSubmissionState("submitted"))
+        .catch(() => setSubmissionState("offline"));
     }
   }, [computeTimerMs, mode, platformServicesEnabled, state.level, state.status, submitFinalScore]);
+
+  useEffect(() => {
+    if (state.status !== "gameOver") return;
+    if (submissionState != null) return;
+    if (mode === "speedrun" || mode === "timeattack") return;
+    setSubmissionState("ineligible");
+  }, [mode, state.status, submissionState]);
 
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
@@ -823,7 +877,7 @@ function FullGameScreen() {
       previousLevelRef.current = state.level;
       levelStartElapsedRef.current = 0;
       previousComboRef.current = 0;
-      levelStartAtRef.current = performance.now();
+      levelStartAtRef.current = nowMs();
       bestLevelClearMsRef.current = null;
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
       hardcoreStartAtRef.current = null;
@@ -838,6 +892,9 @@ function FullGameScreen() {
       setEndlessBlessingChoices([]);
       setEndlessBlessingSummary("");
       criticalPelletPingedLevelRef.current = 0;
+      setSubmissionState(null);
+      setPracticeStep(isPracticeMode ? "arm" : "done");
+      practiceInitRef.current = false;
       setRunStats({
         catches: 0,
         longestCombo: 0,
@@ -858,45 +915,42 @@ function FullGameScreen() {
     const activeRun = state.status === "ready" || state.status === "playing" || state.status === "paused";
     if (activeRun && !runSessionStartedRef.current) {
       runSessionStartedRef.current = true;
-      runSessionStartAtRef.current = performance.now();
+      runSessionStartAtRef.current = nowMs();
       void updateStatistics((current) => ({
         ...current,
         runsStarted: current.runsStarted + 1,
       }));
     }
+  }, [state.status]);
 
-    const runFinished =
-      state.status === "gameOver" ||
-      (state.status === "levelWon" && mode !== "endless" && state.level >= MAX_LEVELS);
-    if (runFinished && !runSessionRecordedRef.current) {
-      runSessionRecordedRef.current = true;
-      const elapsed = runSessionStartAtRef.current == null
-        ? 0
-        : Math.max(0, performance.now() - runSessionStartAtRef.current);
-      const hazardStats = getRunHazardStats();
-      void (async () => {
-        const nextStats = await updateStatistics((current) => ({
-          ...current,
-          runsFinished: current.runsFinished + 1,
-          totalPlaytimeMs: current.totalPlaytimeMs + elapsed,
-          totalCatches: current.totalCatches + runStats.catches,
-          totalGhostLosses: current.totalGhostLosses + runStats.ghostLosses,
-          totalPowerUpsUsed: current.totalPowerUpsUsed + runStats.powerUpsUsed,
-          totalMinesTriggered: current.totalMinesTriggered + hazardStats.spikeTriggers,
-          totalEndlessContinues: current.totalEndlessContinues + endlessContinueCount,
-          totalHardcoreRevives: current.totalHardcoreRevives + runStats.hardcoreRevivesUsed,
-          totalScoreEarned: current.totalScoreEarned + state.score,
-          highestCombo: Math.max(current.highestCombo, runStats.longestCombo),
-        }));
-        if (platformServicesEnabled) {
-          await submitMostCatchesLifetime(nextStats.totalCatches);
-        }
-      })();
-    }
+  const recordRunSessionTotals = useCallback((countAsFinished: boolean) => {
+    if (!runSessionStartedRef.current || runSessionRecordedRef.current) return;
+    runSessionRecordedRef.current = true;
+    const elapsed = runSessionStartAtRef.current == null
+      ? 0
+      : Math.max(0, nowMs() - runSessionStartAtRef.current);
+    const hazardStats = getRunHazardStats();
+    void (async () => {
+      const nextStats = await updateStatistics((current) => ({
+        ...current,
+        runsFinished: current.runsFinished + (countAsFinished ? 1 : 0),
+        totalPlaytimeMs: current.totalPlaytimeMs + elapsed,
+        totalCatches: current.totalCatches + runStats.catches,
+        totalGhostLosses: current.totalGhostLosses + runStats.ghostLosses,
+        totalPowerUpsUsed: current.totalPowerUpsUsed + runStats.powerUpsUsed,
+        totalMinesTriggered: current.totalMinesTriggered + hazardStats.spikeTriggers,
+        totalEndlessContinues: current.totalEndlessContinues + endlessContinueCount,
+        totalHardcoreRevives: current.totalHardcoreRevives + runStats.hardcoreRevivesUsed,
+        totalScoreEarned: current.totalScoreEarned + state.score,
+        highestCombo: Math.max(current.highestCombo, runStats.longestCombo),
+      }));
+      if (platformServicesEnabled) {
+        await submitMostCatchesLifetime(nextStats.totalCatches);
+      }
+    })();
   }, [
     endlessContinueCount,
     getRunHazardStats,
-    mode,
     runStats.catches,
     runStats.ghostLosses,
     runStats.hardcoreRevivesUsed,
@@ -909,18 +963,42 @@ function FullGameScreen() {
   ]);
 
   useEffect(() => {
+    const runFinished =
+      state.status === "gameOver" ||
+      (state.status === "levelWon" && mode !== "endless" && state.level >= MAX_LEVELS);
+    if (runFinished) {
+      recordRunSessionTotals(true);
+    }
+  }, [mode, recordRunSessionTotals, state.level, state.status]);
+
+  const abandonRunToMenu = useCallback(() => {
+    const status = stateRef.current.status;
+    const activeRun =
+      status === "ready" ||
+      status === "playing" ||
+      status === "paused" ||
+      status === "levelWon" ||
+      status === "levelLost";
+    if (activeRun) {
+      recordRunSessionTotals(false);
+    }
+    startNewGame();
+    router.replace("/");
+  }, [recordRunSessionTotals, router, startNewGame]);
+
+  useEffect(() => {
     if (mode !== "hardcore") return;
     if (state.status === "playing") {
       if (hardcoreStartAtRef.current == null) {
-        hardcoreStartAtRef.current = performance.now();
+        hardcoreStartAtRef.current = nowMs();
       }
       if (hardcoreTimerRunningFromRef.current == null) {
-        hardcoreTimerRunningFromRef.current = performance.now();
+        hardcoreTimerRunningFromRef.current = nowMs();
       }
       return;
     }
     if (hardcoreTimerRunningFromRef.current != null) {
-      hardcoreTimerAccumulatedRef.current += performance.now() - hardcoreTimerRunningFromRef.current;
+      hardcoreTimerAccumulatedRef.current += nowMs() - hardcoreTimerRunningFromRef.current;
       hardcoreTimerRunningFromRef.current = null;
       setHardcoreSurvivalMs(hardcoreTimerAccumulatedRef.current);
     }
@@ -1093,9 +1171,13 @@ function FullGameScreen() {
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
       setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
+      if (isPracticeMode && practiceStep === "catch") {
+        setPracticeStep("done");
+        setStatusToast("PRACTICE COMPLETE ✓");
+      }
     }
     previousCatchesRef.current = state.catches;
-  }, [state.catches]);
+  }, [isPracticeMode, practiceStep, state.catches]);
 
   useEffect(() => {
     if (state.comboCount > previousComboRef.current) {
@@ -1144,9 +1226,17 @@ function FullGameScreen() {
   }, [state.status, reducedMotion, runStatsAnim, runMedalAnim]);
 
   useEffect(() => {
+    if (state.status === "levelWon") {
+      const catchDelta = state.catches - previousCatchesRef.current;
+      if (catchDelta > 0) {
+        void recordDailyMissionProgress({ catches: catchDelta });
+        setRunStats((stats) => ({ ...stats, catches: stats.catches + catchDelta }));
+        previousCatchesRef.current = state.catches;
+      }
+    }
     const previousStatus = previousStatusRef.current;
     if (state.status === "levelWon" && previousStatus !== "levelWon") {
-      const clearMs = Math.max(0, performance.now() - levelStartAtRef.current);
+      const clearMs = Math.max(0, nowMs() - levelStartAtRef.current);
       bestLevelClearMsRef.current = bestLevelClearMsRef.current == null
         ? clearMs
         : Math.min(bestLevelClearMsRef.current, clearMs);
@@ -1183,10 +1273,33 @@ function FullGameScreen() {
       });
     }
     if ((state.status === "ready" || state.status === "playing") && previousStatus === "levelWon") {
-      levelStartAtRef.current = performance.now();
+      levelStartAtRef.current = nowMs();
     }
     previousStatusRef.current = state.status;
-  }, [state.bonusGame, state.status]);
+  }, [state.bonusGame, state.catches, state.status]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      const status = stateRef.current.status;
+      const activeRun =
+        status === "ready" ||
+        status === "playing" ||
+        status === "paused" ||
+        status === "levelWon" ||
+        status === "levelLost";
+      if (!activeRun) return false;
+      Alert.alert(
+        "Leave run?",
+        "Leave this run and return to the main menu?",
+        [
+          { text: "Resume", style: "cancel" },
+          { text: "Leave", style: "destructive", onPress: abandonRunToMenu },
+        ],
+      );
+      return true;
+    });
+    return () => subscription.remove();
+  }, [abandonRunToMenu]);
 
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);
@@ -1199,20 +1312,34 @@ function FullGameScreen() {
     } catch {}
     selectGhost(ghostId);
     setArmedGhosts((prev) => {
+      let next: GhostId[];
       if (prev.includes(ghostId)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== ghostId);
+        if (prev.length === 1) {
+          next = prev;
+        } else {
+          next = prev.filter((id) => id !== ghostId);
+        }
+      } else {
+        next = [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
       }
-      return [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
+      if (isPracticeMode && practiceStep === "arm" && next.length > 0) {
+        setPracticeStep("direction");
+        setStatusToast("PRACTICE 2/3: SWIPE OR PRESS A DIRECTION");
+      }
+      return next;
     });
-  }, [selectGhost]);
+  }, [isPracticeMode, practiceStep, selectGhost]);
 
   const applyDirectionToArmed = useCallback((dir: Direction) => {
+    if (isPracticeMode && practiceStep === "direction" && stateRef.current.status === "playing") {
+      setPracticeStep("catch");
+      setStatusToast("PRACTICE 3/3: CATCH PELLET GUY ONCE");
+    }
     const targets = armedGhosts.length > 0 ? armedGhosts : [stateRef.current.selectedGhostId];
     const selectedGhostId = stateRef.current.selectedGhostId;
     targets.forEach((id) => setGhostDirection(id, dir));
     if (targets.length > 1) selectGhost(selectedGhostId);
-  }, [armedGhosts, selectGhost, setGhostDirection]);
+  }, [armedGhosts, isPracticeMode, practiceStep, selectGhost, setGhostDirection]);
 
   const moveArmedGhostsTowardCell = useCallback((targetX: number, targetY: number) => {
     const current = stateRef.current;
@@ -1298,8 +1425,8 @@ function FullGameScreen() {
     const confirmExitToMenu = () => window.confirm("Leave this run and return to the main menu?");
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target) {
+      const target = event.target;
+      if (target instanceof HTMLElement) {
         const tag = target.tagName.toLowerCase();
         if (tag === "input" || tag === "textarea" || target.isContentEditable) return;
       }
@@ -1327,8 +1454,7 @@ function FullGameScreen() {
       if (key === "backspace") {
         event.preventDefault();
         if (!confirmExitToMenu()) return;
-        startNewGame();
-        router.replace("/");
+        abandonRunToMenu();
         return;
       }
 
@@ -1380,12 +1506,11 @@ function FullGameScreen() {
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, [
+    abandonRunToMenu,
     activatePowerUp,
     cycleGhostAiRole,
     powerUpIdsForHotkeys,
-    router,
     selectGhost,
-    startNewGame,
     syncSelection,
     masterControlMode,
     setGhostDirection,
@@ -1420,8 +1545,8 @@ function FullGameScreen() {
 
   const handleMazeTap = useCallback((event: GestureResponderEvent) => {
     if (!isTapEnabled) return;
-    const mazePixelWidth = cellSize * MAZE_COLS;
-    const mazePixelHeight = cellSize * MAZE_ROWS;
+    const mazePixelWidth = cellSize * mazeCols;
+    const mazePixelHeight = cellSize * mazeRows;
     const xOffset = Math.max(0, (mazeAreaSize.width - mazePixelWidth) / 2);
     const yOffset = Math.max(0, mazeAreaSize.height - mazePixelHeight);
     const localX = event.nativeEvent.locationX - xOffset;
@@ -1434,10 +1559,10 @@ function FullGameScreen() {
       Haptics.selectionAsync();
     } catch {}
     moveArmedGhostsTowardCell(targetX, targetY);
-  }, [cellSize, isTapEnabled, mazeAreaSize.height, mazeAreaSize.width, moveArmedGhostsTowardCell]);
+  }, [cellSize, isTapEnabled, mazeAreaSize.height, mazeAreaSize.width, mazeCols, mazeRows, moveArmedGhostsTowardCell]);
 
   const activeEffects = useMemo(() => {
-    const now = performance.now();
+    const now = nowMs();
     const list: { key: string; label: string; color: string }[] = [];
     if (state.effects.speedBoostUntil > now) {
       list.push({
@@ -1521,7 +1646,7 @@ function FullGameScreen() {
   }, [endlessBlessings.continueDiscount, endlessContinueCount]);
   const canAffordEndlessContinue = coins >= endlessContinueCost;
 
-  const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
+  const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, nowMs()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
   const timeAttackRemainingMs = Math.max(0, TIME_ATTACK_DURATION_MS - elapsedMs);
   const isCompactHud = width < 390;
@@ -1566,6 +1691,34 @@ function FullGameScreen() {
       ],
     };
   }, [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
+  const submissionStatusText = useMemo(() => {
+    if (state.status !== "gameOver" || !submissionState) return null;
+    if (submissionState === "pending") return "LEADERBOARD: PENDING SUBMISSION";
+    if (submissionState === "submitted") return "LEADERBOARD: SUBMITTED";
+    if (submissionState === "offline") return "LEADERBOARD: OFFLINE (TAP RETRY)";
+    return mode === "speedrun" || mode === "timeattack"
+      ? "LEADERBOARD: INELIGIBLE FOR THIS RUN"
+      : "LEADERBOARD: INELIGIBLE FOR THIS MODE";
+  }, [mode, state.status, submissionState]);
+  const retryLeaderboardSubmit = useCallback(() => {
+    if (state.status !== "gameOver") return;
+    if (submissionState !== "offline") return;
+    setSubmissionState("pending");
+    const retry =
+      mode === "speedrun"
+        ? submitFinalScore("SPEEDRUN", elapsedMs)
+        : mode === "timeattack"
+          ? submitFinalScore("TIME ATTACK")
+          : Promise.reject(new Error("Ineligible mode"));
+    void retry
+      .then(() => {
+        if (runtimeSettings.haptics) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        setSubmissionState("submitted");
+      })
+      .catch(() => setSubmissionState("offline"));
+  }, [elapsedMs, mode, runtimeSettings.haptics, state.status, submissionState, submitFinalScore]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1605,6 +1758,9 @@ function FullGameScreen() {
             <View style={styles.miniChip}>
               <Text style={styles.miniChipText}>{modeLabel}</Text>
             </View>
+            <View style={styles.miniChip}>
+              <Text style={styles.miniChipText}>SPRITEFIX2</Text>
+            </View>
             {bonusTutorialText && (
               <View style={[styles.miniChip, styles.miniChipHighlight]}>
                 <Text style={styles.miniChipText}>{bonusTutorialText}</Text>
@@ -1632,8 +1788,8 @@ function FullGameScreen() {
                 <Text style={styles.miniChipText}>
                   {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft} ·{" "}
                   {state.bonusGame.type === "powerHunt"
-                    ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
-                      ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
+                    ? (state.bonusGame.huntActiveUntil ?? 0) > nowMs()
+                      ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - nowMs()) / 1000)}s`
                       : "GRAB YELLOW PELLET"
                     : `${Math.ceil(bonusTimeLeft / 1000)}s`}
                 </Text>
@@ -1802,6 +1958,20 @@ function FullGameScreen() {
               )}
               {state.status === "gameOver" && (
                 <>
+                  {submissionStatusText && (
+                    <View style={styles.submissionStateCard} testID="leaderboard-submission-state">
+                      <Text style={styles.submissionStateText}>{submissionStatusText}</Text>
+                    </View>
+                  )}
+                  {submissionState === "offline" && (
+                    <TouchableOpacity
+                      onPress={retryLeaderboardSubmit}
+                      style={styles.stateBtn}
+                      testID="retry-leaderboard-submit-btn"
+                    >
+                      <Text style={styles.stateBtnText}>RETRY LEADERBOARD SUBMIT</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={startNewGame} style={styles.stateBtn} testID="new-game-btn">
                     <Text style={styles.stateBtnText}>NEW GAME</Text>
                   </TouchableOpacity>
@@ -2300,6 +2470,16 @@ const styles = StyleSheet.create({
   },
   pauseText: { color: "#FFFF66", fontWeight: "900", letterSpacing: 1 },
   stateActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "stretch" },
+  submissionStateCard: {
+    minWidth: 210,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#4f9cff",
+    backgroundColor: "#102040",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  submissionStateText: { color: "#cbe2ff", fontWeight: "900", fontSize: 10, letterSpacing: 0.6 },
   starSummaryCard: {
     minWidth: 180,
     borderRadius: 8,
