@@ -1,14 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Platform, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
 import { chooseMusicTrack, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
-import { loadSettings } from "@/src/game/settings";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
+import { redeemPromoCode } from "@/src/game/api";
+import { getPlayerId } from "@/src/game/playerId";
+import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
+import type { PowerUpId } from "@/src/game/powerups";
 import {
   computeUnlockedThemeIds,
   getTotalGoldStars,
@@ -20,6 +25,13 @@ import { storage } from "@/src/utils/storage";
 
 const RELEASE_NOTES_SEEN_KEY = "ghostMaze.releaseNotesSeen.v1";
 const RELEASE_NOTES_VERSION = "2026-07-26-production-polish";
+const PROMO_HISTORY_KEY = "ghostMaze.promoHistory.v1";
+
+interface PromoHistoryEntry {
+  code: string;
+  redeemedAt: string;
+  summary: string;
+}
 
 export default function MainMenu() {
   const router = useRouter();
@@ -32,6 +44,11 @@ export default function MainMenu() {
   const [totalGoldStars, setTotalGoldStars] = useState(0);
   const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const [menuSettings, setMenuSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const [promoCode, setPromoCode] = useState("");
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [promoFeedback, setPromoFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [promoHistory, setPromoHistory] = useState<PromoHistoryEntry | null>(null);
   const { missions, completedCount, rewardClaimed, rewardCoins, dateKey, refresh } =
     useDailyMissions(economy ? grantCoins : undefined);
 
@@ -42,6 +59,7 @@ export default function MainMenu() {
     }
     loadSettings().then((s) => {
       if (!mounted) return;
+      setMenuSettings(s);
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       if (s.soundOn && s.musicOn) {
@@ -63,6 +81,12 @@ export default function MainMenu() {
         setShowReleaseNotes(true);
       }
     });
+    storage.getItem(PROMO_HISTORY_KEY, null).then((value) => {
+      if (!mounted || !value || typeof value !== "object") return;
+      const maybe = value as PromoHistoryEntry;
+      if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
+      setPromoHistory(maybe);
+    });
     return () => {
       mounted = false;
       getSoundEngine().stopMusic();
@@ -83,6 +107,68 @@ export default function MainMenu() {
   const dismissReleaseNotes = () => {
     setShowReleaseNotes(false);
     void storage.setItem(RELEASE_NOTES_SEEN_KEY, RELEASE_NOTES_VERSION);
+  };
+  const redeemSecretCode = async () => {
+    const cleaned = promoCode.trim();
+    if (!cleaned || redeemingPromo) return;
+    setRedeemingPromo(true);
+    setPromoFeedback(null);
+    try {
+      if (cleaned.toUpperCase() === "WARM0NGER") {
+        const next = {
+          ...menuSettings,
+          devMode: true,
+          devInfiniteCoins: true,
+          devInfiniteItems: true,
+        };
+        setMenuSettings(next);
+        await saveSettings(next);
+        const message = "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.";
+        setPromoFeedback({ kind: "success", message });
+        if (menuSettings.haptics) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        Alert.alert("Dev mode unlocked", message);
+        setPromoCode("");
+        return;
+      }
+      const playerId = await getPlayerId();
+      const redeemed = await redeemPromoCode(cleaned, playerId);
+      const economyData = await loadEconomy();
+      let nextEconomy = addCoins(economyData, redeemed.rewards.coins ?? 0);
+      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
+        const id = rawId as PowerUpId;
+        if (typeof qty === "number" && qty > 0) {
+          nextEconomy = addInventory(nextEconomy, id, qty);
+        }
+      }
+      await saveEconomy(nextEconomy);
+      const coinsReward = redeemed.rewards.coins ?? 0;
+      const powerUps = Object.entries(redeemed.rewards.powerUps ?? {})
+        .filter(([, qty]) => typeof qty === "number" && qty > 0)
+        .map(([id, qty]) => `${qty} ${id}`);
+      const rewards = [coinsReward > 0 ? `${coinsReward.toLocaleString()} Ghost Coins` : null, ...powerUps].filter(Boolean);
+      const message = rewards.length > 0 ? `Added ${rewards.join(", ")} to your save.` : redeemed.message;
+      setPromoFeedback({ kind: "success", message });
+      if (menuSettings.haptics) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      const history: PromoHistoryEntry = {
+        code: cleaned.toUpperCase(),
+        redeemedAt: new Date().toISOString(),
+        summary: message,
+      };
+      setPromoHistory(history);
+      void storage.setItem(PROMO_HISTORY_KEY, history);
+      Alert.alert("Code redeemed", message);
+      setPromoCode("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      setPromoFeedback({ kind: "error", message });
+      Alert.alert("Redeem failed", message);
+    } finally {
+      setRedeemingPromo(false);
+    }
   };
 
   return (
@@ -181,6 +267,49 @@ export default function MainMenu() {
             </View>
           ))}
           <Text style={styles.dailyMissionFooter}>{completedCount}/3 complete</Text>
+        </View>
+        <View style={styles.promoCard} testID="promo-code-card">
+          <Text style={styles.promoTitle}>PROMO / SECRET CODE</Text>
+          <Text style={styles.promoSub}>Redeem rewards directly from the main menu.</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              value={promoCode}
+              onChangeText={setPromoCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="ENTER CODE"
+              placeholderTextColor="#7d88a8"
+              style={styles.promoInput}
+              testID="promo-code-input"
+            />
+            <TouchableOpacity
+              onPress={redeemSecretCode}
+              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
+              disabled={redeemingPromo}
+              testID="promo-code-submit"
+            >
+              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
+            </TouchableOpacity>
+          </View>
+          {promoFeedback && (
+            <Text
+              style={[
+                styles.promoFeedback,
+                promoFeedback.kind === "success" ? styles.promoFeedbackSuccess : styles.promoFeedbackError,
+              ]}
+              testID="promo-code-feedback"
+            >
+              {promoFeedback.message}
+            </Text>
+          )}
+          {promoHistory && (
+            <View style={styles.promoHistoryCard} testID="promo-code-history">
+              <Text style={styles.promoHistoryTitle}>LAST REDEEMED</Text>
+              <Text style={styles.promoHistoryText}>{promoHistory.code}</Text>
+              <Text style={styles.promoHistoryText}>{new Date(promoHistory.redeemedAt).toLocaleString()}</Text>
+              <Text style={styles.promoHistorySub}>{promoHistory.summary}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.howToWrap}>
@@ -282,6 +411,32 @@ const styles = StyleSheet.create({
   dailyMissionTextDone: { color: "#9fffa9" },
   dailyMissionProgress: { color: "#FFB897", fontSize: 12, fontWeight: "900", minWidth: 34, textAlign: "right" },
   dailyMissionFooter: { color: "#9eb3d8", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textAlign: "right" },
+  promoCard: {
+    width: "100%", padding: 14, borderRadius: 12, borderWidth: 2, borderColor: "#ffd23f", backgroundColor: "#16152b", gap: 8,
+  },
+  promoTitle: { color: "#FFF4A3", fontWeight: "900", fontSize: 15, letterSpacing: 1.5 },
+  promoSub: { color: "#d2d9fb", fontSize: 12, fontWeight: "700" },
+  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  promoInput: {
+    flex: 1, borderWidth: 1, borderColor: "#394572", borderRadius: 8, backgroundColor: "#10172d", color: "#f4f7ff",
+    paddingHorizontal: 12, paddingVertical: 10, fontWeight: "900", letterSpacing: 1,
+  },
+  promoButton: {
+    borderWidth: 1, borderColor: "#FFD23F", borderRadius: 8, backgroundColor: "#202b4f", paddingHorizontal: 12, paddingVertical: 10,
+  },
+  promoButtonDisabled: { opacity: 0.6 },
+  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  promoFeedback: {
+    borderWidth: 1, borderRadius: 8, fontSize: 12, fontWeight: "900", marginTop: 4, paddingHorizontal: 10, paddingVertical: 8,
+  },
+  promoFeedbackSuccess: { backgroundColor: "rgba(40, 167, 69, 0.16)", borderColor: "#39D98A", color: "#B7FFD2" },
+  promoFeedbackError: { backgroundColor: "rgba(255, 79, 112, 0.14)", borderColor: "#FF6B8A", color: "#FFD1DC" },
+  promoHistoryCard: {
+    borderWidth: 1, borderColor: "#5f6aa0", borderRadius: 8, backgroundColor: "#10172d", paddingHorizontal: 10, paddingVertical: 8, gap: 2,
+  },
+  promoHistoryTitle: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  promoHistoryText: { color: "#f4f7ff", fontSize: 12, fontWeight: "900" },
+  promoHistorySub: { color: "#c6d1f3", fontSize: 11, fontWeight: "700", marginTop: 2 },
   howToWrap: {
     width: "100%", padding: 12, backgroundColor: COLORS.uiPanel, borderRadius: 8, borderWidth: 1, borderColor: COLORS.uiBorder,
   },

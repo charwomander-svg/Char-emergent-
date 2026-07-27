@@ -22,9 +22,9 @@ function detectEmbeddedRuntime() {
 export function detectItchWebRuntime() {
   if (typeof window === "undefined") return false;
 
-  const hostname = window.location.hostname || "";
-  const protocol = window.location.protocol || "";
-  const search = window.location.search || "";
+  const hostname = window.location?.hostname || "";
+  const protocol = window.location?.protocol || "";
+  const search = window.location?.search || "";
   const referrer = typeof document !== "undefined" ? document.referrer || "" : "";
   const embedded = detectEmbeddedRuntime();
   const nonHttpProtocol = protocol !== "" && !/^https?:$/i.test(protocol);

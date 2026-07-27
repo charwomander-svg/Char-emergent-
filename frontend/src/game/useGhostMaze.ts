@@ -69,28 +69,8 @@ import {
   submitTotalGoldStarsLifetime,
   syncProgressAchievements,
 } from "./playGames";
+import { isItchWebRuntime } from "./runtime";
 import { updateStatistics } from "./statistics";
-
-function isItchWebRuntime(): boolean {
-  if (typeof window === "undefined") return false;
-
-  if (typeof window.__GHOST_MAZE_ITCH_MODE__ === "boolean") {
-    return window.__GHOST_MAZE_ITCH_MODE__;
-  }
-
-  const hostname = window.location.hostname || "";
-  const search = window.location.search || "";
-  const referrer = typeof document !== "undefined" ? document.referrer || "" : "";
-  const detected =
-    /(?:\?|&)(?:itchObject|itchio)=/i.test(search) ||
-    /(^|\.)itch\.zone$/i.test(hostname) ||
-    /(^|\.)itch\.io$/i.test(hostname) ||
-    /https?:\/\/(?:[^/]+\.)?itch\.io/i.test(referrer) ||
-    /https?:\/\/(?:[^/]+\.)?itch\.zone/i.test(referrer);
-
-  window.__GHOST_MAZE_ITCH_MODE__ = detected;
-  return detected;
-}
 
 export type EndlessBlessingId =
   | "hunterInstinct"
