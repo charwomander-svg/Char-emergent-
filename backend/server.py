@@ -184,7 +184,6 @@ class PromoRedeemResponse(BaseModel):
 
 
 _PROMO_CODES_CACHE: Optional[dict[str, dict[str, Any]]] = None
-_NEWS_ITEMS_CACHE: Optional[list[dict[str, str]]] = None
 
 BUILT_IN_PROMO_CODES: dict[str, dict[str, Any]] = {
     "CHAR6000": {
@@ -246,31 +245,36 @@ def _normalize_news_item(item: Any) -> Optional[dict[str, str]]:
 
 
 def _load_news_items() -> list[dict[str, str]]:
-    global _NEWS_ITEMS_CACHE
-    if _NEWS_ITEMS_CACHE is not None:
-        return _NEWS_ITEMS_CACHE
-
     raw = os.getenv("NEWS_ITEMS_JSON", "").strip()
     if not raw:
-        _NEWS_ITEMS_CACHE = DEFAULT_NEWS_ITEMS
-        return _NEWS_ITEMS_CACHE
+        return DEFAULT_NEWS_ITEMS
 
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         logger.exception("Invalid NEWS_ITEMS_JSON")
-        _NEWS_ITEMS_CACHE = DEFAULT_NEWS_ITEMS
-        return _NEWS_ITEMS_CACHE
+        return DEFAULT_NEWS_ITEMS
+
+    # Some env managers store JSON as a quoted JSON string.
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except json.JSONDecodeError:
+            logger.exception("Invalid nested NEWS_ITEMS_JSON")
+            return DEFAULT_NEWS_ITEMS
 
     items: list[dict[str, str]] = []
-    if isinstance(parsed, list):
-        for item in parsed:
+    source = parsed
+    if isinstance(parsed, dict) and isinstance(parsed.get("items"), list):
+        source = parsed["items"]
+
+    if isinstance(source, list):
+        for item in source:
             normalized = _normalize_news_item(item)
             if normalized:
                 items.append(normalized)
 
-    _NEWS_ITEMS_CACHE = items if items else DEFAULT_NEWS_ITEMS
-    return _NEWS_ITEMS_CACHE
+    return items if items else DEFAULT_NEWS_ITEMS
 
 
 def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
