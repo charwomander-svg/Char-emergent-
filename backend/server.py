@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Literal, Any
 import uuid
 from datetime import datetime, timezone, date
+from urllib.parse import unquote
 
 from payments import get_router as get_payments_router, init_stripe
 
@@ -35,7 +36,7 @@ else:
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
-BACKEND_BUILD_ID = "production-polish-2026-07-26-2"
+BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
 
 
 @app.on_event("startup")
@@ -245,9 +246,16 @@ def _normalize_news_item(item: Any) -> Optional[dict[str, str]]:
 
 
 def _load_news_items() -> list[dict[str, str]]:
-    raw = os.getenv("NEWS_ITEMS_JSON", "").strip()
+    raw = (
+        os.getenv("NEWS_ITEMS_JSON", "").strip()
+        or os.getenv("NEWS_CHANGER_JSON", "").strip()
+        or os.getenv("NEWSCHANGER_JSON", "").strip()
+    )
     if not raw:
         return DEFAULT_NEWS_ITEMS
+
+    if raw.startswith("%5B") or raw.startswith("%7B"):
+        raw = unquote(raw)
 
     try:
         parsed = json.loads(raw)
