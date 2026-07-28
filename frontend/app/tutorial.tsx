@@ -149,6 +149,13 @@ export default function TutorialScreen() {
         <View style={styles.headerCard}>
           <Text style={styles.title}>TUTORIAL</Text>
           <Text style={styles.subtitle}>Complete guide to modes, systems, and progression</Text>
+          <TouchableOpacity
+            style={styles.playableTutorialBtn}
+            onPress={() => router.push("/game?practice=1")}
+            testID="tutorial-hero-btn"
+          >
+            <Text style={styles.playableTutorialBtnText}>▶ PLAY PLAYABLE TUTORIAL</Text>
+          </TouchableOpacity>
         </View>
 
         {SECTIONS.map((section) => (
@@ -185,6 +192,16 @@ const styles = StyleSheet.create({
   },
   title: { color: "#FFFF00", fontSize: 22, fontWeight: "900", letterSpacing: 2.5 },
   subtitle: { color: "#b9d3ff", fontSize: 12, fontWeight: "700" },
+  playableTutorialBtn: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#6caef1",
+    backgroundColor: "#132446",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  playableTutorialBtnText: { color: "#d9edff", fontWeight: "900", fontSize: 13, letterSpacing: 1 },
   card: {
     borderRadius: 10,
     borderWidth: 1,
