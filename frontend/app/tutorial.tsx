@@ -139,6 +139,10 @@ const SECTIONS: TutorialSection[] = [
 export default function TutorialScreen() {
   const router = useRouter();
 
+  const playTutorialLevel = () => {
+    router.push("/game?mode=custom&level=1");
+  };
+
   return (
     <SafeAreaView style={styles.container} testID="tutorial-screen">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -150,6 +154,11 @@ export default function TutorialScreen() {
           <Text style={styles.title}>TUTORIAL</Text>
           <Text style={styles.subtitle}>Complete guide to modes, systems, and progression</Text>
         </View>
+
+        <TouchableOpacity style={styles.playTutorialBtn} onPress={playTutorialLevel} testID="play-tutorial-btn">
+          <Text style={styles.playTutorialBtnText}>▶ PLAY TUTORIAL LEVEL</Text>
+          <Text style={styles.playTutorialBtnSubtext}>Practice on Level 1 without affecting your progress</Text>
+        </TouchableOpacity>
 
         {SECTIONS.map((section) => (
           <View key={section.title} style={styles.card}>
@@ -185,6 +194,27 @@ const styles = StyleSheet.create({
   },
   title: { color: "#FFFF00", fontSize: 22, fontWeight: "900", letterSpacing: 2.5 },
   subtitle: { color: "#b9d3ff", fontSize: 12, fontWeight: "700" },
+  playTutorialBtn: {
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#9CFF57",
+    backgroundColor: "#1a2d14",
+    padding: 14,
+    gap: 4,
+    alignItems: "center",
+  },
+  playTutorialBtnText: {
+    color: "#9CFF57",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  playTutorialBtnSubtext: {
+    color: "#b9d3ff",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   card: {
     borderRadius: 10,
     borderWidth: 1,
