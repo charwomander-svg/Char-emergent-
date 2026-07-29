@@ -1763,9 +1763,6 @@ function FullGameScreen() {
             <View style={styles.miniChip}>
               <Text style={styles.miniChipText}>{modeLabel}</Text>
             </View>
-            <View style={styles.miniChip}>
-              <Text style={styles.miniChipText}>SPRITEFIX2</Text>
-            </View>
             {bonusTutorialText && (
               <View style={[styles.miniChip, styles.miniChipHighlight]}>
                 <Text style={styles.miniChipText}>{bonusTutorialText}</Text>
