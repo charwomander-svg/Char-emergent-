@@ -3,7 +3,7 @@ services:
     name: ghost-maze-web
     runtime: static
     rootDir: ./frontend
-    buildCommand: npm ci && npx expo export --platform web
+    buildCommand: npm ci --no-audit --no-fund && npx expo export --platform web --non-interactive
     staticPublishPath: ./dist
     plan: free
 
