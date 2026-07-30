@@ -4,6 +4,13 @@ import type { BonusGameState, CellType, Ghost, PelletGuy } from "@/src/game/type
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED } from "@/src/game/constants";
 
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 interface Props {
   maze: CellType[][];
   ghosts: Ghost[];
@@ -262,11 +269,11 @@ const GhostSprite = React.memo(function GhostSprite({
 }) {
   const { animX, animY } = useSmoothPosition(ghost.x, ghost.y, moveDuration, size);
 
-  const blink = ghost.vulnerable && ghost.vulnerableUntil - performance.now() < 2000;
+  const blink = ghost.vulnerable && ghost.vulnerableUntil - nowMs() < 2000;
   const color = !ghost.alive
     ? "transparent"
     : ghost.vulnerable
-    ? blink && Math.floor(performance.now() / 200) % 2 === 0
+    ? blink && Math.floor(nowMs() / 200) % 2 === 0
       ? COLORS.ghostVulnerableEnd
       : COLORS.ghostVulnerable
     : ghost.color;

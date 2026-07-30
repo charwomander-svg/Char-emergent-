@@ -36,7 +36,7 @@ else:
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
-BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
+BACKEND_BUILD_ID = "production-polish-2026-07-30-1"
 
 
 @app.on_event("startup")
