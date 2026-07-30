@@ -1,10 +1,22 @@
-name: Android Release Build
+name: Android Verification
 
 on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/android-release.yml"
+      - ".github/workflows/build-apk.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/android-release.yml"
+      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
 jobs:
-  build-android:
+  verify-android:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,19 +41,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
-      - name: Build AAB + APK
+      - name: Lint app
+        run: npm run lint
+
+      - name: Build debug APK
         working-directory: frontend/android
-        run: ./gradlew bundleRelease assembleRelease --no-daemon --no-parallel --max-workers=1
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug --no-daemon

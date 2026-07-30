@@ -121,7 +121,7 @@ async function ensureSignedIn(): Promise<boolean> {
   if (signInPromise) return signInPromise;
   const native = getNativeModule();
   if (!native?.signIn) return false;
-  const signIn = native.signIn.bind(native);
+  const signIn = native.signIn;
   if (!(await isConfigured())) return false;
   if (signInAttemptedThisSession) return false;
 
