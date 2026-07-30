@@ -2,6 +2,9 @@ name: Build Android Release Artifacts (AAB Only)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - copilot/fix-undefined-function-error-again
 
 concurrency:
   group: android-release-${{ github.ref }}
