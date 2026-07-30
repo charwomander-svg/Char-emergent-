@@ -1,6 +1,18 @@
-name: Android Release Build
+name: Android Verification
 
 on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/android-release.yml"
+      - ".github/workflows/build-apk.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/android-release.yml"
+      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
 concurrency:
@@ -8,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-android:
+  verify-android:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -59,8 +71,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew bundleRelease --no-daemon
+      - name: Lint app
+        run: npm run lint
 
-      - name: Verify artifact signing certificate
+      - name: Build debug APK
         working-directory: frontend/android
         run: |
           test -f app/build/outputs/bundle/release/app-release.aab
@@ -73,3 +87,5 @@ jobs:
         with:
           name: app-release-aab
           path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug --no-daemon

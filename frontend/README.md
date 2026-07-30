@@ -48,3 +48,14 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Build paths
+
+- **Fast Android verification**: `../.github/workflows/android-release.yml`
+  - Runs on pull requests, pushes to `main`, and manual dispatch.
+  - Installs frontend dependencies, runs lint, and assembles a debug APK.
+- **Release Android artifacts**: `../.github/workflows/build-apk.yml`
+  - Manual workflow for signed production `AAB` + `APK`.
+  - Verifies signing certificate and uploads release artifacts.
+- **Hosted web export**: `../render.yaml`
+  - Render static build runs `npm ci --no-audit --no-fund && npx expo export --platform web --non-interactive`.
