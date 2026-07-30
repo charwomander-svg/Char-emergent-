@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
-import { redeemPromoCode } from "@/src/game/api";
-import { getPlayerId } from "@/src/game/playerId";
-import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
-import type { PowerUpId } from "@/src/game/powerups";
+import { chooseMusicTrack, getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
+import { fetchApiVersion } from "@/src/game/api";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
-  const [promoCode, setPromoCode] = useState("");
-  const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [backendBuild, setBackendBuild] = useState<string>("unknown");
   const orderedSoundTestTracks = React.useMemo(() => {
     const order = settings.soundTestOrder ?? [];
     const orderMap = new Map(order.map((id, index) => [id, index]));
@@ -34,6 +30,7 @@ export default function Settings() {
 
   useEffect(() => {
     loadSettings().then(setSettings);
+    fetchApiVersion().then((info) => setBackendBuild(info.build)).catch(() => setBackendBuild("offline"));
   }, []);
 
   const update = <K extends keyof SettingsData>(k: K, v: SettingsData[K]) => {
@@ -48,7 +45,7 @@ export default function Settings() {
       }
     }
     if (k === "musicOn") {
-      if (v && settings.soundOn) getSoundEngine().startMusic();
+      if (v && settings.soundOn) getSoundEngine().startMusic(chooseMusicTrack(1, null, next.musicLibrary));
       if (!v) {
         getSoundEngine().stopMusic();
         setActiveSoundTestTrack(null);
@@ -69,45 +66,6 @@ export default function Settings() {
       return;
     }
     await Linking.openURL(url);
-  };
-
-  const redeemSecretCode = async () => {
-    const cleaned = promoCode.trim();
-    if (!cleaned || redeemingPromo) return;
-    setRedeemingPromo(true);
-    try {
-      if (cleaned.toUpperCase() === "WARM0NGER") {
-        const next = {
-          ...settings,
-          devMode: true,
-          devInfiniteCoins: true,
-          devInfiniteItems: true,
-        };
-        setSettings(next);
-        await saveSettings(next);
-        Alert.alert("Dev mode unlocked", "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.");
-        setPromoCode("");
-        return;
-      }
-      const playerId = await getPlayerId();
-      const redeemed = await redeemPromoCode(cleaned, playerId);
-      const economy = await loadEconomy();
-      let nextEconomy = addCoins(economy, redeemed.rewards.coins ?? 0);
-      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
-        const id = rawId as PowerUpId;
-        if (typeof qty === "number" && qty > 0) {
-          nextEconomy = addInventory(nextEconomy, id, qty);
-        }
-      }
-      await saveEconomy(nextEconomy);
-      Alert.alert("Code redeemed", "Promo rewards added to your save.");
-      setPromoCode("");
-    } catch (error) {
-      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
-      Alert.alert("Redeem failed", message);
-    } finally {
-      setRedeemingPromo(false);
-    }
   };
 
   const NumberRow = ({
@@ -202,6 +160,37 @@ export default function Settings() {
     </View>
   );
 
+  const MusicLibraryRow = ({
+    value,
+    onChange,
+  }: {
+    value: SettingsData["musicLibrary"];
+    onChange: (v: SettingsData["musicLibrary"]) => void;
+  }) => (
+    <View style={styles.row} testID="music-library-row">
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>Music Library</Text>
+        <Text style={styles.rowDesc}>Choose chiptunes, Instrumetal, or everything</Text>
+      </View>
+      <View style={styles.modeSelector}>
+        {([
+          { value: "chiptunes", label: "CHIP" },
+          { value: "instrumetal", label: "INSTR" },
+          { value: "everything", label: "ALL" },
+        ] as const).map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            style={[styles.modeBtn, value === option.value && styles.modeBtnActive]}
+            onPress={() => onChange(option.value)}
+            testID={`music-library-${option.value}`}
+          >
+            <Text style={[styles.modeBtnText, value === option.value && styles.modeBtnTextActive]}>{option.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} testID="settings-screen">
       <View style={styles.header}>
@@ -226,6 +215,15 @@ export default function Settings() {
           value={settings.musicOn}
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
+        />
+        <MusicLibraryRow
+          value={settings.musicLibrary}
+          onChange={(v) => {
+            update("musicLibrary", v);
+            if (settings.soundOn && settings.musicOn) {
+              getSoundEngine().startMusic(chooseMusicTrack(1, null, v));
+            }
+          }}
         />
         <NumberRow
           label="SFX Volume"
@@ -316,7 +314,7 @@ export default function Settings() {
         <View style={styles.musicCard}>
           <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
           <Text style={styles.musicCardBody}>
-            Enjoying the music? Chardcore is a musical artist with 8 albums released. You might like it, so we are
+            Enjoying the music? Chardcore is a music artist with 9 albums released. You might like it, so we are
             providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
             free. She is awesome like that.
           </Text>
@@ -385,30 +383,6 @@ export default function Settings() {
             </TouchableOpacity>
           ))}
         </View>
-        <View style={styles.musicCard}>
-          <Text style={styles.musicCardTitle}>PROMO / SECRET CODE</Text>
-          <Text style={styles.musicCardSub}>Enter a code to claim rewards or unlock hidden features.</Text>
-          <View style={styles.promoRow}>
-            <TextInput
-              value={promoCode}
-              onChangeText={setPromoCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              placeholder="ENTER CODE"
-              placeholderTextColor="#7d88a8"
-              style={styles.promoInput}
-              testID="promo-code-input"
-            />
-            <TouchableOpacity
-              onPress={redeemSecretCode}
-              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
-              disabled={redeemingPromo}
-              testID="promo-code-submit"
-            >
-              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
         {settings.devMode && (
           <View style={styles.musicCard} testID="dev-mode-card">
             <Text style={styles.musicCardTitle}>DEV MODE</Text>
@@ -429,6 +403,10 @@ export default function Settings() {
             />
           </View>
         )}
+        <View style={styles.buildInfoCard} testID="backend-build-info">
+          <Text style={styles.buildInfoLabel}>BACKEND BUILD</Text>
+          <Text style={styles.buildInfoValue}>{backendBuild}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -475,7 +453,14 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
   stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
-  modeSelector: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modeSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    flexWrap: "wrap",
+    maxWidth: "52%",
+  },
   modeBtn: {
     borderWidth: 1,
     borderColor: COLORS.uiBorder,
@@ -483,6 +468,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#121a32",
     paddingHorizontal: 8,
     paddingVertical: 6,
+    minWidth: 52,
+    alignItems: "center",
   },
   modeBtnActive: {
     borderColor: "#FFD23F",
@@ -537,29 +524,15 @@ const styles = StyleSheet.create({
   favoriteBtnText: { color: "#FFE082", fontSize: 12, fontWeight: "900" },
   soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
   soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
-  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  promoInput: {
-    flex: 1,
+  buildInfoCard: {
+    backgroundColor: COLORS.uiPanel,
     borderWidth: 1,
-    borderColor: "#394572",
-    borderRadius: 8,
-    backgroundColor: "#10172d",
-    color: "#f4f7ff",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontWeight: "900",
-    letterSpacing: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
-  promoButton: {
-    borderWidth: 1,
-    borderColor: "#FFD23F",
-    borderRadius: 8,
-    backgroundColor: "#202b4f",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  promoButtonDisabled: {
-    opacity: 0.6,
-  },
-  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  buildInfoLabel: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  buildInfoValue: { color: "#f4f7ff", fontSize: 12, fontWeight: "900", marginTop: 3 },
 });

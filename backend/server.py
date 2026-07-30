@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Literal, Any
 import uuid
 from datetime import datetime, timezone, date
+from urllib.parse import unquote
 
 from payments import get_router as get_payments_router, init_stripe
 
@@ -35,7 +36,7 @@ else:
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
-BACKEND_BUILD_ID = "promo-codes-2026-07-17"
+BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
 
 
 @app.on_event("startup")
@@ -199,6 +200,89 @@ BUILT_IN_PROMO_CODES: dict[str, dict[str, Any]] = {
         "rewards": {"coins": 100},
     },
 }
+
+DEFAULT_NEWS_ITEMS: list[dict[str, str]] = [
+    {
+        "title": "Production polish update",
+        "date": "2026-07-26",
+        "body": "Added an interactive tutorial practice flow, leaderboard submission status messaging, and promo redemption history in Settings.",
+    },
+    {
+        "title": "QA fixes deployed",
+        "date": "2026-07-20",
+        "body": "Fixed total playtime/score tracking, aligned daily mission catches with lifetime catches, and added Android back confirmation for active runs.",
+    },
+    {
+        "title": "Promo system live",
+        "date": "2026-07-17",
+        "body": "Enabled backend promo support with built-in codes and daily redemption windows. DAILY100 grants 100 coins once per day per player.",
+    },
+]
+
+
+class NewsItem(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    date: str = Field(min_length=1, max_length=20)
+    body: str = Field(min_length=1, max_length=1000)
+
+
+def _normalize_news_item(item: Any) -> Optional[dict[str, str]]:
+    if not isinstance(item, dict):
+        return None
+    title = str(item.get("title", "")).strip()
+    date_raw = str(item.get("date", "")).strip()
+    body = str(item.get("body", "")).strip()
+    if not title or not body:
+        return None
+    if date_raw:
+        normalized_date = date_raw[:20]
+    else:
+        normalized_date = datetime.now(timezone.utc).date().isoformat()
+    return {
+        "title": title[:120],
+        "date": normalized_date,
+        "body": body[:1000],
+    }
+
+
+def _load_news_items() -> list[dict[str, str]]:
+    raw = (
+        os.getenv("NEWS_ITEMS_JSON", "").strip()
+        or os.getenv("NEWS_CHANGER_JSON", "").strip()
+        or os.getenv("NEWSCHANGER_JSON", "").strip()
+    )
+    if not raw:
+        return DEFAULT_NEWS_ITEMS
+
+    if raw.startswith("%5B") or raw.startswith("%7B"):
+        raw = unquote(raw)
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("Invalid NEWS_ITEMS_JSON")
+        return DEFAULT_NEWS_ITEMS
+
+    # Some env managers store JSON as a quoted JSON string.
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except json.JSONDecodeError:
+            logger.exception("Invalid nested NEWS_ITEMS_JSON")
+            return DEFAULT_NEWS_ITEMS
+
+    items: list[dict[str, str]] = []
+    source = parsed
+    if isinstance(parsed, dict) and isinstance(parsed.get("items"), list):
+        source = parsed["items"]
+
+    if isinstance(source, list):
+        for item in source:
+            normalized = _normalize_news_item(item)
+            if normalized:
+                items.append(normalized)
+
+    return items if items else DEFAULT_NEWS_ITEMS
 
 
 def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
@@ -518,6 +602,11 @@ async def promo_redeem(body: PromoRedeemRequest):
         message="Promo code redeemed",
         rewards=PromoRewards(coins=safe_coins, powerUps=safe_power_ups),
     )
+
+
+@api_router.get("/news", response_model=List[NewsItem])
+async def news_feed():
+    return [NewsItem(**item) for item in _load_news_items()]
 
 
 app.include_router(api_router)

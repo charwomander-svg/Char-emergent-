@@ -15,6 +15,10 @@ on:
       - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify-android:
     runs-on: ubuntu-latest
@@ -43,11 +47,45 @@ jobs:
           java-version: 17
           cache: gradle
 
+      - name: Prepare keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Verify upload key fingerprint
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          keytool -list -v \
+            -keystore android/app/upload-keystore.jks \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" | grep -E "SHA1:|SHA256:"
+
+      - name: Build AAB
+        working-directory: frontend/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
       - name: Lint app
         run: npm run lint
 
       - name: Build debug APK
         working-directory: frontend/android
         run: |
+          test -f app/build/outputs/bundle/release/app-release.aab
+          ACTUAL_SHA1=$(keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab | sed -n 's/.*SHA1: //p')
+          echo "Artifact SHA1: $ACTUAL_SHA1"
+          test "$ACTUAL_SHA1" = "AE:BE:7E:D2:0D:1C:58:33:ED:E3:6B:87:DC:16:62:8C:E0:69:AE:C9"
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
           chmod +x ./gradlew
           ./gradlew :app:assembleDebug --no-daemon

@@ -23,7 +23,7 @@ import {
   type Purchase,
   type PurchaseError,
   type Product,
-} from "react-native-iap";
+} from "@/src/game/iap";
 import { COLORS } from "@/src/game/constants";
 import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";

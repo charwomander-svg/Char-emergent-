@@ -1,5 +1,6 @@
 // Main game state hook - manages the entire game logic
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import type {
   ActiveEffects,
   CellType,
@@ -42,7 +43,7 @@ import {
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, chooseGhostHuntDirection, choosePelletGuyDirection, opposite } from "./ai";
-import { getMusicTrackForLevel, getSoundEngine } from "./sounds";
+import { chooseMusicTrack, getSoundEngine } from "./sounds";
 import {
   loadProgress,
   saveProgress,
@@ -68,6 +69,7 @@ import {
   submitTotalGoldStarsLifetime,
   syncProgressAchievements,
 } from "./playGames";
+import { isItchWebRuntime } from "./runtime";
 import { updateStatistics } from "./statistics";
 
 export type EndlessBlessingId =
@@ -100,6 +102,11 @@ const EMPTY_EFFECTS: ActiveEffects = {
   spikeArmUntilByCell: {},
 };
 const MARATHON_PELLET_DROP_CHANCE = 0.015;
+const TIME_ATTACK_RESPAWN_DELAY_MS = 16;
+
+function canUsePlatformServices(): boolean {
+  return !isItchWebRuntime();
+}
 
 function createInitialGhosts(
   spawns: { x: number; y: number }[],
@@ -143,6 +150,37 @@ function createInitialPelletGuy(spawn: { x: number; y: number }): PelletGuy {
   };
 }
 
+function shouldUseHorizontalMazeLayout() {
+  if (Platform.OS !== "web" || typeof window === "undefined") return false;
+  return window.innerWidth >= 900 || window.innerWidth > window.innerHeight;
+}
+
+function rotateMazeClockwise(
+  maze: CellType[][],
+  ghostSpawns: { x: number; y: number }[],
+  pelletGuySpawn: { x: number; y: number },
+) {
+  const oldRows = maze.length;
+  const oldCols = maze[0]?.length ?? 0;
+  if (oldRows === 0 || oldCols === 0) {
+    return { maze, ghostSpawns, pelletGuySpawn };
+  }
+
+  const rotatedMaze: CellType[][] = Array.from({ length: oldCols }, (_, y) =>
+    Array.from({ length: oldRows }, (_, x) => maze[oldRows - 1 - x][y]),
+  );
+  const rotatePoint = (point: { x: number; y: number }) => ({
+    x: oldRows - 1 - point.y,
+    y: point.x,
+  });
+
+  return {
+    maze: rotatedMaze,
+    ghostSpawns: ghostSpawns.map(rotatePoint),
+    pelletGuySpawn: rotatePoint(pelletGuySpawn),
+  };
+}
+
 function buildInitialState(
   level: number,
   lives: number,
@@ -155,6 +193,12 @@ function buildInitialState(
     level,
     daily?.seed,
   );
+  if (shouldUseHorizontalMazeLayout()) {
+    const rotated = rotateMazeClockwise(maze, ghostSpawns, pelletGuySpawn);
+    maze = rotated.maze;
+    ghostSpawns = rotated.ghostSpawns;
+    pelletGuySpawn = rotated.pelletGuySpawn;
+  }
   const bonusActive = isBonusLevel(level);
   if (bonusActive) {
     let convertedSuperPellets = 0;
@@ -273,6 +317,8 @@ export function useGhostMaze(opts?: {
   const progressRef = useRef<ProgressData | null>(null);
   const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");
   const musicEnabledRef = useRef<boolean>(true);
+  const musicLibraryRef = useRef<"chiptunes" | "instrumetal" | "everything">("everything");
+  const disableAudioRef = useRef<boolean>(isItchWebRuntime());
   const hardcoreEliminatedRef = useRef<GhostId[]>([]);
   const oathShieldAvailableRef = useRef(false);
   const firstBarricadeSkippedRef = useRef(false);
@@ -299,7 +345,9 @@ export function useGhostMaze(opts?: {
   useEffect(() => {
     loadProgress().then((p) => {
       progressRef.current = p;
-      void submitTotalGoldStarsLifetime(getTotalGoldStars(p));
+      if (canUsePlatformServices()) {
+        void submitTotalGoldStarsLifetime(getTotalGoldStars(p));
+      }
       themeIdRef.current = p.selectedThemeId;
       oathShieldAvailableRef.current = p.selectedThemeId === "dark-knights";
       setState((cur) => {
@@ -318,11 +366,16 @@ export function useGhostMaze(opts?: {
 
   useEffect(() => {
     loadSettings().then((s) => {
-      getSoundEngine().setEnabled(!!s.soundOn);
-      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
-      musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
+      const audioEnabled = !disableAudioRef.current && !!s.soundOn;
+      getSoundEngine().setEnabled(audioEnabled);
+      getSoundEngine().setVolumes({
+        sfx: audioEnabled ? s.sfxVolume : 0,
+        music: audioEnabled ? s.musicVolume : 0,
+      });
+      musicEnabledRef.current = !disableAudioRef.current && !!s.musicOn && !!s.soundOn;
+      musicLibraryRef.current = s.musicLibrary ?? "everything";
     });
-  }, [startLevel]);
+  }, []);
 
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
@@ -437,7 +490,7 @@ export function useGhostMaze(opts?: {
       }
       if (prev.status === "paused") {
         if (musicEnabledRef.current) {
-          getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, prev.bonusGame?.type));
+          getSoundEngine().startMusic(chooseMusicTrack(prev.level, prev.bonusGame?.type, musicLibraryRef.current));
         }
         return { ...prev, status: "playing" };
       }
@@ -457,7 +510,7 @@ export function useGhostMaze(opts?: {
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
         if (musicEnabledRef.current) {
-          getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, prev.bonusGame?.type));
+          getSoundEngine().startMusic(chooseMusicTrack(prev.level, prev.bonusGame?.type, musicLibraryRef.current));
         }
       }
       return;
@@ -726,7 +779,9 @@ export function useGhostMaze(opts?: {
             const normalized = withUnlockedThemes(p);
             progressRef.current = normalized;
             saveProgress(normalized);
-            void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
+            if (canUsePlatformServices()) {
+              void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
+            }
             void syncProgressAchievements(normalized);
           }
           if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
@@ -955,7 +1010,10 @@ export function useGhostMaze(opts?: {
           ...g,
           alive: false,
           permaDead: hardcoreMode,
-          respawnAt: hardcoreMode ? Number.POSITIVE_INFINITY : now + (timeAttackMode ? 0 : delay),
+          respawnAt:
+            hardcoreMode
+              ? Number.POSITIVE_INFINITY
+              : now + (timeAttackMode ? TIME_ATTACK_RESPAWN_DELAY_MS : delay),
           vulnerable: false,
           vulnerableUntil: 0,
         };
@@ -1020,7 +1078,10 @@ export function useGhostMaze(opts?: {
               ...g,
               alive: false,
               permaDead: hardcoreMode,
-              respawnAt: hardcoreMode ? Number.POSITIVE_INFINITY : now + (timeAttackMode ? 0 : delay),
+              respawnAt:
+                hardcoreMode
+                  ? Number.POSITIVE_INFINITY
+                  : now + (timeAttackMode ? TIME_ATTACK_RESPAWN_DELAY_MS : delay),
               vulnerable: false,
               vulnerableUntil: 0,
             };
@@ -1070,7 +1131,11 @@ export function useGhostMaze(opts?: {
               alive: false,
               respawnAt:
                 now +
-                (timeAttackMode ? 0 : goldenGirlsRespawnBoost ? Math.floor(RESPAWN_MS * 0.25) : RESPAWN_MS),
+                (timeAttackMode
+                  ? TIME_ATTACK_RESPAWN_DELAY_MS
+                  : goldenGirlsRespawnBoost
+                    ? Math.floor(RESPAWN_MS * 0.25)
+                    : RESPAWN_MS),
             };
             mutated = true;
 
@@ -1127,10 +1192,12 @@ export function useGhostMaze(opts?: {
                 );
                 progressRef.current = normalized;
                 saveProgress(normalized);
-                void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
+                if (canUsePlatformServices()) {
+                  void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
+                }
                 void syncProgressAchievements(normalized);
               }
-              if (modeRef.current === "classic") {
+              if (modeRef.current === "classic" && canUsePlatformServices()) {
                 void recordClassicLevelBest(
                   prev.level,
                   Math.max(0, score - levelStartScoreRef.current),
@@ -1155,7 +1222,7 @@ export function useGhostMaze(opts?: {
         modeRef.current === "endless" && endlessBlessingsRef.current.secondWind ? 25 : 20;
       if (ghostDeathsThisLevel >= ghostDeathCap) {
         if (timeAttackMode) {
-          startLevel(prev.level, STARTING_LIVES, score);
+          setTimeout(() => startLevel(prev.level, STARTING_LIVES, score), 0);
           return;
         }
         if (modeRef.current === "endless") {
@@ -1198,7 +1265,7 @@ export function useGhostMaze(opts?: {
         }
       } else if (pelletsRemaining <= 0) {
         if (timeAttackMode) {
-          startLevel(prev.level, STARTING_LIVES, score);
+          setTimeout(() => startLevel(prev.level, STARTING_LIVES, score), 0);
           return;
         }
         if (modeRef.current === "endless") {
@@ -1251,7 +1318,7 @@ export function useGhostMaze(opts?: {
         }
         if (aliveGhosts === 0) {
           if (timeAttackMode) {
-            startLevel(prev.level, STARTING_LIVES, score);
+            setTimeout(() => startLevel(prev.level, STARTING_LIVES, score), 0);
             return;
           }
           if (modeRef.current === "endless") {

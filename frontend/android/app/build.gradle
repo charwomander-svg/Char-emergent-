@@ -101,6 +101,7 @@ android {
         applicationId 'dev.charware.ghost_maze'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 24
         versionCode resolvedVersionCode
         versionName "1.0.0"
 

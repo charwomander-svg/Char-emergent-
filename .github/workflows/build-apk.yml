@@ -1,7 +1,11 @@
-name: Build Android Release Artifacts
+name: Build Android Release Artifacts (AAB Only)
 
 on:
   workflow_dispatch:
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -40,14 +44,14 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
-      - name: Build signed Android AAB and APK
+      - name: Build signed Android AAB
         working-directory: frontend/android
         env:
           EXPO_PUBLIC_BACKEND_URL: https://ghost-maze-backend.onrender.com
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease assembleRelease
+        run: ./gradlew bundleRelease --no-daemon
 
       - name: Verify artifact signing certificate
         working-directory: frontend/android
@@ -62,11 +66,4 @@ jobs:
         with:
           name: ghost-maze-production-aab
           path: frontend/android/app/build/outputs/bundle/release/*.aab
-          retention-days: 30
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ghost-maze-production-apk
-          path: frontend/android/app/build/outputs/apk/release/*.apk
           retention-days: 30
