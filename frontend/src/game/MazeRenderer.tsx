@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Easing, Text } from "react-native";
-import type { BonusGameState, CellType, Ghost, PelletGuy } from "@/src/game/types";
+import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
+import type { BonusGameState } from "@/src/game/bonusGame";
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED } from "@/src/game/constants";
 
@@ -598,17 +599,26 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
           <View
             style={{
               position: "absolute",
-              right: size * 0.02,
-              top: size * 0.19,
-              width: 0,
-              height: 0,
-              borderTopWidth: size * 0.18,
-              borderBottomWidth: size * 0.18,
-              borderLeftWidth: size * 0.3,
-              borderTopColor: "transparent",
-              borderBottomColor: "transparent",
-              borderLeftColor: vulnerable ? "#FFFFFF" : COLORS.background,
-            }}
+              left: size * 0.425,
+              top: 0,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
+              transform: [{ skewY: "-25deg" }],
+              transformOrigin: "left bottom",
+            } as any}
+          />
+          <View
+            style={{
+              position: "absolute",
+              left: size * 0.425,
+              top: size * 0.425,
+              width: size * 0.5,
+              height: size * 0.425,
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
+              transform: [{ skewY: "25deg" }],
+              transformOrigin: "left top",
+            } as any}
           />
         </Animated.View>
       </View>
@@ -635,7 +645,6 @@ export default function MazeRenderer({
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
   const wallPalette = getWallPalette(level);
-  const useStaticSprites = false;
 
   return (
     <View
@@ -674,139 +683,74 @@ export default function MazeRenderer({
           pointerEvents: "none",
         }}
       >
-        {useStaticSprites ? (
-          <>
-            {bonusGame &&
-              bonusGame.items
-                .filter((item) => !item.collected)
-                .map((item, idx) => (
-                  <View
-                    key={`bonus-${idx}`}
-                    style={{
-                      position: "absolute",
-                      left: item.x * cellSize,
-                      top: item.y * cellSize,
-                      width: cellSize,
-                      height: cellSize,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: cellSize * 0.6, lineHeight: cellSize }}>
-                      {bonusGame.type === "powerHunt" ? "🟡" : BONUS_CONFIG[bonusGame.type].emoji}
-                    </Text>
-                  </View>
-                ))}
-            {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
-              <View
-                style={{
-                  position: "absolute",
-                  left: bonusGame.huntPellet.x * cellSize,
-                  top: bonusGame.huntPellet.y * cellSize,
-                  width: cellSize,
-                  height: cellSize,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={{ fontSize: cellSize * 0.6, lineHeight: cellSize }}>🟡</Text>
-              </View>
-            )}
-            {!bonusGame && (
-              <PelletGuySprite
-                pg={pelletGuy}
-                size={cellSize}
-                moveDuration={0}
-                visualScale={1}
-                highContrast={highContrast}
-              />
-            )}
-            {ghosts
-              .filter((g) => !bonusGame || g.id === selectedGhostId)
-              .map((ghost) => (
-                <GhostSprite
-                  key={ghost.id}
-                  ghost={ghost}
+        {/* Bonus game items */}
+        {bonusGame &&
+          bonusGame.items
+            .filter((item) => !item.collected)
+            .map((item, idx) =>
+              bonusGame.type === "powerHunt" ? (
+                <PelletGuySprite
+                  key={idx}
+                  pg={{
+                    x: item.x,
+                    y: item.y,
+                    spawnX: item.x,
+                    spawnY: item.y,
+                    direction: "left",
+                    alive: true,
+                    respawnAt: 0,
+                  }}
                   size={cellSize}
-                  selected={ghost.id === selectedGhostId}
-                  ready={ready}
                   moveDuration={0}
+                  visualScale={0.92}
+                  vulnerable
                   highContrast={highContrast}
                 />
-              ))}
-          </>
-        ) : (
-          <>
-            {/* Bonus game items */}
-            {bonusGame &&
-              bonusGame.items
-                .filter((item) => !item.collected)
-                .map((item, idx) =>
-                  bonusGame.type === "powerHunt" ? (
-                    <PelletGuySprite
-                      key={idx}
-                      pg={{
-                        x: item.x,
-                        y: item.y,
-                        spawnX: item.x,
-                        spawnY: item.y,
-                        direction: "left",
-                        alive: true,
-                        respawnAt: 0,
-                      }}
-                      size={cellSize}
-                      moveDuration={0}
-                      visualScale={0.92}
-                      vulnerable
-                      highContrast={highContrast}
-                    />
-                  ) : (
-                    <BonusItemSprite
-                      key={idx}
-                      x={item.x}
-                      y={item.y}
-                      size={cellSize}
-                      emoji={BONUS_CONFIG[bonusGame.type].emoji}
-                      moveDuration={pgDuration}
-                      moving={false}
-                    />
-                  ),
-                )}
-            {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
-              <BonusItemSprite
-                x={bonusGame.huntPellet.x}
-                y={bonusGame.huntPellet.y}
-                size={cellSize}
-                emoji="🟡"
-                moveDuration={0}
-                moving={false}
-              />
-            )}
-            {/* Pellet Guy — hidden during bonus rounds */}
-            {!bonusGame && (
-              <PelletGuySprite
-                pg={pelletGuy}
-                size={cellSize}
-                moveDuration={pgDuration}
-                visualScale={1}
-                highContrast={highContrast}
-              />
-            )}
-            {ghosts
-              .filter((g) => !bonusGame || g.id === selectedGhostId)
-              .map((g) => (
-                <GhostSprite
-                  key={g.id}
-                  ghost={g}
+              ) : (
+                <BonusItemSprite
+                  key={idx}
+                  x={item.x}
+                  y={item.y}
                   size={cellSize}
-                  selected={g.id === selectedGhostId}
-                  ready={ready}
-                  moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
-                  highContrast={highContrast}
+                  emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                  moveDuration={pgDuration}
+                  moving={false}
                 />
-              ))}
-          </>
+              ),
+            )}
+        {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
+          <BonusItemSprite
+            x={bonusGame.huntPellet.x}
+            y={bonusGame.huntPellet.y}
+            size={cellSize}
+            emoji="🟡"
+            moveDuration={0}
+            moving={false}
+          />
         )}
+        {/* Pellet Guy — hidden during bonus rounds */}
+        {!bonusGame && (
+          <PelletGuySprite
+            pg={pelletGuy}
+            size={cellSize}
+            moveDuration={pgDuration}
+            visualScale={1}
+            highContrast={highContrast}
+          />
+        )}
+        {ghosts
+          .filter((g) => !bonusGame || g.id === selectedGhostId)
+          .map((g) => (
+          <GhostSprite
+            key={g.id}
+            ghost={g}
+            size={cellSize}
+            selected={g.id === selectedGhostId}
+            ready={ready}
+            moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
+            highContrast={highContrast}
+          />
+        ))}
       </View>
     </View>
   );

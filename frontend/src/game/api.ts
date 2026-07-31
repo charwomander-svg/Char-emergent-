@@ -50,17 +50,6 @@ export interface PromoRedeemResponse {
   rewards: PromoRewards;
 }
 
-export interface NewsItem {
-  title: string;
-  date: string;
-  body: string;
-}
-
-export interface ApiVersionInfo {
-  build: string;
-  built_in_promo_codes?: string[];
-}
-
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
@@ -112,12 +101,4 @@ export async function redeemPromoCode(code: string, playerId: string): Promise<P
       player_id: playerId,
     }),
   });
-}
-
-export async function fetchNewsItems(): Promise<NewsItem[]> {
-  return http<NewsItem[]>("/news");
-}
-
-export async function fetchApiVersion(): Promise<ApiVersionInfo> {
-  return http<ApiVersionInfo>("/version");
 }

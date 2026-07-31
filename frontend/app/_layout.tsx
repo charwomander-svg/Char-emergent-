@@ -1,19 +1,24 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
-import { Platform, View, Image, StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform } from "react-native";
+import { View, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { useFullscreen } from "@/src/utils/useFullscreen";
 
-if (Platform.OS !== "web") {
-  SplashScreen.preventAutoHideAsync();
-}
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [webMounted, setWebMounted] = useState(false);
   const [loaded, error] = useIconFonts();
 
   useFullscreen({ autoEnter: Platform.OS !== "web" });
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    setWebMounted(true);
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -23,6 +28,17 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   if (Platform.OS === "web") {
+    if (!webMounted) {
+      return (
+        <View style={styles.splash}>
+          <Image
+            source={require("../assets/images/app-image.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    }
     return <Stack screenOptions={{ headerShown: false }} />;
   }
 
