@@ -152,7 +152,34 @@ const INSTRUMETAL_TRACKS: MusicTrack[] = [
   "instrumetalVelocityRupture",
   "instrumetalViciousImpact",
 ];
-const ALL_MUSIC_TRACKS: MusicTrack[] = Array.from(new Set(Object.keys(MUSIC_SOURCES) as MusicTrack[]));
+function getObjectKeys<T extends string>(record: Partial<Record<T, unknown>>): T[] {
+  return Object.keys(record) as T[];
+}
+
+function getObjectEntries<T extends string, V>(record: Partial<Record<T, V>>): [T, V][] {
+  return getObjectKeys(record).map((key) => [key, record[key] as V]);
+}
+
+function getObjectValues<T>(record: Record<string, T | undefined>): T[] {
+  const values: T[] = [];
+  for (const key in record) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const value = record[key];
+    if (value !== undefined) values.push(value);
+  }
+  return values;
+}
+
+const ALL_MUSIC_TRACKS: MusicTrack[] = (() => {
+  const seen: Partial<Record<MusicTrack, true>> = {};
+  const tracks: MusicTrack[] = [];
+  for (const track of getObjectKeys(MUSIC_SOURCES)) {
+    if (seen[track]) continue;
+    seen[track] = true;
+    tracks.push(track);
+  }
+  return tracks;
+})();
 const SFX_GAIN_MULTIPLIER: Record<SfxKey, number> = {
   chomp: 1,
   pellet: 1,
@@ -235,9 +262,13 @@ export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; 
   { id: "instr-vicious-impact", label: "Instrumetal: Vicious Impact", track: "instrumetalViciousImpact", description: "Instrumetal album" },
 ];
 
-const TRACK_LABEL_BY_ID = Object.fromEntries(
-  SOUND_TEST_TRACKS.map((entry) => [entry.track, entry.label]),
-) as Record<MusicTrack, string>;
+const TRACK_LABEL_BY_ID: Record<MusicTrack, string> = (() => {
+  const labels = {} as Record<MusicTrack, string>;
+  for (const entry of SOUND_TEST_TRACKS) {
+    labels[entry.track] = entry.label;
+  }
+  return labels;
+})();
 
 export function getMusicTrackLabel(track: MusicTrack): string {
   return TRACK_LABEL_BY_ID[track] ?? track;
@@ -337,7 +368,7 @@ function getMusicTargetVolume() {
 
 function applyMusicVolumeNow() {
   const target = getMusicTargetVolume();
-  (Object.values(musicPlayers) as (AudioPlayer | undefined)[]).forEach((player) => {
+  getObjectValues(musicPlayers).forEach((player) => {
     if (!player) return;
     player.volume = target;
   });
@@ -392,7 +423,7 @@ export function createSoundEngine(): SoundEngine {
     setVolumes(volumes) {
       sfxVolume = clamp01(volumes.sfx);
       musicBaseVolume = clamp01(volumes.music);
-      Object.entries(pools).forEach(([key, pool]) => {
+      getObjectEntries(pools).forEach(([key, pool]) => {
         const sfxKey = key as SfxKey;
         pool?.players.forEach((player) => {
           player.volume = getSfxVolumeForKey(sfxKey);
