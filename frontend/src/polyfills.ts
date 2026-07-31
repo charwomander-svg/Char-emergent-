@@ -1,3 +1,5 @@
+/* eslint-disable no-extend-native */
+
 const objectCtor = Object as typeof Object & {
   entries?: <T>(record: Record<string, T>) => [string, T][];
   values?: <T>(record: Record<string, T>) => T[];
@@ -45,7 +47,8 @@ if (!String.prototype.padStart) {
   Object.defineProperty(String.prototype, "padStart", {
     value(targetLength: number, padString?: string) {
       const input = String(this);
-      const length = Number.isFinite(targetLength) ? Math.max(0, Math.floor(targetLength)) : 0;
+      const length =
+        typeof targetLength === "number" && isFinite(targetLength) ? Math.max(0, Math.floor(targetLength)) : 0;
       if (input.length >= length) return input;
       const filler = String(padString ?? " ") || " ";
       let padding = "";
