@@ -35,13 +35,14 @@ const ICON_FAMILIES = [
 
 type IconFamily = (typeof ICON_FAMILIES)[number];
 
-const iconFontMap = (): Record<IconFamily, string> =>
-  Object.fromEntries(
-    ICON_FAMILIES.map((f) => [
-      f,
-      `https://cdn.jsdelivr.net/npm/@expo/vector-icons@${ICON_VECTOR_VERSION}/build/vendor/react-native-vector-icons/Fonts/${f}.ttf`,
-    ]),
-  ) as Record<IconFamily, string>;
+const iconFontMap = (): Record<IconFamily, string> => {
+  const fonts = {} as Record<IconFamily, string>;
+  for (const family of ICON_FAMILIES) {
+    fonts[family] =
+      `https://cdn.jsdelivr.net/npm/@expo/vector-icons@${ICON_VECTOR_VERSION}/build/vendor/react-native-vector-icons/Fonts/${family}.ttf`;
+  }
+  return fonts;
+};
 
 const nativeIconFontMap = (): Record<IconFamily, number> => ({
   AntDesign: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf"),
