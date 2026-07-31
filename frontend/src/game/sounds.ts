@@ -1,9 +1,7 @@
 // Hybrid sound engine: bundled WAV files via expo-audio on all platforms.
 
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
-import type { BonusGameType } from "./types";
-
-export type MusicLibraryMode = "chiptunes" | "instrumetal" | "everything";
+import type { BonusGameType } from "./bonusGame";
 
 type SfxKey =
   | "chomp"
@@ -24,39 +22,7 @@ export type MusicTrack =
   | "bonus"
   | "bonusHunt"
   | "instrumetalA"
-  | "instrumetalB"
-  | "instrumetalCloudy1"
-  | "instrumetalAbruptTrauma"
-  | "instrumetalApexVelocityExtended"
-  | "instrumetalBluntForce"
-  | "instrumetalBluntForceTrauma"
-  | "instrumetalCursedMeatFreezerSurgeV2"
-  | "instrumetalCursedServerSpeedrunMachineGunFillEdit"
-  | "instrumetalCursedServerSpeedrunTake1"
-  | "instrumetalCursedServerSpeedrunTotalDisintegration"
-  | "instrumetalDigitalObliteration"
-  | "instrumetalDrumfire"
-  | "instrumetalFatalOverride"
-  | "instrumetalForceOverload"
-  | "instrumetalGravityHammer"
-  | "instrumetalGutterTrauma"
-  | "instrumetalHyperShrapnel"
-  | "instrumetalHyperShrapnelChaosExtension"
-  | "instrumetalHypervelocityRuin"
-  | "instrumetalKineticErasure"
-  | "instrumetalKineticRupture"
-  | "instrumetalKineticRupture1"
-  | "instrumetalMachVelocity"
-  | "instrumetalMachineGunSnareMalfunction"
-  | "instrumetalMechanicalSurvivalCheckV1"
-  | "instrumetalOrbitalSawbladeIcySynthEdition"
-  | "instrumetalRecoil"
-  | "instrumetalRiffReactorCriticalBlastbeatMix"
-  | "instrumetalSingularityRupture"
-  | "instrumetalSonicAnnihilationV2MaximumSpeed"
-  | "instrumetalTotalKineticFailure"
-  | "instrumetalVelocityRupture"
-  | "instrumetalViciousImpact";
+  | "instrumetalB";
 
 // Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
 const SFX_SOURCES: Record<SfxKey, number> = {
@@ -81,115 +47,15 @@ const MUSIC_SOURCES: Record<MusicTrack, number> = {
   bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
   instrumetalA: require("@/assets/sounds/cloudy.mp3"),
   instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
-  instrumetalCloudy1: require("@/assets/sounds/cloudy1.mp3"),
-  instrumetalAbruptTrauma: require("@/assets/sounds/Abrupt Trauma.mp3"),
-  instrumetalApexVelocityExtended: require("@/assets/sounds/Apex Velocity Extended.mp3"),
-  instrumetalBluntForce: require("@/assets/sounds/Blunt Force.mp3"),
-  instrumetalBluntForceTrauma: require("@/assets/sounds/Blunt Force Trauma.mp3"),
-  instrumetalCursedMeatFreezerSurgeV2: require("@/assets/sounds/Cursed Meat Freezer Surge (V2).mp3"),
-  instrumetalCursedServerSpeedrunMachineGunFillEdit: require("@/assets/sounds/Cursed Server Speedrun (Machine-Gun Fill Edit).mp3"),
-  instrumetalCursedServerSpeedrunTake1: require("@/assets/sounds/Cursed Server Speedrun (Take 1).mp3"),
-  instrumetalCursedServerSpeedrunTotalDisintegration: require("@/assets/sounds/Cursed Server Speedrun (Total Disintegration).mp3"),
-  instrumetalDigitalObliteration: require("@/assets/sounds/Digital Obliteration.mp3"),
-  instrumetalDrumfire: require("@/assets/sounds/Drumfire.mp3"),
-  instrumetalFatalOverride: require("@/assets/sounds/Fatal Override.mp3"),
-  instrumetalForceOverload: require("@/assets/sounds/Force Overload.mp3"),
-  instrumetalGravityHammer: require("@/assets/sounds/Gravity Hammer.mp3"),
-  instrumetalGutterTrauma: require("@/assets/sounds/Gutter Trauma.mp3"),
-  instrumetalHyperShrapnel: require("@/assets/sounds/Hyper Shrapnel.mp3"),
-  instrumetalHyperShrapnelChaosExtension: require("@/assets/sounds/Hyper Shrapnel (Chaos Extension).mp3"),
-  instrumetalHypervelocityRuin: require("@/assets/sounds/Hypervelocity Ruin.mp3"),
-  instrumetalKineticErasure: require("@/assets/sounds/Kinetic Erasure.mp3"),
-  instrumetalKineticRupture: require("@/assets/sounds/Kinetic Rupture.mp3"),
-  instrumetalKineticRupture1: require("@/assets/sounds/Kinetic Rupture (1).mp3"),
-  instrumetalMachVelocity: require("@/assets/sounds/Mach Velocity.mp3"),
-  instrumetalMachineGunSnareMalfunction: require("@/assets/sounds/Machine-Gun Snare Malfunction.mp3"),
-  instrumetalMechanicalSurvivalCheckV1: require("@/assets/sounds/Mechanical Survival Check (V1).mp3"),
-  instrumetalOrbitalSawbladeIcySynthEdition: require("@/assets/sounds/Orbital Sawblade (Icy Synth Edition).mp3"),
-  instrumetalRecoil: require("@/assets/sounds/Recoil.mp3"),
-  instrumetalRiffReactorCriticalBlastbeatMix: require("@/assets/sounds/Riff Reactor Critical (Blastbeat Mix).mp3"),
-  instrumetalSingularityRupture: require("@/assets/sounds/Singularity Rupture.mp3"),
-  instrumetalSonicAnnihilationV2MaximumSpeed: require("@/assets/sounds/Sonic Annihilation V2 (Maximum Speed).mp3"),
-  instrumetalTotalKineticFailure: require("@/assets/sounds/Total Kinetic Failure.mp3"),
-  instrumetalVelocityRupture: require("@/assets/sounds/Velocity Rupture.mp3"),
-  instrumetalViciousImpact: require("@/assets/sounds/Vicious Impact.mp3"),
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
-const INSTRUMETAL_TRACKS: MusicTrack[] = [
-  "instrumetalA",
-  "instrumetalB",
-  "instrumetalCloudy1",
-  "instrumetalAbruptTrauma",
-  "instrumetalApexVelocityExtended",
-  "instrumetalBluntForce",
-  "instrumetalBluntForceTrauma",
-  "instrumetalCursedMeatFreezerSurgeV2",
-  "instrumetalCursedServerSpeedrunMachineGunFillEdit",
-  "instrumetalCursedServerSpeedrunTake1",
-  "instrumetalCursedServerSpeedrunTotalDisintegration",
-  "instrumetalDigitalObliteration",
-  "instrumetalDrumfire",
-  "instrumetalFatalOverride",
-  "instrumetalForceOverload",
-  "instrumetalGravityHammer",
-  "instrumetalGutterTrauma",
-  "instrumetalHyperShrapnel",
-  "instrumetalHyperShrapnelChaosExtension",
-  "instrumetalHypervelocityRuin",
-  "instrumetalKineticErasure",
-  "instrumetalKineticRupture",
-  "instrumetalKineticRupture1",
-  "instrumetalMachVelocity",
-  "instrumetalMachineGunSnareMalfunction",
-  "instrumetalMechanicalSurvivalCheckV1",
-  "instrumetalOrbitalSawbladeIcySynthEdition",
-  "instrumetalRecoil",
-  "instrumetalRiffReactorCriticalBlastbeatMix",
-  "instrumetalSingularityRupture",
-  "instrumetalSonicAnnihilationV2MaximumSpeed",
-  "instrumetalTotalKineticFailure",
-  "instrumetalVelocityRupture",
-  "instrumetalViciousImpact",
-];
-const ALL_MUSIC_TRACKS: MusicTrack[] = Array.from(new Set(Object.keys(MUSIC_SOURCES) as MusicTrack[]));
-const SFX_GAIN_MULTIPLIER: Record<SfxKey, number> = {
-  chomp: 1,
-  pellet: 1,
-  super: 0.9,
-  catch: 0.2,
-  combo: 0.75,
-  ghostEaten: 0.2,
-  death: 0.7,
-  win: 0.9,
-  lose: 0.9,
-  uiClick: 0.8,
-};
 
 export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType | null): MusicTrack {
   if (bonusType) return bonusType === "powerHunt" ? "bonusHunt" : "bonus";
   const safeLevel = Math.max(1, Math.floor(level));
   const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
   return LEVEL_MUSIC_ROTATION[tierIndex];
-}
-
-function randomTrackFrom(list: MusicTrack[]): MusicTrack {
-  if (list.length === 0) return "main";
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-export function chooseMusicTrack(
-  level: number,
-  bonusType: BonusGameType | null | undefined,
-  library: MusicLibraryMode,
-): MusicTrack {
-  if (library === "instrumetal") return randomTrackFrom(INSTRUMETAL_TRACKS);
-  if (library === "chiptunes") return getMusicTrackForLevel(level, bonusType);
-  return randomTrackFrom(ALL_MUSIC_TRACKS);
-}
-
-function getSfxVolumeForKey(key: SfxKey): number {
-  return clamp01(sfxVolume * (SFX_GAIN_MULTIPLIER[key] ?? 1));
 }
 
 export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
@@ -201,38 +67,6 @@ export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; 
   { id: "bonus-hunt", label: "Bonus Hunt Theme", track: "bonusHunt", description: "Power Hunt levels" },
   { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
   { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
-  { id: "instr-cloudy-1", label: "Instrumetal: cloudy1", track: "instrumetalCloudy1", description: "Instrumetal album" },
-  { id: "instr-abrupt-trauma", label: "Instrumetal: Abrupt Trauma", track: "instrumetalAbruptTrauma", description: "Instrumetal album" },
-  { id: "instr-apex-velocity-extended", label: "Instrumetal: Apex Velocity Extended", track: "instrumetalApexVelocityExtended", description: "Instrumetal album" },
-  { id: "instr-blunt-force", label: "Instrumetal: Blunt Force", track: "instrumetalBluntForce", description: "Instrumetal album" },
-  { id: "instr-blunt-force-trauma", label: "Instrumetal: Blunt Force Trauma", track: "instrumetalBluntForceTrauma", description: "Instrumetal album" },
-  { id: "instr-cursed-meat-freezer-surge-v2", label: "Instrumetal: Cursed Meat Freezer Surge (V2)", track: "instrumetalCursedMeatFreezerSurgeV2", description: "Instrumetal album" },
-  { id: "instr-cursed-server-machine-gun", label: "Instrumetal: Cursed Server Speedrun (Machine-Gun Fill Edit)", track: "instrumetalCursedServerSpeedrunMachineGunFillEdit", description: "Instrumetal album" },
-  { id: "instr-cursed-server-take-1", label: "Instrumetal: Cursed Server Speedrun (Take 1)", track: "instrumetalCursedServerSpeedrunTake1", description: "Instrumetal album" },
-  { id: "instr-cursed-server-total-disintegration", label: "Instrumetal: Cursed Server Speedrun (Total Disintegration)", track: "instrumetalCursedServerSpeedrunTotalDisintegration", description: "Instrumetal album" },
-  { id: "instr-digital-obliteration", label: "Instrumetal: Digital Obliteration", track: "instrumetalDigitalObliteration", description: "Instrumetal album" },
-  { id: "instr-drumfire", label: "Instrumetal: Drumfire", track: "instrumetalDrumfire", description: "Instrumetal album" },
-  { id: "instr-fatal-override", label: "Instrumetal: Fatal Override", track: "instrumetalFatalOverride", description: "Instrumetal album" },
-  { id: "instr-force-overload", label: "Instrumetal: Force Overload", track: "instrumetalForceOverload", description: "Instrumetal album" },
-  { id: "instr-gravity-hammer", label: "Instrumetal: Gravity Hammer", track: "instrumetalGravityHammer", description: "Instrumetal album" },
-  { id: "instr-gutter-trauma", label: "Instrumetal: Gutter Trauma", track: "instrumetalGutterTrauma", description: "Instrumetal album" },
-  { id: "instr-hyper-shrapnel", label: "Instrumetal: Hyper Shrapnel", track: "instrumetalHyperShrapnel", description: "Instrumetal album" },
-  { id: "instr-hyper-shrapnel-chaos-extension", label: "Instrumetal: Hyper Shrapnel (Chaos Extension)", track: "instrumetalHyperShrapnelChaosExtension", description: "Instrumetal album" },
-  { id: "instr-hypervelocity-ruin", label: "Instrumetal: Hypervelocity Ruin", track: "instrumetalHypervelocityRuin", description: "Instrumetal album" },
-  { id: "instr-kinetic-erasure", label: "Instrumetal: Kinetic Erasure", track: "instrumetalKineticErasure", description: "Instrumetal album" },
-  { id: "instr-kinetic-rupture", label: "Instrumetal: Kinetic Rupture", track: "instrumetalKineticRupture", description: "Instrumetal album" },
-  { id: "instr-kinetic-rupture-1", label: "Instrumetal: Kinetic Rupture (1)", track: "instrumetalKineticRupture1", description: "Instrumetal album" },
-  { id: "instr-mach-velocity", label: "Instrumetal: Mach Velocity", track: "instrumetalMachVelocity", description: "Instrumetal album" },
-  { id: "instr-machine-gun-snare-malfunction", label: "Instrumetal: Machine-Gun Snare Malfunction", track: "instrumetalMachineGunSnareMalfunction", description: "Instrumetal album" },
-  { id: "instr-mechanical-survival-check-v1", label: "Instrumetal: Mechanical Survival Check (V1)", track: "instrumetalMechanicalSurvivalCheckV1", description: "Instrumetal album" },
-  { id: "instr-orbital-sawblade", label: "Instrumetal: Orbital Sawblade (Icy Synth Edition)", track: "instrumetalOrbitalSawbladeIcySynthEdition", description: "Instrumetal album" },
-  { id: "instr-recoil", label: "Instrumetal: Recoil", track: "instrumetalRecoil", description: "Instrumetal album" },
-  { id: "instr-riff-reactor-critical", label: "Instrumetal: Riff Reactor Critical (Blastbeat Mix)", track: "instrumetalRiffReactorCriticalBlastbeatMix", description: "Instrumetal album" },
-  { id: "instr-singularity-rupture", label: "Instrumetal: Singularity Rupture", track: "instrumetalSingularityRupture", description: "Instrumetal album" },
-  { id: "instr-sonic-annihilation-v2", label: "Instrumetal: Sonic Annihilation V2 (Maximum Speed)", track: "instrumetalSonicAnnihilationV2MaximumSpeed", description: "Instrumetal album" },
-  { id: "instr-total-kinetic-failure", label: "Instrumetal: Total Kinetic Failure", track: "instrumetalTotalKineticFailure", description: "Instrumetal album" },
-  { id: "instr-velocity-rupture", label: "Instrumetal: Velocity Rupture", track: "instrumetalVelocityRupture", description: "Instrumetal album" },
-  { id: "instr-vicious-impact", label: "Instrumetal: Vicious Impact", track: "instrumetalViciousImpact", description: "Instrumetal album" },
 ];
 
 const TRACK_LABEL_BY_ID = Object.fromEntries(
@@ -280,7 +114,7 @@ function getPool(key: SfxKey): Pool | null {
     const players: AudioPlayer[] = [];
     for (let i = 0; i < POOL_SIZE; i++) {
       const player = createAudioPlayer(SFX_SOURCES[key]);
-      player.volume = getSfxVolumeForKey(key);
+      player.volume = sfxVolume;
       players.push(player);
     }
     p = { players, next: 0 };
@@ -392,10 +226,9 @@ export function createSoundEngine(): SoundEngine {
     setVolumes(volumes) {
       sfxVolume = clamp01(volumes.sfx);
       musicBaseVolume = clamp01(volumes.music);
-      Object.entries(pools).forEach(([key, pool]) => {
-        const sfxKey = key as SfxKey;
+      Object.values(pools).forEach((pool) => {
         pool?.players.forEach((player) => {
-          player.volume = getSfxVolumeForKey(sfxKey);
+          player.volume = sfxVolume;
         });
       });
       applyMusicVolumeNow();
