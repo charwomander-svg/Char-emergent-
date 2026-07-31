@@ -93,6 +93,6 @@ export interface GameState {
   effects: ActiveEffects;
   // Bonus game state — non-null only on bonus levels (every 5 levels).
   // Drives the timer-based bonus round mechanic (Rally Round, Galaga Blitz,
-  // Dig Dug Dash) instead of the old boss fight system.
+  // Dig Dug Dash).
   bonusGame: BonusGameState | null;
 }

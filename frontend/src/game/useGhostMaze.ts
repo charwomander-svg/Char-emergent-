@@ -1099,9 +1099,7 @@ export function useGhostMaze(opts?: {
           } else {
             if (effectsNext.teamPhaseUntil > now) continue;
             // ------------------------------------------------------------
-            // Ghost catches Pellet Guy. On boss levels each catch deals
-            // 1 HP — third catch (HP=0) is treated as a level win with a
-            // big bonus.
+            // Ghost catches Pellet Guy.
             // ------------------------------------------------------------
             catches++;
             lastCatchAtRef.current = now;

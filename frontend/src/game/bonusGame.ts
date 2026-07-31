@@ -1,8 +1,8 @@
 // ============================================================================
 // Bonus Games — Ghost Maze
 // ----------------------------------------------------------------------------
-// Every 5 levels (5, 10, 15 …) triggers a carefree bonus stage instead of
-// a boss fight. Hunt appears every 10th level; others rotate on the 5s:
+// Every 5 levels (5, 10, 15 …) triggers a carefree bonus stage.
+// Hunt appears every 10th level; others rotate on the 5s:
 //   - 5, 15, 25, 35, 45   => Rally, Cherry, Timer, Rally, Cherry...
 //   - 10, 20, 30, 40, 50  => Power Hunt
 //
