@@ -7,6 +7,10 @@ export interface Product {
 export interface Purchase {
   productId?: string | null;
   productIds?: string[] | null;
+  purchaseToken?: string | null;
+  transactionId?: string | null;
+  orderId?: string | null;
+  transactionDate?: number | string | null;
 }
 
 export interface PurchaseError {
