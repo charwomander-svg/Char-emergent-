@@ -76,16 +76,20 @@ export default function MainMenu() {
       const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
       setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
     });
-    storage.getItem(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
+    storage.getItem<string>(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
       if (seen !== RELEASE_NOTES_VERSION) {
         setShowReleaseNotes(true);
       }
     });
-    storage.getItem(PROMO_HISTORY_KEY, null).then((value) => {
-      if (!mounted || !value || typeof value !== "object") return;
-      const maybe = value as PromoHistoryEntry;
-      if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
-      setPromoHistory(maybe);
+    storage.getItem<string>(PROMO_HISTORY_KEY, "").then((value) => {
+      if (!mounted || !value) return;
+      try {
+        const maybe = JSON.parse(value) as PromoHistoryEntry;
+        if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
+        setPromoHistory(maybe);
+      } catch {
+        // Ignore malformed legacy entries.
+      }
     });
     return () => {
       mounted = false;
@@ -159,7 +163,7 @@ export default function MainMenu() {
         summary: message,
       };
       setPromoHistory(history);
-      void storage.setItem(PROMO_HISTORY_KEY, history);
+      void storage.setItem(PROMO_HISTORY_KEY, JSON.stringify(history));
       Alert.alert("Code redeemed", message);
       setPromoCode("");
     } catch (error) {

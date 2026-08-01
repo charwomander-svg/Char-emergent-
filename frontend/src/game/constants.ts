@@ -34,7 +34,6 @@ export const SPEED = {
 };
 
 // Power-up balance
-// Power-up balance
 export const SUPER_PELLET_DURATION_MS = 6000;
 export const SUPER_PELLET_RESPAWN_MS = 19000;
 export const COMBO_WINDOW_MS = 1500;
@@ -74,6 +73,13 @@ export const SCORE_COMBO_BONUS = 300; // per extra ghost in combo
 export const SCORE_PER_PERCENT_REMAINING = 20; // level-end bonus
 export const SCORE_GHOST_EAT = 400; // points for pellet-guy eating a vulnerable ghost
 export const SCORE_SHINY_CATCH = 1000; // bonus points for catching shiny pellet guy
+
+export function getLevelSpeedScale(level: number): number {
+  // Levels 1-10: steep ramp (1.0 -> 0.55), levels 11-50: gentler ramp.
+  const safeLevel = Math.max(1, Math.floor(level));
+  if (safeLevel <= 10) return Math.max(0.55, 1 - (safeLevel - 1) * 0.05);
+  return Math.max(0.31, 0.55 - (safeLevel - 10) * 0.006);
+}
 
 // Shiny Pellet Guy tuning
 export const SHINY_ROLL_INTERVAL_MS = 12000;

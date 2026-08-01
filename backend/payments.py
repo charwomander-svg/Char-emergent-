@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Literal
 
@@ -243,12 +244,12 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
 
     @router.post("/session", response_model=CreateCheckoutResponse)
     async def create_checkout_session(body: CreateCheckoutRequest, request: Request):
-        if not stripe.api_key:
-            raise HTTPException(status_code=503, detail="Payments not configured")
-
         pack = COIN_PACKS.get(body.pack_id)
         if not pack:
             raise HTTPException(status_code=400, detail="Unknown pack_id")
+
+        if not stripe.api_key:
+            raise HTTPException(status_code=503, detail="Payments not configured")
 
         # Compute redirect origin: prefer client-supplied (web), fall back to
         # Origin/Referer header, then to EXPO_PUBLIC_BACKEND_URL env (same
@@ -270,7 +271,8 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
         cancel_url = f"{origin}/checkout/cancel"
 
         try:
-            session = stripe.checkout.Session.create(
+            session = await asyncio.to_thread(
+                stripe.checkout.Session.create,
                 mode="payment",
                 payment_method_types=["card"],
                 line_items=[
@@ -336,7 +338,7 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=503, detail="Payments not configured")
 
         try:
-            session = stripe.checkout.Session.retrieve(session_id)
+            session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
         except stripe.error.InvalidRequestError:
             raise HTTPException(status_code=404, detail="Unknown session_id")
         except stripe.error.StripeError as e:
@@ -406,6 +408,9 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
                     secret=webhook_secret,
                 )
             else:
+                api_key = os.environ.get("STRIPE_API_KEY", "")
+                if api_key and not api_key.startswith("sk_test"):
+                    raise HTTPException(status_code=400, detail="Webhook signature required")
                 # Dev mode: accept unsigned events. NOT for production.
                 import json
                 event = json.loads(payload.decode("utf-8"))
@@ -420,10 +425,11 @@ def get_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if event_type == "checkout.session.completed":
             # Need to retrieve full session to get up-to-date payment_status
             try:
-                session = stripe.checkout.Session.retrieve(obj["id"])
+                session = await asyncio.to_thread(stripe.checkout.Session.retrieve, obj["id"])
                 await _fulfill_session(session.to_dict())
             except Exception as e:
                 logger.exception("Webhook fulfillment failed: %s", e)
+                raise HTTPException(status_code=500, detail="Webhook fulfillment failed")
 
         return {"received": True}
 

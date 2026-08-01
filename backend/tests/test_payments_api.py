@@ -6,10 +6,11 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get(
-    "EXPO_PUBLIC_BACKEND_URL", "https://four-ghost-chase.preview.emergentagent.com"
+    "EXPO_PUBLIC_BACKEND_URL", "http://localhost:8000"
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 SUCCESS_ORIGIN = BASE_URL
+STRIPE_CONFIGURED = bool(os.environ.get("STRIPE_API_KEY"))
 
 
 @pytest.fixture(scope="module")
@@ -48,6 +49,7 @@ class TestPacksCatalog:
 
 # -------- /api/checkout/session (POST) --------
 class TestCreateCheckoutSession:
+    @pytest.mark.skipif(not STRIPE_CONFIGURED, reason="Stripe checkout requires STRIPE_API_KEY")
     def test_create_session_returns_stripe_url(self, session):
         player_id = f"test-uuid-{uuid.uuid4().hex[:8]}"
         payload = {
@@ -113,6 +115,7 @@ class TestCreateCheckoutSession:
 
 # -------- /api/checkout/session/{id} (GET) --------
 class TestSessionStatus:
+    @pytest.mark.skipif(not STRIPE_CONFIGURED, reason="Stripe session polling requires STRIPE_API_KEY")
     def test_pending_status_before_payment(self, session):
         sid = getattr(pytest, "shared_session_id", None)
         if not sid:
@@ -127,6 +130,7 @@ class TestSessionStatus:
         # No coins should be granted yet
         assert data.get("coins") in (None, 0)
 
+    @pytest.mark.skipif(not STRIPE_CONFIGURED, reason="Stripe session polling requires STRIPE_API_KEY")
     def test_unknown_session_returns_404(self, session):
         r = session.get(f"{API}/checkout/session/cs_test_doesnotexist_zzz")
         assert r.status_code == 404, r.text

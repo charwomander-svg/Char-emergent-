@@ -2,13 +2,14 @@ from fastapi import FastAPI, APIRouter, HTTPException, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import DuplicateKeyError
+from pymongo import ASCENDING, DESCENDING, ReturnDocument
+from pymongo.errors import DuplicateKeyError, PyMongoError
 import os
 import logging
 import hashlib
 import json
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Literal, Any
 import uuid
 from datetime import datetime, timezone, date
@@ -19,6 +20,12 @@ from payments import get_router as get_payments_router, init_stripe
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 mongo_url = os.getenv('MONGO_URL', '')
 db_name = os.getenv('DB_NAME', 'ghost_maze')
@@ -41,8 +48,18 @@ BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
 
 @app.on_event("startup")
 async def startup_db():
-    if not mongo_url:
+    if not mongo_url or client is None or db is None:
         raise RuntimeError("MONGO_URL environment variable is not set")
+    try:
+        await client.admin.command("ping")
+        await db.scores.create_index([("mode", ASCENDING), ("score", DESCENDING), ("timestamp", ASCENDING)])
+        await db.scores.create_index([("mode", ASCENDING), ("daily_seed_date", ASCENDING), ("score", DESCENDING)])
+        await db.scores.create_index([("mode", ASCENDING), ("run_time_ms", ASCENDING), ("score", DESCENDING)])
+        await db.promo_redemptions.create_index([("code", ASCENDING)])
+        await db.promo_code_counters.create_index([("redeemed_count", ASCENDING)])
+    except PyMongoError as exc:
+        logger.exception("MongoDB startup check failed")
+        raise RuntimeError("MongoDB is not reachable") from exc
 
 
 # ============================================================
@@ -125,6 +142,12 @@ class ScoreSubmission(BaseModel):
             raise ValueError("player_name cannot be blank")
         keep = "".join(c for c in v if c.isalnum() or c in "-_.! ")
         return (keep or "GHOST")[:16]
+
+    @model_validator(mode="after")
+    def validate_mode_requirements(self):
+        if self.mode == "speedrun" and (self.run_time_ms is None or self.run_time_ms <= 0):
+            raise ValueError("run_time_ms must be greater than 0 for speedrun scores")
+        return self
 
 
 class ScoreEntry(BaseModel):
@@ -327,6 +350,20 @@ def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
     return _PROMO_CODES_CACHE
 
 
+def _parse_promo_expiry(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str) and value.strip():
+        normalized = value.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            logger.warning("Ignoring invalid promo expires_at value: %s", value)
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
 @api_router.get("/daily-seed", response_model=DailySeedInfo)
 async def daily_seed():
     d = utc_today_str()
@@ -373,6 +410,8 @@ async def leaderboard(
         query["mode"] = mode
     if mode == "daily":
         query["daily_seed_date"] = daily_seed_date or utc_today_str()
+    if mode == "speedrun":
+        query["run_time_ms"] = {"$gt": 0}
 
     sort_spec = (
         [("run_time_ms", 1), ("score", -1), ("timestamp", 1)]
@@ -387,7 +426,9 @@ async def leaderboard(
 async def leaderboard_summary(
     mode: Literal["classic", "speedrun", "timeattack"] = "classic",
 ):
-    query = {"mode": mode}
+    query: dict[str, Any] = {"mode": mode}
+    if mode == "speedrun":
+        query["run_time_ms"] = {"$gt": 0}
     rows = await db.scores.find(query, {"_id": 0}).to_list(length=None)
     entries = [ScoreEntry(**r) for r in rows]
 
@@ -521,10 +562,14 @@ async def promo_redeem(body: PromoRedeemRequest):
     promo_codes = db.promo_codes
 
     promo = _load_env_promo_codes().get(code)
+    stored_promo = None
     if promo is None:
-        promo = await promo_codes.find_one({"_id": code})
-        if promo is None:
+        stored_promo = await promo_codes.find_one({"_id": code})
+        if stored_promo is None:
             raise HTTPException(status_code=404, detail="Promo code not found")
+        promo = stored_promo
+    else:
+        stored_promo = await promo_codes.find_one({"_id": code}, {"_id": 1})
 
     redemption_period = promo.get("redemption_period")
     redemption_window = utc_today_str() if redemption_period == "daily" else None
@@ -537,10 +582,9 @@ async def promo_redeem(body: PromoRedeemRequest):
     if promo.get("active", True) is False:
         raise HTTPException(status_code=400, detail="Promo code is inactive")
 
-    expires_at = promo.get("expires_at")
-    if isinstance(expires_at, datetime):
+    exp = _parse_promo_expiry(promo.get("expires_at"))
+    if exp is not None:
         now = datetime.now(timezone.utc)
-        exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
         if now > exp:
             raise HTTPException(status_code=400, detail="Promo code expired")
 
@@ -565,23 +609,36 @@ async def promo_redeem(body: PromoRedeemRequest):
         raise HTTPException(status_code=400, detail="Promo code has no rewards configured")
 
     max_redemptions = promo.get("max_redemptions")
-    redeemed_count = int(promo.get("redeemed_count", 0) or 0)
-    if isinstance(max_redemptions, int):
-        if redeemed_count >= max_redemptions:
-            raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
-        if await promo_codes.find_one({"_id": code}, {"_id": 1}) is None:
-            total = await redemptions.count_documents({"code": code})
-            if total >= max_redemptions:
-                raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
-        else:
-            update_result = await promo_codes.update_one(
-                {"_id": code, "redeemed_count": redeemed_count},
-                {"$inc": {"redeemed_count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
-            )
-            if update_result.matched_count == 0:
-                raise HTTPException(status_code=409, detail="Promo redemption conflict, please retry")
-
+    counter_reserved = False
     now = datetime.now(timezone.utc)
+    if isinstance(max_redemptions, int):
+        if stored_promo is None:
+            try:
+                counter = await db.promo_code_counters.find_one_and_update(
+                    {"_id": code, "redeemed_count": {"$lt": max_redemptions}},
+                    {
+                        "$inc": {"redeemed_count": 1},
+                        "$set": {"updated_at": now},
+                        "$setOnInsert": {"created_at": now},
+                    },
+                    upsert=True,
+                    return_document=ReturnDocument.AFTER,
+                )
+            except DuplicateKeyError:
+                counter = None
+            if counter is None:
+                raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
+            counter_reserved = True
+        else:
+            update_result = await promo_codes.find_one_and_update(
+                {"_id": code, "redeemed_count": {"$lt": max_redemptions}},
+                {"$inc": {"redeemed_count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+                return_document=ReturnDocument.AFTER,
+            )
+            if update_result is None:
+                raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
+            counter_reserved = True
+
     try:
         await redemptions.insert_one(
             {
@@ -594,6 +651,9 @@ async def promo_redeem(body: PromoRedeemRequest):
             }
         )
     except DuplicateKeyError:
+        if counter_reserved:
+            target = promo_codes if stored_promo is not None else db.promo_code_counters
+            await target.update_one({"_id": code}, {"$inc": {"redeemed_count": -1}, "$set": {"updated_at": now}})
         message = "Code already redeemed for this player today" if redemption_window else "Code already redeemed for this player"
         raise HTTPException(status_code=409, detail=message)
 
@@ -613,8 +673,9 @@ app.include_router(api_router)
 
 # Stripe payments router (Coin pack purchases)
 init_stripe()
-payments_router = get_payments_router(db)
-app.include_router(payments_router, prefix="/api")
+if db is not None:
+    payments_router = get_payments_router(db)
+    app.include_router(payments_router, prefix="/api")
 
 # CORS — accept comma-separated origins from env, default to "*" for the
 # casual game preview/deployment.
@@ -622,19 +683,14 @@ _cors_env = os.environ.get("CORS_ORIGINS", "*").strip()
 _cors_origins = ["*"] if _cors_env in ("", "*") else [o.strip() for o in _cors_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=_cors_origins != ["*"],
     allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()

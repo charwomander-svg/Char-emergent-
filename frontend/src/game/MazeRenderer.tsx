@@ -3,7 +3,7 @@ import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
-import { COLORS, SPEED } from "@/src/game/constants";
+import { COLORS, SPEED, getLevelSpeedScale } from "@/src/game/constants";
 
 interface Props {
   maze: CellType[][];
@@ -78,10 +78,6 @@ function useSmoothPosition(
   }, [x, y, cellSize, duration, animX, animY]);
 
   return { animX, animY };
-}
-
-function speedScale(level: number): number {
-  return Math.max(0.55, 1 - (level - 1) * 0.05);
 }
 
 function useChompAnimation(duration = 120) {
@@ -640,7 +636,7 @@ export default function MazeRenderer({
   if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
   const height = maze.length * cellSize;
-  const scale = speedScale(level);
+  const scale = getLevelSpeedScale(level);
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
