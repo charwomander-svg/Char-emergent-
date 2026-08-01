@@ -89,6 +89,11 @@ def resolvedVersionCode = (
         ?: System.getenv("VERSION_CODE")
         ?: generatedVersionCode.toString()
 ).toInteger()
+def resolvedVersionName = (
+    findProperty("VERSION_NAME")
+        ?: System.getenv("VERSION_NAME")
+        ?: "1.0.0"
+).toString()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -101,9 +106,8 @@ android {
         applicationId 'dev.charware.ghost_maze'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 24
         versionCode resolvedVersionCode
-        versionName "1.0.0"
+        versionName resolvedVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
         resValue "string", "game_services_project_id", playGamesProjectId
