@@ -157,7 +157,7 @@ function playSfx(key: SfxKey) {
       applyMusicVolumeNow();
     }
     player.seekTo(0);
-    player.play();
+    ignorePlaybackRejection(player.play());
   } catch {}
 }
 
@@ -198,6 +198,14 @@ function applyMusicVolumeNow() {
   });
 }
 
+function ignorePlaybackRejection(result: unknown) {
+  if (!result || typeof result !== "object") return;
+  const maybePromise = result as { catch?: (onRejected: () => void) => unknown };
+  if (typeof maybePromise.catch === "function") {
+    void maybePromise.catch(() => {});
+  }
+}
+
 export function createSoundEngine(): SoundEngine {
   let enabled = true;
   const safePlay = (key: SfxKey) => {
@@ -236,7 +244,7 @@ export function createSoundEngine(): SoundEngine {
       if (!player || player.playing) return;
       try {
         player.seekTo(0);
-        player.play();
+        ignorePlaybackRejection(player.play());
         activeMusicTrack = track;
       } catch {}
     },
