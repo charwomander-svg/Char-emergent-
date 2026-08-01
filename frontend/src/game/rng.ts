@@ -1,6 +1,6 @@
 // Seeded pseudo-random number generator (mulberry32)
 // Deterministic - same seed produces same sequence
-// Used for Daily Challenge mazes so all players get the same maze each day
+// Used for custom challenge mazes so shared seeds generate the same maze
 
 // Polyfill for Math.imul (not available in all JavaScript environments)
 const imul = Math.imul || function(a: number, b: number): number {

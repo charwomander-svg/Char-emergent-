@@ -27,16 +27,13 @@ export function buildScoreCard(opts: {
   score: number;
   level: number;
   catches: number;
-  mode: "classic" | "daily" | "custom";
-  dailyDate?: string;
+  mode: "classic" | "custom";
   seed?: number;
 }): ShareCard {
-  const { playerName, score, level, catches, mode, dailyDate, seed } = opts;
+  const { playerName, score, level, catches, mode, seed } = opts;
   const lines: string[] = [];
   lines.push(`👻 ${APP_NAME} 👻`);
-  if (mode === "daily" && dailyDate) {
-    lines.push(`📅 Daily Challenge · ${dailyDate}`);
-  } else if (mode === "custom" && seed != null) {
+  if (mode === "custom" && seed != null) {
     lines.push(`🎲 Custom Maze · seed ${seed}`);
   } else {
     lines.push(`Classic Run`);

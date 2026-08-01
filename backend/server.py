@@ -6,13 +6,12 @@ from pymongo import ASCENDING, DESCENDING, ReturnDocument
 from pymongo.errors import DuplicateKeyError, PyMongoError
 import os
 import logging
-import hashlib
 import json
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Literal, Any
 import uuid
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
 from urllib.parse import unquote
 
 ROOT_DIR = Path(__file__).parent
@@ -50,7 +49,6 @@ async def startup_db():
     try:
         await client.admin.command("ping")
         await db.scores.create_index([("mode", ASCENDING), ("score", DESCENDING), ("timestamp", ASCENDING)])
-        await db.scores.create_index([("mode", ASCENDING), ("daily_seed_date", ASCENDING), ("score", DESCENDING)])
         await db.scores.create_index([("mode", ASCENDING), ("run_time_ms", ASCENDING), ("score", DESCENDING)])
         await db.promo_redemptions.create_index([("code", ASCENDING)])
         await db.promo_code_counters.create_index([("redeemed_count", ASCENDING)])
@@ -108,17 +106,11 @@ async def get_status_checks(limit: int = Query(100, ge=1, le=500)):
 
 
 # ============================================================
-# Ghost Maze: Leaderboard + Daily Challenge
+# Ghost Maze: Leaderboards
 # ============================================================
 
 def utc_today_str() -> str:
     return datetime.now(timezone.utc).date().isoformat()
-
-
-def seed_from_date(d: str) -> int:
-    """Derive deterministic 32-bit seed from a date string."""
-    h = hashlib.sha256(d.encode("utf-8")).digest()
-    return int.from_bytes(h[:4], byteorder="big") & 0x7FFFFFFF
 
 
 class ScoreSubmission(BaseModel):
@@ -127,8 +119,7 @@ class ScoreSubmission(BaseModel):
     level: int = Field(ge=1)
     catches: int = Field(ge=0)
     theme_id: str = "classic"
-    mode: Literal["classic", "daily", "speedrun", "timeattack"] = "classic"
-    daily_seed_date: Optional[str] = None  # required if mode==daily
+    mode: Literal["classic", "speedrun", "timeattack"] = "classic"
     run_time_ms: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("player_name", mode="before")
@@ -155,14 +146,8 @@ class ScoreEntry(BaseModel):
     catches: int
     theme_id: str
     mode: str
-    daily_seed_date: Optional[str] = None
     run_time_ms: Optional[int] = None
     timestamp: datetime
-
-
-class DailySeedInfo(BaseModel):
-    seed_date: str
-    seed: int
 
 
 class LeaderboardSummary(BaseModel):
@@ -361,24 +346,8 @@ def _parse_promo_expiry(value: Any) -> Optional[datetime]:
     return None
 
 
-@api_router.get("/daily-seed", response_model=DailySeedInfo)
-async def daily_seed():
-    d = utc_today_str()
-    return DailySeedInfo(seed_date=d, seed=seed_from_date(d))
-
-
 @api_router.post("/scores", response_model=ScoreEntry)
 async def submit_score(s: ScoreSubmission):
-    if s.mode == "daily":
-        # Use today's seed date if not provided, but reject mismatch
-        today = utc_today_str()
-        if s.daily_seed_date and s.daily_seed_date != today:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Daily score must be for today ({today}); got {s.daily_seed_date}",
-            )
-        s.daily_seed_date = today
-
     entry = ScoreEntry(
         id=str(uuid.uuid4()),
         player_name=s.player_name,
@@ -387,7 +356,6 @@ async def submit_score(s: ScoreSubmission):
         catches=s.catches,
         theme_id=s.theme_id,
         mode=s.mode,
-        daily_seed_date=s.daily_seed_date,
         run_time_ms=s.run_time_ms,
         timestamp=datetime.now(timezone.utc),
     )
@@ -398,15 +366,12 @@ async def submit_score(s: ScoreSubmission):
 
 @api_router.get("/leaderboard", response_model=List[ScoreEntry])
 async def leaderboard(
-    mode: Literal["classic", "daily", "speedrun", "timeattack", "all"] = "classic",
-    daily_seed_date: Optional[str] = None,
+    mode: Literal["classic", "speedrun", "timeattack", "all"] = "classic",
     limit: int = Query(default=20, ge=1, le=100),
 ):
     query: dict = {}
     if mode != "all":
         query["mode"] = mode
-    if mode == "daily":
-        query["daily_seed_date"] = daily_seed_date or utc_today_str()
     if mode == "speedrun":
         query["run_time_ms"] = {"$gt": 0}
 

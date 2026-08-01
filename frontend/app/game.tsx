@@ -186,7 +186,6 @@ function ItchGameScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
     seed?: string;
-    seedDate?: string;
     level?: string;
   }>();
   const mode = getGameMode(params.mode);
@@ -208,8 +207,7 @@ function ItchGameScreen() {
     getEndlessBlessings,
   } = useGhostMaze({
     mode,
-    dailySeed: Number.isFinite(seed) ? seed : undefined,
-    dailySeedDate: params.seedDate ?? undefined,
+    seed: Number.isFinite(seed) ? seed : undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
     onCoinsEarned: (n) => earnCoins(n),
   });
@@ -592,7 +590,6 @@ function FullGameScreen() {
   const params = useLocalSearchParams<{
     mode?: string;
     seed?: string;
-    seedDate?: string;
     level?: string;
     practice?: string;
     ispracticemode?: string;
@@ -628,8 +625,7 @@ function FullGameScreen() {
     getRunHazardStats,
   } = useGhostMaze({
     mode,
-    dailySeed: Number.isFinite(seed) ? seed : undefined,
-    dailySeedDate: params.seedDate ?? undefined,
+    seed: Number.isFinite(seed) ? seed : undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
     practiceMode: isPracticeMode,
     onCoinsEarned: isPracticeMode ? undefined : (n) => earnCoins(n),
