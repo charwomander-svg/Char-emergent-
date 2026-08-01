@@ -74,7 +74,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --no-daemon
+        run: ./gradlew bundleRelease --build-cache --no-daemon
 
       - name: Verify release AAB certificate
         working-directory: frontend/android
@@ -83,10 +83,6 @@ jobs:
           ACTUAL_SHA1=$(keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab | sed -n 's/.*SHA1: //p')
           echo "Artifact SHA1: $ACTUAL_SHA1"
           test "$ACTUAL_SHA1" = "AE:BE:7E:D2:0D:1C:58:33:ED:E3:6B:87:DC:16:62:8C:E0:69:AE:C9"
-
-      - name: Build debug APK
-        working-directory: frontend/android
-        run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
