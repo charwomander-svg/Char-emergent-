@@ -9,6 +9,10 @@ services plus a couple of static satellites:
 - `frontend/` — Expo / React Native game client (Android/iOS/Web). Use the **web** target for testing in the cloud VM.
 - `charware-site/` — static marketing page (`index.html`, no build).
 
+Android is the primary release target. Treat Android Verification / signed AAB
+builds as the release gate; do not consider PRs release-ready until the Android
+build passes and `versionCode`/signing are correct for Play Console.
+
 The environment already has MongoDB 8, Node 22, Python 3.12, and a Python venv at
 `backend/.venv`. The update script keeps `backend/.venv` and `frontend/node_modules` current.
 
