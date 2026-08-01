@@ -2,17 +2,9 @@ name: Android Verification
 
 on:
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/android-release.yml"
-      - ".github/workflows/build-apk.yml"
   push:
     branches:
       - main
-    paths:
-      - "frontend/**"
-      - ".github/workflows/android-release.yml"
-      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
 concurrency:
