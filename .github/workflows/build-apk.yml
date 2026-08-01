@@ -6,6 +6,7 @@ on:
       version_code:
         description: "Android versionCode for Play Console (must increase each upload)"
         required: true
+        default: 300
         type: number
       version_name:
         description: "Android versionName shown to users"

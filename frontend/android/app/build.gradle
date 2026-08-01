@@ -81,7 +81,7 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 def playGamesProjectId = (findProperty("PLAY_GAMES_PROJECT_ID") ?: System.getenv("PLAY_GAMES_PROJECT_ID") ?: "0").toString()
-def baseVersionCode = 25
+def baseVersionCode = 300
 def ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
 def generatedVersionCode = ciRunNumber > 0 ? baseVersionCode + ciRunNumber - 1 : baseVersionCode
 def resolvedVersionCode = (
