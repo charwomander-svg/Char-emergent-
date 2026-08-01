@@ -15,9 +15,6 @@ import uuid
 from datetime import datetime, timezone, date
 from urllib.parse import unquote
 
-from payments import get_router as get_payments_router, init_stripe
-
-
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -670,12 +667,6 @@ async def news_feed():
 
 
 app.include_router(api_router)
-
-# Stripe payments router (Coin pack purchases)
-init_stripe()
-if db is not None:
-    payments_router = get_payments_router(db)
-    app.include_router(payments_router, prefix="/api")
 
 # CORS — accept comma-separated origins from env, default to "*" for the
 # casual game preview/deployment.

@@ -5,7 +5,7 @@
 Ghost Maze is a "reverse Pac-Man" game. This repo is a monorepo with two runnable
 services plus a couple of static satellites:
 
-- `backend/` — FastAPI + MongoDB API (leaderboards, daily seed, promo codes, news, Stripe payments).
+- `backend/` — FastAPI + MongoDB API (leaderboards, daily seed, promo codes, news).
 - `frontend/` — Expo / React Native game client (Android/iOS/Web). Use the **web** target for testing in the cloud VM.
 - `charware-site/` — static marketing page (`index.html`, no build).
 
@@ -29,9 +29,8 @@ The environment already has MongoDB 8, Node 22, Python 3.12, and a Python venv a
 - The frontend defaults `EXPO_PUBLIC_BACKEND_URL` to the hosted Render backend
   (`https://ghost-maze-backend.onrender.com`). Always export it to `http://localhost:8000`
   when you want the web client to talk to the local backend.
-- Stripe is **optional**. Without `STRIPE_API_KEY`, the `/api/checkout/*` endpoints return
-  503 and the 3 tests in `backend/tests/test_payments_api.py` fail with "Payments not configured".
-  The other ~19 backend tests and all game features work without it.
+- Payments use Google Play Billing through the frontend `react-native-iap` integration.
+  The backend does not expose card checkout endpoints.
 - The web app installs a global `unhandledrejection` overlay in `frontend/app/+html.tsx`.
   On first web load (before any user click) browser audio-autoplay raises a benign
   `NotAllowedError: play() failed...` that this overlay renders full-screen; it is not a real crash.
