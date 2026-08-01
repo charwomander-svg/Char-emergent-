@@ -211,8 +211,7 @@ function ItchGameScreen() {
     dailySeed: Number.isFinite(seed) ? seed : undefined,
     dailySeedDate: params.seedDate ?? undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
-    practiceMode: isPracticeMode,
-    onCoinsEarned: isPracticeMode ? undefined : (n) => earnCoins(n),
+    onCoinsEarned: (n) => earnCoins(n),
   });
   const [elapsedMs, setElapsedMs] = useState(0);
   const timerAccumulatedRef = useRef(0);
@@ -632,7 +631,8 @@ function FullGameScreen() {
     dailySeed: Number.isFinite(seed) ? seed : undefined,
     dailySeedDate: params.seedDate ?? undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
-    onCoinsEarned: (n) => earnCoins(n),
+    practiceMode: isPracticeMode,
+    onCoinsEarned: isPracticeMode ? undefined : (n) => earnCoins(n),
   });
   const { width, height } = useWindowDimensions();
   const [mazeAreaSize, setMazeAreaSize] = useState({ width: 0, height: 0 });

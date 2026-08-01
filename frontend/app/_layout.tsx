@@ -1,8 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
-import { View, Image, StyleSheet } from "react-native";
+import { Platform, View, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { useFullscreen } from "@/src/utils/useFullscreen";
