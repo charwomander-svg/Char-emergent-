@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://four-ghost-chase.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "http://localhost:8000").rstrip("/")
 API = f"{BASE_URL}/api"
 
 
@@ -204,3 +204,42 @@ class TestLeaderboardFilters:
     def test_limit_param_clamped(self, session):
         rows = session.get(f"{API}/leaderboard", params={"mode": "classic", "limit": 5}).json()
         assert len(rows) <= 5
+
+
+class TestSpeedrunScores:
+    def test_speedrun_requires_positive_runtime(self, session):
+        r = session.post(
+            f"{API}/scores",
+            json={"player_name": "TEST_SPEED_BAD", "score": 1, "level": 1, "catches": 1, "mode": "speedrun"},
+        )
+        assert r.status_code == 422, r.text
+
+    def test_speedrun_leaderboard_sorts_by_runtime(self, session):
+        slow = f"TEST_SLOW_{uuid.uuid4().hex[:6]}"
+        fast = f"TEST_FAST_{uuid.uuid4().hex[:6]}"
+        session.post(
+            f"{API}/scores",
+            json={
+                "player_name": slow,
+                "score": 5000,
+                "level": 1,
+                "catches": 3,
+                "mode": "speedrun",
+                "run_time_ms": 90000,
+            },
+        )
+        session.post(
+            f"{API}/scores",
+            json={
+                "player_name": fast,
+                "score": 1000,
+                "level": 1,
+                "catches": 3,
+                "mode": "speedrun",
+                "run_time_ms": 30000,
+            },
+        )
+        rows = session.get(f"{API}/leaderboard", params={"mode": "speedrun", "limit": 100}).json()
+        idx = {row["player_name"]: i for i, row in enumerate(rows) if row["player_name"] in (slow, fast)}
+        assert fast in idx and slow in idx
+        assert idx[fast] < idx[slow], "Faster speedrun time should rank first"

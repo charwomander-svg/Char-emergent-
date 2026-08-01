@@ -39,6 +39,7 @@ import {
   SPIKE_PROBABILITY,
   SCORE_SPIKED_GHOST_PENALTY,
   MAX_LEVELS,
+  getLevelSpeedScale,
 } from "./constants";
 import { generateMaze, isWalkable } from "./maze";
 import { applyDirection, chooseGhostHuntDirection, choosePelletGuyDirection, opposite } from "./ai";
@@ -68,7 +69,6 @@ import {
   submitTotalGoldStarsLifetime,
   syncProgressAchievements,
 } from "./playGames";
-import { isItchWebRuntime } from "./runtime";
 import { updateStatistics } from "./statistics";
 
 export type EndlessBlessingId =
@@ -218,14 +218,6 @@ function computeRespawnDelay(priorDeaths: number, fastRespawn = false): number {
   return base * mult;
 }
 
-// Speed scaling per level
-function speedScale(level: number): number {
-  // Levels 1–10: steep ramp  (1.0 → 0.55)
-  // Levels 11–50: gentler ramp (0.55 → 0.31)
-  if (level <= 10) return Math.max(0.55, 1 - (level - 1) * 0.05);
-  return Math.max(0.31, 0.55 - (level - 10) * 0.006);
-}
-
 function manhattan(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
@@ -268,6 +260,7 @@ export function useGhostMaze(opts?: {
   dailySeed?: number;
   dailySeedDate?: string;
   startingLevel?: number;
+  practiceMode?: boolean;
   onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
   const themeIdRef = useRef<string>("classic");
@@ -289,6 +282,8 @@ export function useGhostMaze(opts?: {
   );
   const onCoinsEarnedRef = useRef(opts?.onCoinsEarned);
   onCoinsEarnedRef.current = opts?.onCoinsEarned;
+  const practiceModeRef = useRef(!!opts?.practiceMode);
+  practiceModeRef.current = !!opts?.practiceMode;
   const controlledGhostIdsRef = useRef<GhostId[]>([0]);
   const initialLevel = Math.max(1, opts?.startingLevel ?? 1);
 
@@ -317,14 +312,6 @@ export function useGhostMaze(opts?: {
     });
   }, [initialLevel]);
 
-  useEffect(() => {
-    loadSettings().then((s) => {
-      getSoundEngine().setEnabled(!!s.soundOn);
-      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
-      musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
-    });
-  }, [startLevel]);
-
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
   const lastPelletGuyMoveRef = useRef<number>(0);
@@ -336,6 +323,7 @@ export function useGhostMaze(opts?: {
   const rafRef = useRef<number | null>(null);
   const stateRef = useRef<GameState>(state);
   stateRef.current = state;
+  const pauseMusicStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ghost-house exit stagger
   const ghostReleaseAtRef = useRef<number[]>([0, 0, 0, 0]);
   const levelStartScoreRef = useRef<number>(0);
@@ -374,6 +362,23 @@ export function useGhostMaze(opts?: {
     lastMonoRollRef.current = 0;
     lastCatchAtRef.current = performance.now();
     setState(fresh);
+  }, []);
+
+  useEffect(() => {
+    loadSettings().then((s) => {
+      getSoundEngine().setEnabled(!!s.soundOn);
+      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
+      musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (pauseMusicStopTimerRef.current) {
+        clearTimeout(pauseMusicStopTimerRef.current);
+        pauseMusicStopTimerRef.current = null;
+      }
+    };
   }, []);
 
   const startNewGame = useCallback(() => {
@@ -432,11 +437,22 @@ export function useGhostMaze(opts?: {
   const togglePause = useCallback(() => {
     setState((prev) => {
       if (prev.status === "playing") {
+        if (pauseMusicStopTimerRef.current) {
+          clearTimeout(pauseMusicStopTimerRef.current);
+          pauseMusicStopTimerRef.current = null;
+        }
         getSoundEngine().fadeMusicTo(0, 160);
-        setTimeout(() => getSoundEngine().stopMusic(), 180);
+        pauseMusicStopTimerRef.current = setTimeout(() => {
+          getSoundEngine().stopMusic();
+          pauseMusicStopTimerRef.current = null;
+        }, 180);
         return { ...prev, status: "paused" };
       }
       if (prev.status === "paused") {
+        if (pauseMusicStopTimerRef.current) {
+          clearTimeout(pauseMusicStopTimerRef.current);
+          pauseMusicStopTimerRef.current = null;
+        }
         if (musicEnabledRef.current) {
           getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, prev.bonusGame?.type));
         }
@@ -466,7 +482,7 @@ export function useGhostMaze(opts?: {
 
     if (prev.status !== "playing") return;
 
-    const scale = speedScale(prev.level);
+    const scale = getLevelSpeedScale(prev.level);
     const effects = prev.effects;
     const speedBoostActive = effects.speedBoostUntil > now;
     const freezeActive = effects.freezeUntil > now;
@@ -718,9 +734,9 @@ export function useGhostMaze(opts?: {
           message = allClear
             ? `🎉 BONUS CLEAR!\n+${bonusGame.bonusScore} BONUS POINTS`
             : `⏱ TIME UP!\n+${bonusGame.bonusScore} BONUS POINTS`;
-          if (allClear) void queueAchievementUnlock("bonus");
+          if (allClear && !practiceModeRef.current) void queueAchievementUnlock("bonus");
           getSoundEngine().levelWin();
-          if (progressRef.current) {
+          if (!practiceModeRef.current && progressRef.current) {
             const p = { ...progressRef.current };
             p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
             p.highScore = Math.max(p.highScore, score);
@@ -730,8 +746,10 @@ export function useGhostMaze(opts?: {
             void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
             void syncProgressAchievements(normalized);
           }
-          if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
-          onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
+          if (prev.lives <= 1 && !practiceModeRef.current) void queueAchievementUnlock("closeCall");
+          if (!practiceModeRef.current) {
+            onCoinsEarnedRef.current?.(COIN_REWARD.bonusGame, "levelClear");
+          }
           mutated = true;
         }
       }
@@ -1081,7 +1099,7 @@ export function useGhostMaze(opts?: {
                 ? 2
                 : CATCH_TO_WIN;
             if (catches >= catchesToWin) {
-              if (catches === 1) {
+              if (catches === 1 && !practiceModeRef.current) {
                 void queueAchievementUnlock("flippingTheScript");
               }
               // Level won!
@@ -1103,10 +1121,12 @@ export function useGhostMaze(opts?: {
               if (themeIdRef.current === "jackpot-crew" && Math.random() < 0.05) {
                 lvlCoins *= 2;
               }
-              onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
+              if (!practiceModeRef.current) {
+                onCoinsEarnedRef.current?.(lvlCoins, "levelClear");
+              }
 
               // Persist progress
-              if (progressRef.current) {
+              if (!practiceModeRef.current && progressRef.current) {
                 const p = { ...progressRef.current };
                 p.highestLevel = Math.max(p.highestLevel, prev.level + 1);
                 p.totalCatches = p.totalCatches + catchesToWin;
@@ -1131,16 +1151,16 @@ export function useGhostMaze(opts?: {
                 void submitTotalGoldStarsLifetime(getTotalGoldStars(normalized));
                 void syncProgressAchievements(normalized);
               }
-              if (modeRef.current === "classic") {
+              if (!practiceModeRef.current && modeRef.current === "classic") {
                 void recordClassicLevelBest(
                   prev.level,
                   Math.max(0, score - levelStartScoreRef.current),
                 );
               }
-              if (prev.level === 1) void queueAchievementUnlock("oneAndDone");
-              if (comboCount >= 2) void queueAchievementUnlock("freeHugs");
-              if (prev.lives <= 1) void queueAchievementUnlock("closeCall");
-              if (pelletsRemaining <= Math.max(1, Math.floor(prev.totalPellets * 0.15))) {
+              if (prev.level === 1 && !practiceModeRef.current) void queueAchievementUnlock("oneAndDone");
+              if (comboCount >= 2 && !practiceModeRef.current) void queueAchievementUnlock("freeHugs");
+              if (prev.lives <= 1 && !practiceModeRef.current) void queueAchievementUnlock("closeCall");
+              if (!practiceModeRef.current && pelletsRemaining <= Math.max(1, Math.floor(prev.totalPellets * 0.15))) {
                 void queueAchievementUnlock("pelletSchmellet");
               }
             }
@@ -1406,6 +1426,9 @@ export function useGhostMaze(opts?: {
 
   const submitFinalScore = useCallback(
     async (playerName: string, runTimeMs?: number) => {
+      if (practiceModeRef.current) {
+        throw new Error("Practice runs do not submit scores");
+      }
       const { submitScore } = await import("./api");
       const isDaily = modeRef.current === "daily" && dailyRef.current?.seedDate;
       const isSpeedrun = modeRef.current === "speedrun";

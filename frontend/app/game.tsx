@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { useGhostMaze, type EndlessBlessingId } from "@/src/game/useGhostMaze";
 import MazeRenderer from "@/src/game/MazeRenderer";
 import { CATCH_TO_WIN, MAZE_COLS, MAZE_ROWS, MAX_LEVELS, TIME_ATTACK_DURATION_MS } from "@/src/game/constants";
-import type { Direction, GhostAiRole, GhostId } from "@/src/game/types";
+import type { CellType, Direction, GhostAiRole, GhostId } from "@/src/game/types";
 import { useGamepad } from "@/src/game/useGamepad";
 import { useEconomy } from "@/src/game/useEconomy";
 import { loadProgress, computeUnlockedThemeIds, THEMES, withUnlockedThemes, saveProgress } from "@/src/game/progress";
@@ -178,7 +178,7 @@ export default function GameScreen() {
     return <View style={styles.webBootPlaceholder} />;
   }
 
-  return <FullGameScreen />;
+  return isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
 }
 
 function ItchGameScreen() {
@@ -193,7 +193,6 @@ function ItchGameScreen() {
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
-  const [highContrast, setHighContrast] = useState(false);
   const { earnCoins, spendCoins, coins } = useEconomy(runtimeSettings);
   const {
     state,
@@ -224,7 +223,6 @@ function ItchGameScreen() {
   useEffect(() => {
     loadSettings().then((s) => {
       setRuntimeSettings(s);
-      setHighContrast(!!s.highContrast);
     });
   }, []);
 
@@ -538,7 +536,7 @@ function ItchGameScreen() {
 }
 
 function getDirectionalStepTowardTarget(
-  maze: number[][],
+  maze: CellType[][],
   start: { x: number; y: number },
   target: { x: number; y: number },
 ): Direction | null {
@@ -633,7 +631,8 @@ function FullGameScreen() {
     dailySeed: Number.isFinite(seed) ? seed : undefined,
     dailySeedDate: params.seedDate ?? undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
-    onCoinsEarned: (n) => earnCoins(n),
+    practiceMode: isPracticeMode,
+    onCoinsEarned: isPracticeMode ? undefined : (n) => earnCoins(n),
   });
   const { width, height } = useWindowDimensions();
   const [mazeAreaSize, setMazeAreaSize] = useState({ width: 0, height: 0 });

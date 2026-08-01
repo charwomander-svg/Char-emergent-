@@ -2,6 +2,7 @@
 
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
 import type { BonusGameType } from "./bonusGame";
+import type { MusicLibrary } from "./settings";
 
 type SfxKey =
   | "chomp"
@@ -50,12 +51,32 @@ const MUSIC_SOURCES: Record<MusicTrack, number> = {
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
+const INSTRUMETAL_ROTATION: MusicTrack[] = ["instrumetalA", "instrumetalB"];
 
 export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType | null): MusicTrack {
   if (bonusType) return bonusType === "powerHunt" ? "bonusHunt" : "bonus";
   const safeLevel = Math.max(1, Math.floor(level));
   const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
   return LEVEL_MUSIC_ROTATION[tierIndex];
+}
+
+export function chooseMusicTrack(
+  level: number,
+  bonusType?: BonusGameType | null,
+  library: MusicLibrary = "everything",
+): MusicTrack {
+  if (bonusType) return getMusicTrackForLevel(level, bonusType);
+
+  const safeLevel = Math.max(1, Math.floor(level));
+  if (library === "instrumetal") {
+    return INSTRUMETAL_ROTATION[(safeLevel - 1) % INSTRUMETAL_ROTATION.length];
+  }
+  if (library === "chiptunes") {
+    return getMusicTrackForLevel(safeLevel);
+  }
+
+  const combinedRotation = [...LEVEL_MUSIC_ROTATION, ...INSTRUMETAL_ROTATION];
+  return combinedRotation[(safeLevel - 1) % combinedRotation.length];
 }
 
 export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
@@ -220,6 +241,10 @@ export function createSoundEngine(): SoundEngine {
       } catch {}
     },
     stopMusic() {
+      if (musicFadeInterval) {
+        clearInterval(musicFadeInterval);
+        musicFadeInterval = null;
+      }
       pausePlayer(activeMusicTrack ? musicPlayers[activeMusicTrack] : null);
       activeMusicTrack = null;
     },

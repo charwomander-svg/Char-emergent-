@@ -81,7 +81,7 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 def playGamesProjectId = (findProperty("PLAY_GAMES_PROJECT_ID") ?: System.getenv("PLAY_GAMES_PROJECT_ID") ?: "0").toString()
-def baseVersionCode = 25
+def baseVersionCode = 300
 def ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
 def generatedVersionCode = ciRunNumber > 0 ? baseVersionCode + ciRunNumber - 1 : baseVersionCode
 def resolvedVersionCode = (
@@ -89,6 +89,11 @@ def resolvedVersionCode = (
         ?: System.getenv("VERSION_CODE")
         ?: generatedVersionCode.toString()
 ).toInteger()
+def resolvedVersionName = (
+    findProperty("VERSION_NAME")
+        ?: System.getenv("VERSION_NAME")
+        ?: "1.0.0"
+).toString()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -101,9 +106,8 @@ android {
         applicationId 'dev.charware.ghost_maze'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 24
         versionCode resolvedVersionCode
-        versionName "1.0.0"
+        versionName resolvedVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
         resValue "string", "game_services_project_id", playGamesProjectId

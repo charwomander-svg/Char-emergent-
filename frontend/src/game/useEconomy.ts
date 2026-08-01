@@ -18,12 +18,20 @@ import type { SettingsData } from "./settings";
 export function useEconomy(devSettings?: Pick<SettingsData, "devInfiniteCoins" | "devInfiniteItems"> | null) {
   const [economy, setEconomy] = useState<EconomyData | null>(null);
   const econRef = useRef<EconomyData | null>(null);
+  const pendingCoinGrantRef = useRef(0);
   econRef.current = economy;
 
   useEffect(() => {
     let cancelled = false;
     loadEconomy().then((e) => {
-      if (!cancelled) setEconomy(e);
+      if (cancelled) return;
+      const pendingCoins = pendingCoinGrantRef.current;
+      pendingCoinGrantRef.current = 0;
+      const next = pendingCoins > 0 ? _addCoins(e, pendingCoins) : e;
+      setEconomy(next);
+      if (pendingCoins > 0) {
+        void saveEconomy(next);
+      }
     });
     return () => {
       cancelled = true;
@@ -38,7 +46,10 @@ export function useEconomy(devSettings?: Pick<SettingsData, "devInfiniteCoins" |
   const earnCoins = useCallback(
     (amount: number) => {
       const cur = econRef.current;
-      if (!cur) return;
+      if (!cur) {
+        pendingCoinGrantRef.current += Math.max(0, Math.floor(amount));
+        return;
+      }
       persist(_addCoins(cur, amount));
     },
     [persist],
@@ -80,7 +91,10 @@ export function useEconomy(devSettings?: Pick<SettingsData, "devInfiniteCoins" |
   const grantCoins = useCallback(
     (amount: number) => {
       const cur = econRef.current;
-      if (!cur) return;
+      if (!cur) {
+        pendingCoinGrantRef.current += Math.max(0, Math.floor(amount));
+        return;
+      }
       persist(_addCoins(cur, amount));
     },
     [persist],

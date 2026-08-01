@@ -88,6 +88,11 @@ export default function Root({ children }: PropsWithChildren) {
                   });
                   window.addEventListener("unhandledrejection", function (event) {
                     var reason = event.reason;
+                    var name = reason && reason.name ? String(reason.name) : "";
+                    var message = reason && reason.message ? String(reason.message) : String(reason || "");
+                    if ((name === "NotAllowedError" || name === "AbortError") && /play\\(\\)|audio|autoplay/i.test(message)) {
+                      return;
+                    }
                     showOverlay("UNHANDLED PROMISE REJECTION", reason && reason.stack ? reason.stack : reason);
                   });
                 } catch (e) {}

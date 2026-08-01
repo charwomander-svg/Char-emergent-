@@ -2,17 +2,9 @@ name: Android Verification
 
 on:
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/android-release.yml"
-      - ".github/workflows/build-apk.yml"
   push:
     branches:
       - main
-    paths:
-      - "frontend/**"
-      - ".github/workflows/android-release.yml"
-      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
 concurrency:
@@ -40,12 +32,14 @@ jobs:
       - name: Install deps
         run: npm ci --no-audit --no-fund
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: gradle
+      - name: Typecheck app
+        run: npm run typecheck
+
+      - name: Lint app
+        run: npm run lint
+
+      - name: Check maze playability
+        run: npm run maze:check
 
       - name: Prepare keystore
         env:
@@ -53,6 +47,16 @@ jobs:
         run: |
           test -n "$KEYSTORE_BASE64"
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
 
       - name: Verify upload key fingerprint
         env:
@@ -64,17 +68,15 @@ jobs:
             -storepass "$KEYSTORE_PASSWORD" \
             -alias "$KEY_ALIAS" | grep -E "SHA1:|SHA256:"
 
-      - name: Build AAB
+      - name: Build release AAB
         working-directory: frontend/android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --no-daemon
-      - name: Lint app
-        run: npm run lint
+        run: ./gradlew bundleRelease --build-cache --no-daemon
 
-      - name: Build debug APK
+      - name: Verify release AAB certificate
         working-directory: frontend/android
         run: |
           test -f app/build/outputs/bundle/release/app-release.aab
@@ -87,5 +89,3 @@ jobs:
         with:
           name: app-release-aab
           path: frontend/android/app/build/outputs/bundle/release/app-release.aab
-          chmod +x ./gradlew
-          ./gradlew :app:assembleDebug --no-daemon
