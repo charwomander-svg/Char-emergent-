@@ -11,6 +11,8 @@ export interface Purchase {
   transactionId?: string | null;
   orderId?: string | null;
   transactionDate?: number | string | null;
+  purchaseState?: "pending" | "purchased" | "unknown" | null;
+  quantity?: number | null;
 }
 
 export interface PurchaseError {

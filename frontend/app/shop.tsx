@@ -65,6 +65,11 @@ function getPurchaseDedupId(purchase: Purchase): string | null {
   return productId;
 }
 
+function getPurchaseQuantity(purchase: Purchase): number {
+  const quantity = Number((purchase as any).quantity ?? 1);
+  return Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+}
+
 async function loadProcessedPurchaseIds(): Promise<string[]> {
   const raw = await storage.getItem<string>(PROCESSED_IAP_KEY, "[]");
   if (!raw) return [];
@@ -131,6 +136,12 @@ export default function Shop() {
           const purchasedSku = getPurchaseProductId(purchase);
           const entry = purchasedSku ? COIN_SKUS.find((s) => s.sku === purchasedSku) : undefined;
           const purchaseId = getPurchaseDedupId(purchase);
+          const purchaseState = (purchase as any).purchaseState;
+
+          if (purchaseState && purchaseState !== "purchased") {
+            setPurchasing(null);
+            return;
+          }
 
           if (purchaseId) {
             if (processingPurchaseIdsRef.current.has(purchaseId)) return;
@@ -144,11 +155,18 @@ export default function Shop() {
             }
 
             if (entry) {
-              grantCoins(entry.coins);
+              const coinsGranted = entry.coins * getPurchaseQuantity(purchase);
+              grantCoins(coinsGranted);
               if (purchaseId) {
                 await recordProcessedPurchase(purchaseId);
               }
-              Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
+              Alert.alert("Purchase complete! 🎉", `+${coinsGranted.toLocaleString()} Ghost Coins added.`);
+            } else {
+              Alert.alert(
+                "Purchase needs support",
+                "Google Play returned an unknown product. Please contact support before retrying.",
+              );
+              return;
             }
             await finishTransaction({ purchase, isConsumable: true });
           } finally {
