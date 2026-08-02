@@ -1571,6 +1571,15 @@ function FullGameScreen() {
     };
   }, [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
 
+  // [DEBUG STEP 1] Placeholder return to binary-search the black-screen crash.
+  // Original render is preserved below (commented out). If this screen shows,
+  // the crash is inside the FullGameScreen render tree; restore to narrow further.
+  return (
+    <View style={{ flex: 1, backgroundColor: "#00cc44", alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ color: "#000000", fontSize: 24, fontWeight: "900" }}>GAME SCREEN OK – mode: {mode}</Text>
+    </View>
+  );
+  /* [DEBUG STEP 1 – ORIGINAL RETURN START]
   return (
     <SafeAreaView style={styles.container}>
       <GameplayErrorBoundary label={isItchWeb ? "itch gameplay route" : "gameplay route"}>
@@ -1989,6 +1998,7 @@ function FullGameScreen() {
       </GameplayErrorBoundary>
     </SafeAreaView>
   );
+  [DEBUG STEP 1 – ORIGINAL RETURN END] */
 }
 
 const styles = StyleSheet.create({
