@@ -104,28 +104,6 @@ const GHOST_BY_NUMBER_KEY: Record<string, GhostId> = {
   "4": 3,
 };
 
-const MASTER_DIRECTION_BY_KEY: Record<string, { ghostId: GhostId; dir: Direction }> = {
-  w: { ghostId: 0, dir: "up" },
-  s: { ghostId: 0, dir: "down" },
-  a: { ghostId: 0, dir: "left" },
-  d: { ghostId: 0, dir: "right" },
-  y: { ghostId: 1, dir: "up" },
-  g: { ghostId: 1, dir: "down" },
-  h: { ghostId: 1, dir: "left" },
-  j: { ghostId: 1, dir: "right" },
-  arrowup: { ghostId: 2, dir: "up" },
-  arrowdown: { ghostId: 2, dir: "down" },
-  arrowleft: { ghostId: 2, dir: "left" },
-  arrowright: { ghostId: 2, dir: "right" },
-};
-
-const MASTER_DIRECTION_BY_CODE: Record<string, { ghostId: GhostId; dir: Direction }> = {
-  Numpad8: { ghostId: 3, dir: "up" },
-  Numpad2: { ghostId: 3, dir: "down" },
-  Numpad4: { ghostId: 3, dir: "left" },
-  Numpad6: { ghostId: 3, dir: "right" },
-};
-
 const STANDARD_DIRECTION_BY_KEY: Record<string, Direction> = {
   arrowup: "up",
   w: "up",
@@ -218,7 +196,6 @@ function ItchGameScreen() {
   const timerRunningFromRef = useRef<number | null>(null);
   const endlessBlessings = getEndlessBlessings();
   const [endlessContinueCount, setEndlessContinueCount] = useState(0);
-  const masterControlMode = !!runtimeSettings.masterControlMode;
 
   useEffect(() => {
     loadSettings().then((s) => {
@@ -431,24 +408,11 @@ function ItchGameScreen() {
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (masterControlMode) {
-        const mapped = MASTER_DIRECTION_BY_CODE[event.code] ?? MASTER_DIRECTION_BY_KEY[key];
-        if (mapped) {
-          event.preventDefault();
-          if (state.status !== "playing") return;
-          if (!state.ghosts[mapped.ghostId]?.alive) return;
-          setGhostDirection(mapped.ghostId, mapped.dir);
-          return;
-        }
-      } else {
-        const dir = STANDARD_DIRECTION_BY_KEY[key];
-        if (!dir) {
-          // Fall through to non-directional controls.
-        } else {
-          event.preventDefault();
-          setGhostDirection(state.selectedGhostId, dir);
-          return;
-        }
+      const dir = STANDARD_DIRECTION_BY_KEY[key];
+      if (dir) {
+        event.preventDefault();
+        setGhostDirection(state.selectedGhostId, dir);
+        return;
       }
 
       if (key === "backspace") {
@@ -458,8 +422,6 @@ function ItchGameScreen() {
         router.replace("/");
         return;
       }
-
-      if (masterControlMode) return;
 
       const ghostId = GHOST_BY_NUMBER_KEY[key];
       if (ghostId == null) return;
@@ -475,7 +437,6 @@ function ItchGameScreen() {
       holdTimers.set(ghostId, timer);
     };
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (masterControlMode) return;
       const key = event.key.toLowerCase();
       const ghostId = GHOST_BY_NUMBER_KEY[key];
       if (ghostId == null) return;
@@ -506,7 +467,6 @@ function ItchGameScreen() {
     endlessContinueCost,
     ghostLivesRemaining,
     handleEndlessContinue,
-    masterControlMode,
     mode,
     pelletGuyLivesRemaining,
     retryLevel,
@@ -653,7 +613,6 @@ function FullGameScreen() {
   const [largeHud, setLargeHud] = useState(DEFAULT_SETTINGS.largeHud);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_SETTINGS.reducedMotion);
   const [controlMode, setControlMode] = useState<SettingsData["controlMode"]>(DEFAULT_SETTINGS.controlMode);
-  const masterControlMode = !!runtimeSettings.masterControlMode;
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
   const [runStats, setRunStats] = useState<RunStats>({
     catches: 0,
@@ -1309,23 +1268,12 @@ function FullGameScreen() {
       }
 
       const key = event.key.toLowerCase();
-      if (masterControlMode) {
-        const mapped = MASTER_DIRECTION_BY_CODE[event.code] ?? MASTER_DIRECTION_BY_KEY[key];
-        if (mapped) {
-          event.preventDefault();
-          if (stateRef.current.status !== "playing") return;
-          if (!(stateRef.current.ghosts[mapped.ghostId]?.alive ?? false)) return;
-          setGhostDirection(mapped.ghostId, mapped.dir);
-          return;
-        }
-      } else {
-        const dir = STANDARD_DIRECTION_BY_KEY[key];
-        if (dir) {
-          event.preventDefault();
-          if (stateRef.current.status !== "playing") return;
-          applyDirectionToArmedRef.current(dir);
-          return;
-        }
+      const dir = STANDARD_DIRECTION_BY_KEY[key];
+      if (dir) {
+        event.preventDefault();
+        if (stateRef.current.status !== "playing") return;
+        applyDirectionToArmedRef.current(dir);
+        return;
       }
 
       if (key === "backspace") {
@@ -1347,7 +1295,6 @@ function FullGameScreen() {
         return;
       }
 
-      if (masterControlMode) return;
       const ghostId = GHOST_BY_NUMBER_KEY[key];
       if (ghostId == null) return;
       event.preventDefault();
@@ -1363,7 +1310,6 @@ function FullGameScreen() {
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (masterControlMode) return;
       const ghostId = GHOST_BY_NUMBER_KEY[event.key.toLowerCase()];
       if (ghostId == null) return;
       const timer = holdTimers.get(ghostId);
@@ -1391,7 +1337,6 @@ function FullGameScreen() {
     selectGhost,
     startNewGame,
     syncSelection,
-    masterControlMode,
     setGhostDirection,
   ]);
 
@@ -1571,6 +1516,15 @@ function FullGameScreen() {
     };
   }, [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
 
+  // [DEBUG STEP 1] Placeholder return to binary-search the black-screen crash.
+  // Original render is preserved below (commented out). If this screen shows,
+  // the crash is inside the FullGameScreen render tree; restore to narrow further.
+  return (
+    <View style={{ flex: 1, backgroundColor: "#00cc44", alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ color: "#000000", fontSize: 24, fontWeight: "900" }}>GAME SCREEN OK – mode: {mode}</Text>
+    </View>
+  );
+  /* [DEBUG STEP 1 – ORIGINAL RETURN START]
   return (
     <SafeAreaView style={styles.container}>
       <GameplayErrorBoundary label={isItchWeb ? "itch gameplay route" : "gameplay route"}>
@@ -1989,6 +1943,7 @@ function FullGameScreen() {
       </GameplayErrorBoundary>
     </SafeAreaView>
   );
+  [DEBUG STEP 1 – ORIGINAL RETURN END] */
 }
 
 const styles = StyleSheet.create({
