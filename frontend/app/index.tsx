@@ -320,7 +320,6 @@ export default function MainMenu() {
           <View style={styles.releaseNotesCard} testID="release-notes-card">
             <Text style={styles.releaseNotesTitle}>WHAT&apos;S NEW</Text>
             <Text style={styles.releaseNotesText}>
-              • Interactive tutorial practice{"\n"}
               • Leaderboard submission states + retry guidance{"\n"}
               • Promo redemption confirmation and history{"\n"}
               • Stability fixes from QA round
