@@ -37,7 +37,6 @@ import {
   submitTimeAttackRun,
   syncPlayGames,
 } from "@/src/game/playGames";
-import { isItchWebRuntime } from "@/src/game/runtime";
 
 
 function fmtMs(ms: number): string {
@@ -102,28 +101,6 @@ const GHOST_BY_NUMBER_KEY: Record<string, GhostId> = {
   "2": 1,
   "3": 2,
   "4": 3,
-};
-
-const MASTER_DIRECTION_BY_KEY: Record<string, { ghostId: GhostId; dir: Direction }> = {
-  w: { ghostId: 0, dir: "up" },
-  s: { ghostId: 0, dir: "down" },
-  a: { ghostId: 0, dir: "left" },
-  d: { ghostId: 0, dir: "right" },
-  y: { ghostId: 1, dir: "up" },
-  g: { ghostId: 1, dir: "down" },
-  h: { ghostId: 1, dir: "left" },
-  j: { ghostId: 1, dir: "right" },
-  arrowup: { ghostId: 2, dir: "up" },
-  arrowdown: { ghostId: 2, dir: "down" },
-  arrowleft: { ghostId: 2, dir: "left" },
-  arrowright: { ghostId: 2, dir: "right" },
-};
-
-const MASTER_DIRECTION_BY_CODE: Record<string, { ghostId: GhostId; dir: Direction }> = {
-  Numpad8: { ghostId: 3, dir: "up" },
-  Numpad2: { ghostId: 3, dir: "down" },
-  Numpad4: { ghostId: 3, dir: "left" },
-  Numpad6: { ghostId: 3, dir: "right" },
 };
 
 const STANDARD_DIRECTION_BY_KEY: Record<string, Direction> = {
@@ -596,8 +573,7 @@ function FullGameScreen() {
     isPracticeMode?: string;
   }>();
   const mode = getGameMode(params.mode);
-  const isItchWeb = isItchWebRuntime();
-  const platformServicesEnabled = !isItchWeb;
+  const platformServicesEnabled = true;
   const isPracticeMode =
     params.practice === "1" || params.ispracticemode === "1" || params.isPracticeMode === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
@@ -649,7 +625,6 @@ function FullGameScreen() {
   const [largeHud, setLargeHud] = useState(DEFAULT_SETTINGS.largeHud);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_SETTINGS.reducedMotion);
   const [controlMode, setControlMode] = useState<SettingsData["controlMode"]>(DEFAULT_SETTINGS.controlMode);
-  const masterControlMode = !!runtimeSettings.masterControlMode;
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
   const [runStats, setRunStats] = useState<RunStats>({
     catches: 0,
@@ -723,14 +698,14 @@ function FullGameScreen() {
   useEffect(() => {
     loadSettings().then((s) => {
       setRuntimeSettings(s);
-      const audioEnabled = !isItchWeb && !!s.soundOn;
+      const audioEnabled = !!s.soundOn;
       getSoundEngine().setEnabled(audioEnabled);
       getSoundEngine().setVolumes({
         sfx: audioEnabled ? s.sfxVolume : 0,
         music: audioEnabled ? s.musicVolume : 0,
       });
     });
-  }, [isItchWeb]);
+  }, []);
 
   useEffect(() => {
     setControlledGhosts(armedGhosts);
@@ -748,12 +723,12 @@ function FullGameScreen() {
     if (state.status === "playing" || state.status === "ready") {
       loadSettings().then((s) => {
         setRuntimeSettings(s);
-        if (!isItchWeb && !!s.soundOn) {
+        if (!!s.soundOn) {
           getSoundEngine().fadeMusicTo(s.musicVolume, 180);
         }
       });
     }
-  }, [isItchWeb, state.status]);
+  }, [state.status]);
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
@@ -1286,7 +1261,7 @@ function FullGameScreen() {
     isGhostSelectable: (id) => stateRef.current.ghosts[id]?.alive ?? false,
     deadzone: gamepadDeadzone,
     invertY: gamepadInvertY,
-    enabled: !isItchWeb,
+    enabled: true,
   });
 
   useEffect(() => {
@@ -1305,23 +1280,12 @@ function FullGameScreen() {
       }
 
       const key = event.key.toLowerCase();
-      if (masterControlMode) {
-        const mapped = MASTER_DIRECTION_BY_CODE[event.code] ?? MASTER_DIRECTION_BY_KEY[key];
-        if (mapped) {
-          event.preventDefault();
-          if (stateRef.current.status !== "playing") return;
-          if (!(stateRef.current.ghosts[mapped.ghostId]?.alive ?? false)) return;
-          setGhostDirection(mapped.ghostId, mapped.dir);
-          return;
-        }
-      } else {
-        const dir = STANDARD_DIRECTION_BY_KEY[key];
-        if (dir) {
-          event.preventDefault();
-          if (stateRef.current.status !== "playing") return;
-          applyDirectionToArmedRef.current(dir);
-          return;
-        }
+      const dir = STANDARD_DIRECTION_BY_KEY[key];
+      if (dir) {
+        event.preventDefault();
+        if (stateRef.current.status !== "playing") return;
+        applyDirectionToArmedRef.current(dir);
+        return;
       }
 
       if (key === "backspace") {
@@ -1343,7 +1307,6 @@ function FullGameScreen() {
         return;
       }
 
-      if (masterControlMode) return;
       const ghostId = GHOST_BY_NUMBER_KEY[key];
       if (ghostId == null) return;
       event.preventDefault();
@@ -1359,7 +1322,6 @@ function FullGameScreen() {
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (masterControlMode) return;
       const ghostId = GHOST_BY_NUMBER_KEY[event.key.toLowerCase()];
       if (ghostId == null) return;
       const timer = holdTimers.get(ghostId);
@@ -1387,7 +1349,6 @@ function FullGameScreen() {
     selectGhost,
     startNewGame,
     syncSelection,
-    masterControlMode,
     setGhostDirection,
   ]);
 
@@ -1569,7 +1530,7 @@ function FullGameScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <GameplayErrorBoundary label={isItchWeb ? "itch gameplay route" : "gameplay route"}>
+      <GameplayErrorBoundary label="gameplay route">
       <View style={styles.gameWrapper} {...panResponder.panHandlers}>
         <View
           style={styles.mazeArea}
@@ -1988,112 +1949,7 @@ function FullGameScreen() {
 }
 
 const styles = StyleSheet.create({
-  webBootPlaceholder: { flex: 1, backgroundColor: "#0a0a12" },
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  itchShell: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
-  },
-  itchTitle: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  itchSubtitle: {
-    color: "#c8d0f0",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  itchStatText: {
-    color: "#e6ebff",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  itchMazeWrap: {
-    flex: 1,
-    minHeight: 320,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  itchMessage: {
-    color: "#ffd6f5",
-    fontSize: 13,
-    textAlign: "center",
-    minHeight: 36,
-  },
-  itchGhostRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-  },
-  itchGhostButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#4a5580",
-    backgroundColor: "#12172d",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  itchGhostButtonSelected: {
-    borderColor: "#facc15",
-    backgroundColor: "#2a2210",
-  },
-  itchGhostButtonDisabled: {
-    opacity: 0.45,
-  },
-  itchGhostButtonText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  itchControls: {
-    alignItems: "center",
-    gap: 6,
-  },
-  itchControlMiddleRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  itchControlButton: {
-    minWidth: 76,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#52608f",
-    backgroundColor: "#16203a",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  itchControlButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  itchActionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-  },
-  itchActionButton: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#6a78a8",
-    backgroundColor: "#192443",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  itchActionButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "900",
-  },
   errorPanel: {
     flex: 1,
     alignItems: "center",

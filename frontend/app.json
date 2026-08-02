@@ -25,11 +25,6 @@
     "ios": {
       "icon": "./assets/images/icon.png"
     },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/icon.png"
-    },
     "experiments": {
       "typedRoutes": true
     },

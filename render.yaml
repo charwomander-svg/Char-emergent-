@@ -1,13 +1,5 @@
 services:
   - type: web
-    name: ghost-maze-web
-    runtime: static
-    rootDir: ./frontend
-    buildCommand: npm ci --no-audit --no-fund && CI=1 npx expo export --platform web
-    staticPublishPath: ./dist
-    plan: free
-
-  - type: web
     name: ghost-maze-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile

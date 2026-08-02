@@ -1,32 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { chooseMusicTrack, getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
+import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
 import { fetchApiVersion } from "@/src/game/api";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
-  const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
   const [backendBuild, setBackendBuild] = useState<string>("unknown");
-  const orderedSoundTestTracks = React.useMemo(() => {
-    const order = settings.soundTestOrder ?? [];
-    const orderMap = new Map(order.map((id, index) => [id, index]));
-    const favorites = new Set(settings.soundTestFavorites ?? []);
-    return [...SOUND_TEST_TRACKS].sort((a, b) => {
-      const favDiff = Number(favorites.has(b.id)) - Number(favorites.has(a.id));
-      if (favDiff !== 0) return favDiff;
-      const ai = orderMap.get(a.id);
-      const bi = orderMap.get(b.id);
-      if (ai != null && bi != null) return ai - bi;
-      if (ai != null) return -1;
-      if (bi != null) return 1;
-      return 0;
-    });
-  }, [settings.soundTestFavorites, settings.soundTestOrder]);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -41,14 +25,12 @@ export default function Settings() {
       getSoundEngine().setEnabled(Boolean(v));
       if (!v) {
         getSoundEngine().stopMusic();
-        setActiveSoundTestTrack(null);
       }
     }
     if (k === "musicOn") {
-      if (v && settings.soundOn) getSoundEngine().startMusic(chooseMusicTrack(1, null, next.musicLibrary));
+      if (v && settings.soundOn) getSoundEngine().startMusic(getMusicTrackForLevel(1));
       if (!v) {
         getSoundEngine().stopMusic();
-        setActiveSoundTestTrack(null);
       }
     }
     if (k === "sfxVolume" || k === "musicVolume") {
@@ -57,15 +39,6 @@ export default function Settings() {
         music: k === "musicVolume" ? Number(v) : next.musicVolume,
       });
     }
-  };
-
-  const openExternal = async (url: string) => {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert("Link unavailable", url);
-      return;
-    }
-    await Linking.openURL(url);
   };
 
   const NumberRow = ({
@@ -160,37 +133,6 @@ export default function Settings() {
     </View>
   );
 
-  const MusicLibraryRow = ({
-    value,
-    onChange,
-  }: {
-    value: SettingsData["musicLibrary"];
-    onChange: (v: SettingsData["musicLibrary"]) => void;
-  }) => (
-    <View style={styles.row} testID="music-library-row">
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>Music Library</Text>
-        <Text style={styles.rowDesc}>Choose chiptunes, Instrumetal, or everything</Text>
-      </View>
-      <View style={styles.modeSelector}>
-        {([
-          { value: "chiptunes", label: "CHIP" },
-          { value: "instrumetal", label: "INSTR" },
-          { value: "everything", label: "ALL" },
-        ] as const).map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[styles.modeBtn, value === option.value && styles.modeBtnActive]}
-            onPress={() => onChange(option.value)}
-            testID={`music-library-${option.value}`}
-          >
-            <Text style={[styles.modeBtnText, value === option.value && styles.modeBtnTextActive]}>{option.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container} testID="settings-screen">
       <View style={styles.header}>
@@ -215,15 +157,6 @@ export default function Settings() {
           value={settings.musicOn}
           onChange={(v) => update("musicOn", v)}
           testID="toggle-music"
-        />
-        <MusicLibraryRow
-          value={settings.musicLibrary}
-          onChange={(v) => {
-            update("musicLibrary", v);
-            if (settings.soundOn && settings.musicOn) {
-              getSoundEngine().startMusic(chooseMusicTrack(1, null, v));
-            }
-          }}
         />
         <NumberRow
           label="SFX Volume"
@@ -277,13 +210,6 @@ export default function Settings() {
           onChange={(v) => update("controlMode", v)}
         />
         <Row
-          label="Puppet Master Mode"
-          desc="Control all four ghosts at once with split keyboard lanes"
-          value={settings.masterControlMode}
-          onChange={(v) => update("masterControlMode", v)}
-          testID="toggle-puppet-master-mode"
-        />
-        <Row
           label="CRT Scanlines"
           desc="Retro horizontal lines overlay"
           value={settings.scanlines}
@@ -311,78 +237,6 @@ export default function Settings() {
           onChange={(v) => update("largeHud", v)}
           testID="toggle-large-hud"
         />
-        <View style={styles.musicCard}>
-          <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
-          <Text style={styles.musicCardBody}>
-            Enjoying the music? Chardcore is a music artist with 9 albums released. You might like it, so we are
-            providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
-            free. She is awesome like that.
-          </Text>
-          <View style={styles.musicLinkRow}>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://charware.dev/instrumetal")}
-              testID="instrumetal-link"
-            >
-              <Text style={styles.musicLinkBtnText}>INSTRUMETAL (FREE)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://open.spotify.com/artist/23uBgaylUzFwSFkLRPxX80")}
-              testID="spotify-link"
-            >
-              <Text style={styles.musicLinkBtnText}>SPOTIFY</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://charware.dev")}
-              testID="charware-link"
-            >
-              <Text style={styles.musicLinkBtnText}>CHARWARE.DEV</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.musicCardSub}>Tap a track to preview your favorites.</Text>
-          {orderedSoundTestTracks.map((entry) => (
-            <TouchableOpacity
-              key={entry.id}
-              style={[
-                styles.soundTestBtn,
-                activeSoundTestTrack === entry.id && styles.soundTestBtnActive,
-              ]}
-              onPress={() => {
-                if (activeSoundTestTrack === entry.id) {
-                  getSoundEngine().stopMusic();
-                  setActiveSoundTestTrack(null);
-                  return;
-                }
-                getSoundEngine().startMusic(entry.track);
-                setActiveSoundTestTrack(entry.id);
-                const nextOrder = [entry.id, ...(settings.soundTestOrder ?? []).filter((id) => id !== entry.id)];
-                update("soundTestOrder", nextOrder);
-              }}
-              testID={`sound-test-${entry.id}`}
-            >
-              <View style={styles.soundTestHeader}>
-                <Text style={styles.soundTestTitle}>{entry.label}</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    const current = new Set(settings.soundTestFavorites ?? []);
-                    if (current.has(entry.id)) current.delete(entry.id);
-                    else current.add(entry.id);
-                    update("soundTestFavorites", Array.from(current));
-                  }}
-                  style={styles.favoriteBtn}
-                  testID={`sound-test-fav-${entry.id}`}
-                >
-                  <Text style={styles.favoriteBtnText}>
-                    {(settings.soundTestFavorites ?? []).includes(entry.id) ? "★" : "☆"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.soundTestSub}>{entry.description}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
         {settings.devMode && (
           <View style={styles.musicCard} testID="dev-mode-card">
             <Text style={styles.musicCardTitle}>DEV MODE</Text>

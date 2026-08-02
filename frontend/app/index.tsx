@@ -7,7 +7,7 @@ import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
-import { chooseMusicTrack, getSoundEngine } from "@/src/game/sounds";
+import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
 import { redeemPromoCode } from "@/src/game/api";
@@ -63,7 +63,7 @@ export default function MainMenu() {
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       if (s.soundOn && s.musicOn) {
-        getSoundEngine().startMusic(chooseMusicTrack(1, null, s.musicLibrary ?? "everything"));
+        getSoundEngine().startMusic(getMusicTrackForLevel(1));
       }
     });
     loadProgress().then((p) => {

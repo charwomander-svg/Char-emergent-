@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version_code:
-        description: "Android versionCode for Play Console (must increase each upload)"
-        required: true
-        default: 382
-        type: number
+https://github.com/charwomander-svg/Char-emergent-/commit/b43f0bd5e52ec59f04848a4f39e46f8fa3ae25ec        description: "Android versionCode for Play Console (must increase each upload). Leave blank to auto-generate from the workflow run number (baseVersionCode + runNumber - 1)."
+        required: false
+        type: string
       version_name:
         description: "Android versionName shown to users"
         required: false

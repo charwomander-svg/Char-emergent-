@@ -2,7 +2,6 @@
 
 import { createAudioPlayer, AudioPlayer } from "expo-audio";
 import type { BonusGameType } from "./bonusGame";
-import type { MusicLibrary } from "./settings";
 
 type SfxKey =
   | "chomp"
@@ -21,9 +20,7 @@ export type MusicTrack =
   | "tier3"
   | "tier4"
   | "bonus"
-  | "bonusHunt"
-  | "instrumetalA"
-  | "instrumetalB";
+  | "bonusHunt";
 
 // Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
 const SFX_SOURCES: Record<SfxKey, number> = {
@@ -46,56 +43,15 @@ const MUSIC_SOURCES: Record<MusicTrack, number> = {
   tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
   bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
-  instrumetalA: require("@/assets/sounds/cloudy.mp3"),
-  instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
-const INSTRUMETAL_ROTATION: MusicTrack[] = ["instrumetalA", "instrumetalB"];
 
 export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType | null): MusicTrack {
   if (bonusType) return bonusType === "powerHunt" ? "bonusHunt" : "bonus";
   const safeLevel = Math.max(1, Math.floor(level));
   const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
   return LEVEL_MUSIC_ROTATION[tierIndex];
-}
-
-export function chooseMusicTrack(
-  level: number,
-  bonusType?: BonusGameType | null,
-  library: MusicLibrary = "everything",
-): MusicTrack {
-  if (bonusType) return getMusicTrackForLevel(level, bonusType);
-
-  const safeLevel = Math.max(1, Math.floor(level));
-  if (library === "instrumetal") {
-    return INSTRUMETAL_ROTATION[(safeLevel - 1) % INSTRUMETAL_ROTATION.length];
-  }
-  if (library === "chiptunes") {
-    return getMusicTrackForLevel(safeLevel);
-  }
-
-  const combinedRotation = [...LEVEL_MUSIC_ROTATION, ...INSTRUMETAL_ROTATION];
-  return combinedRotation[(safeLevel - 1) % combinedRotation.length];
-}
-
-export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
-  { id: "arcade-1", label: "Arcade: Blinky's Revenge", track: "main", description: "Levels 1–10" },
-  { id: "arcade-2", label: "Arcade: Ghost Maze Song 2", track: "tier2", description: "Levels 11–20" },
-  { id: "arcade-3", label: "Arcade: Song 3", track: "tier3", description: "Levels 21–30" },
-  { id: "arcade-4", label: "Arcade: Corrupted Nightmare", track: "tier4", description: "Levels 31+" },
-  { id: "bonus", label: "Bonus Stage Theme", track: "bonus", description: "Dedicated bonus music" },
-  { id: "bonus-hunt", label: "Bonus Hunt Theme", track: "bonusHunt", description: "Power Hunt levels" },
-  { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
-  { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
-];
-
-const TRACK_LABEL_BY_ID = Object.fromEntries(
-  SOUND_TEST_TRACKS.map((entry) => [entry.track, entry.label]),
-) as Record<MusicTrack, string>;
-
-export function getMusicTrackLabel(track: MusicTrack): string {
-  return TRACK_LABEL_BY_ID[track] ?? track;
 }
 
 interface SoundEngine {
