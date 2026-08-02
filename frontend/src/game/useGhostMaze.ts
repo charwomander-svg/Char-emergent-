@@ -713,7 +713,7 @@ export function useGhostMaze(opts?: {
         const ghostPos = activeGhost?.alive
           ? [
               { x: activeGhost.x, y: activeGhost.y },
-              { x: prevGhost.x, y: prevGhost.y },
+              ...(prevGhost ? [{ x: prevGhost.x, y: prevGhost.y }] : []),
             ]
           : [];
         const { next, collectedNow, bonusPointsEarned } = tickBonusGame(

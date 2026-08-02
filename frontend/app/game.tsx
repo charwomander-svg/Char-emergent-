@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   PanResponder,
+  Platform,
   useWindowDimensions,
   Animated,
   type GestureResponderEvent,
@@ -174,8 +175,12 @@ export default function GameScreen() {
     setWebMounted(true);
   }, []);
 
-  if (typeof window === "undefined" || !webMounted) {
+  if (Platform.OS === "web" && (typeof window === "undefined" || !webMounted)) {
     return <View style={styles.webBootPlaceholder} />;
+  }
+
+  if (Platform.OS !== "web") {
+    return <FullGameScreen />;
   }
 
   return isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
