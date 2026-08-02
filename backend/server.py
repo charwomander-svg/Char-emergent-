@@ -24,18 +24,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-mongo_url = os.getenv('MONGO_URL', '')
+DEFAULT_MONGO_URL = "mongodb://127.0.0.1:27017"
+mongo_url = (os.getenv('MONGO_URL') or DEFAULT_MONGO_URL).strip()
 db_name = os.getenv('DB_NAME', 'ghost_maze')
 
-# Initialize DB connection at module load if env vars are present; if
-# MONGO_URL is absent the server will still import cleanly and the startup
-# event below will surface a clear error.
-if mongo_url:
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-else:
-    client = None  # type: ignore[assignment]
-    db = None
+client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_url)
+db = client[db_name]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -45,8 +39,8 @@ BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
 
 @app.on_event("startup")
 async def startup_db():
-    if not mongo_url or client is None or db is None:
-        raise RuntimeError("MONGO_URL environment variable is not set")
+    if not os.getenv("MONGO_URL"):
+        logger.warning("MONGO_URL not set; defaulting to %s", DEFAULT_MONGO_URL)
     try:
         await client.admin.command("ping")
         await db.scores.create_index([("mode", ASCENDING), ("score", DESCENDING), ("timestamp", ASCENDING)])

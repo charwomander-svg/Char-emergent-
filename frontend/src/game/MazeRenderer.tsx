@@ -4,6 +4,7 @@ import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED, getLevelSpeedScale } from "@/src/game/constants";
+import { nowMs } from "@/src/utils/time";
 
 interface Props {
   maze: CellType[][];
@@ -259,11 +260,11 @@ const GhostSprite = React.memo(function GhostSprite({
 }) {
   const { animX, animY } = useSmoothPosition(ghost.x, ghost.y, moveDuration, size);
 
-  const blink = ghost.vulnerable && ghost.vulnerableUntil - performance.now() < 2000;
+  const blink = ghost.vulnerable && ghost.vulnerableUntil - nowMs() < 2000;
   const color = !ghost.alive
     ? "transparent"
     : ghost.vulnerable
-    ? blink && Math.floor(performance.now() / 200) % 2 === 0
+    ? blink && Math.floor(nowMs() / 200) % 2 === 0
       ? COLORS.ghostVulnerableEnd
       : COLORS.ghostVulnerable
     : ghost.color;

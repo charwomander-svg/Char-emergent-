@@ -70,6 +70,7 @@ import {
   syncProgressAchievements,
 } from "./playGames";
 import { updateStatistics } from "./statistics";
+import { nowMs } from "@/src/utils/time";
 
 export type EndlessBlessingId =
   | "hunterInstinct"
@@ -170,7 +171,7 @@ function buildInitialState(
     );
     totalPellets += convertedSuperPellets;
   }
-  const now = performance.now();
+  const now = nowMs();
   const bonusGame = bonusActive
     ? createBonusGame(getBonusGameType(level), maze, now)
     : null;
@@ -274,7 +275,7 @@ export function useGhostMaze(opts?: {
   const firstFreezeBoostUsedRef = useRef(false);
   const lastSpectreRollRef = useRef(0);
   const lastMonoRollRef = useRef(0);
-  const lastCatchAtRef = useRef(performance.now());
+  const lastCatchAtRef = useRef(nowMs());
   const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
     opts?.dailySeed != null
       ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
@@ -319,7 +320,7 @@ export function useGhostMaze(opts?: {
   const shinyPelletUntilRef = useRef<number>(0);
   const nextShinyRollAtRef = useRef<number>(0);
   const superPelletRespawnAtRef = useRef<Record<string, number>>({});
-  const readyStartRef = useRef<number>(performance.now());
+  const readyStartRef = useRef<number>(nowMs());
   const rafRef = useRef<number | null>(null);
   const stateRef = useRef<GameState>(state);
   stateRef.current = state;
@@ -346,12 +347,12 @@ export function useGhostMaze(opts?: {
       dailyRef.current,
       modeRef.current === "hardcore" ? hardcoreEliminatedRef.current : [],
     );
-    readyStartRef.current = performance.now();
+    readyStartRef.current = nowMs();
     lastGhostMoveRef.current = [0, 0, 0, 0];
     lastPelletGuyMoveRef.current = 0;
     lastBonusTickRef.current = 0;
     shinyPelletUntilRef.current = 0;
-    nextShinyRollAtRef.current = performance.now() + 8000;
+    nextShinyRollAtRef.current = nowMs() + 8000;
     superPelletRespawnAtRef.current = {};
     ghostReleaseAtRef.current = [0, 0, 0, 0];
     levelStartScoreRef.current = score;
@@ -360,7 +361,7 @@ export function useGhostMaze(opts?: {
     firstFreezeBoostUsedRef.current = false;
     lastSpectreRollRef.current = 0;
     lastMonoRollRef.current = 0;
-    lastCatchAtRef.current = performance.now();
+    lastCatchAtRef.current = nowMs();
     setState(fresh);
   }, []);
 
@@ -405,7 +406,7 @@ export function useGhostMaze(opts?: {
         if (!ghost.alive) return prev;
         // Try to apply immediately if possible (instant reverse / change)
         const next = applyDirection(ghost.x, ghost.y, dir);
-        const phased = prev.effects.teamPhaseUntil > performance.now();
+        const phased = prev.effects.teamPhaseUntil > nowMs();
         const canApply = phased
           ? next.y >= 0 && next.y < prev.maze.length && next.x >= 0 && next.x < prev.maze[0].length && prev.maze[next.y][next.x] !== 1
           : isWalkable(prev.maze, next.x, next.y, false);
@@ -1454,7 +1455,7 @@ export function useGhostMaze(opts?: {
   const applyPowerUp = useCallback((id: PowerUpId): boolean => {
     const cur = stateRef.current;
     if (cur.status !== "playing") return false;
-    const now = performance.now();
+    const now = nowMs();
 
     let nextState: GameState | null = null;
     switch (id) {
@@ -1753,7 +1754,7 @@ export function useGhostMaze(opts?: {
     const targetId = ghostId ?? cur.selectedGhostId;
     const ghost = cur.ghosts.find((entry) => entry.id === targetId);
     if (!ghost || !ghost.alive) return false;
-    const now = performance.now();
+    const now = nowMs();
     const delay = computeRespawnDelay(cur.ghostDeathsThisLevel, cur.effects.fastRespawn);
     const ghosts = cur.ghosts.map((entry) =>
       entry.id === targetId
@@ -1786,7 +1787,7 @@ export function useGhostMaze(opts?: {
       pelletGuy: {
         ...cur.pelletGuy,
         alive: false,
-        respawnAt: performance.now() + RESPAWN_MS,
+        respawnAt: nowMs() + RESPAWN_MS,
       },
       message: "PELLET GUY DEV KO",
     });

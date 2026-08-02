@@ -12,6 +12,7 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import type { Direction, GhostId } from "./types";
+import { nowMs } from "@/src/utils/time";
 
 const STICK_THRESHOLD = 0.55;
 const DEBOUNCE_MS = 110;
@@ -60,7 +61,11 @@ export function useGamepad(cb: Callbacks) {
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
-    if (typeof window === "undefined" || !navigator.getGamepads) return;
+    if (
+      typeof window === "undefined" ||
+      typeof navigator === "undefined" ||
+      typeof navigator.getGamepads !== "function"
+    ) return;
 
     let rafId: number | null = null;
 
@@ -93,7 +98,7 @@ export function useGamepad(cb: Callbacks) {
             }
           }
 
-          const now = performance.now();
+          const now = nowMs();
           if (dir && now - lastDirectionTimeRef.current > DEBOUNCE_MS) {
             cbRef.current.onDirection(cbRef.current.getSelectedGhostId(), dir);
             lastDirectionTimeRef.current = now;

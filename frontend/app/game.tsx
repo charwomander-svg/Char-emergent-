@@ -38,6 +38,7 @@ import {
   syncPlayGames,
 } from "@/src/game/playGames";
 import { isItchWebRuntime } from "@/src/game/runtime";
+import { nowMs } from "@/src/utils/time";
 
 
 function fmtMs(ms: number): string {
@@ -229,10 +230,10 @@ function ItchGameScreen() {
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
+      timerRunningFromRef.current = nowMs();
     }
     if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
+      timerAccumulatedRef.current += nowMs() - timerRunningFromRef.current;
       timerRunningFromRef.current = null;
     }
   }, [mode, state.status]);
@@ -251,7 +252,7 @@ function ItchGameScreen() {
     let raf = 0;
     const frame = () => {
       if (timerRunningFromRef.current != null) {
-        setElapsedMs(timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current));
+        setElapsedMs(timerAccumulatedRef.current + (nowMs() - timerRunningFromRef.current));
       }
       raf = requestAnimationFrame(frame);
     };
@@ -692,7 +693,7 @@ function FullGameScreen() {
   const seenBonusTutorialsRef = useRef<Set<string>>(new Set());
   const criticalPelletPingedLevelRef = useRef<number>(0);
   const previousPelletsRef = useRef(state.pelletsRemaining);
-  const levelStartAtRef = useRef<number>(performance.now());
+  const levelStartAtRef = useRef<number>(nowMs());
   const bestLevelClearMsRef = useRef<number | null>(null);
   const hardcoreTimerAccumulatedRef = useRef(0);
   const hardcoreTimerRunningFromRef = useRef<number | null>(null);
@@ -761,16 +762,16 @@ function FullGameScreen() {
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
-    return timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current);
+    return timerAccumulatedRef.current + (nowMs() - timerRunningFromRef.current);
   }, []);
 
   useEffect(() => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
+      timerRunningFromRef.current = nowMs();
     }
     if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
+      timerAccumulatedRef.current += nowMs() - timerRunningFromRef.current;
       timerRunningFromRef.current = null;
     }
     if (mode === "speedrun" && state.status === "gameOver" && !submittedSpeedrunRef.current) {
@@ -827,7 +828,7 @@ function FullGameScreen() {
       previousLevelRef.current = state.level;
       levelStartElapsedRef.current = 0;
       previousComboRef.current = 0;
-      levelStartAtRef.current = performance.now();
+      levelStartAtRef.current = nowMs();
       bestLevelClearMsRef.current = null;
       previousAliveCountRef.current = state.ghosts.filter((ghost) => ghost.alive).length;
       hardcoreStartAtRef.current = null;
@@ -862,7 +863,7 @@ function FullGameScreen() {
     const activeRun = state.status === "ready" || state.status === "playing" || state.status === "paused";
     if (activeRun && !runSessionStartedRef.current) {
       runSessionStartedRef.current = true;
-      runSessionStartAtRef.current = performance.now();
+      runSessionStartAtRef.current = nowMs();
       void updateStatistics((current) => ({
         ...current,
         runsStarted: current.runsStarted + 1,
@@ -876,7 +877,7 @@ function FullGameScreen() {
       runSessionRecordedRef.current = true;
       const elapsed = runSessionStartAtRef.current == null
         ? 0
-        : Math.max(0, performance.now() - runSessionStartAtRef.current);
+        : Math.max(0, nowMs() - runSessionStartAtRef.current);
       const hazardStats = getRunHazardStats();
       void (async () => {
         const nextStats = await updateStatistics((current) => ({
@@ -916,15 +917,15 @@ function FullGameScreen() {
     if (mode !== "hardcore") return;
     if (state.status === "playing") {
       if (hardcoreStartAtRef.current == null) {
-        hardcoreStartAtRef.current = performance.now();
+        hardcoreStartAtRef.current = nowMs();
       }
       if (hardcoreTimerRunningFromRef.current == null) {
-        hardcoreTimerRunningFromRef.current = performance.now();
+        hardcoreTimerRunningFromRef.current = nowMs();
       }
       return;
     }
     if (hardcoreTimerRunningFromRef.current != null) {
-      hardcoreTimerAccumulatedRef.current += performance.now() - hardcoreTimerRunningFromRef.current;
+      hardcoreTimerAccumulatedRef.current += nowMs() - hardcoreTimerRunningFromRef.current;
       hardcoreTimerRunningFromRef.current = null;
       setHardcoreSurvivalMs(hardcoreTimerAccumulatedRef.current);
     }
@@ -1150,7 +1151,7 @@ function FullGameScreen() {
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
     if (state.status === "levelWon" && previousStatus !== "levelWon") {
-      const clearMs = Math.max(0, performance.now() - levelStartAtRef.current);
+      const clearMs = Math.max(0, nowMs() - levelStartAtRef.current);
       bestLevelClearMsRef.current = bestLevelClearMsRef.current == null
         ? clearMs
         : Math.min(bestLevelClearMsRef.current, clearMs);
@@ -1187,7 +1188,7 @@ function FullGameScreen() {
       });
     }
     if ((state.status === "ready" || state.status === "playing") && previousStatus === "levelWon") {
-      levelStartAtRef.current = performance.now();
+      levelStartAtRef.current = nowMs();
     }
     previousStatusRef.current = state.status;
   }, [state.bonusGame, state.status]);
@@ -1441,7 +1442,7 @@ function FullGameScreen() {
   }, [cellSize, isTapEnabled, mazeAreaSize.height, mazeAreaSize.width, moveArmedGhostsTowardCell]);
 
   const activeEffects = useMemo(() => {
-    const now = performance.now();
+    const now = nowMs();
     const list: { key: string; label: string; color: string }[] = [];
     if (state.effects.speedBoostUntil > now) {
       list.push({
@@ -1525,7 +1526,7 @@ function FullGameScreen() {
   }, [endlessBlessings.continueDiscount, endlessContinueCount]);
   const canAffordEndlessContinue = coins >= endlessContinueCost;
 
-  const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
+  const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, nowMs()) : 0;
   const bonusItemsLeft = state.bonusGame ? state.bonusGame.items.filter((i) => !i.collected).length : 0;
   const timeAttackRemainingMs = Math.max(0, TIME_ATTACK_DURATION_MS - elapsedMs);
   const isCompactHud = width < 390;
@@ -1636,8 +1637,8 @@ function FullGameScreen() {
                 <Text style={styles.miniChipText}>
                   {BONUS_CONFIG[state.bonusGame.type].label} {bonusItemsLeft} ·{" "}
                   {state.bonusGame.type === "powerHunt"
-                    ? (state.bonusGame.huntActiveUntil ?? 0) > performance.now()
-                      ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - performance.now()) / 1000)}s`
+                    ? (state.bonusGame.huntActiveUntil ?? 0) > nowMs()
+                      ? `HUNT ${Math.ceil(((state.bonusGame.huntActiveUntil ?? 0) - nowMs()) / 1000)}s`
                       : "GRAB YELLOW PELLET"
                     : `${Math.ceil(bonusTimeLeft / 1000)}s`}
                 </Text>
