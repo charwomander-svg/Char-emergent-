@@ -149,12 +149,12 @@ function buildInitialState(
   lives: number,
   score: number,
   themeId: string,
-  daily?: { seed: number; seedDate: string } | null,
+  seed?: number,
   eliminatedGhostIds: GhostId[] = [],
 ): GameState {
   let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
     level,
-    daily?.seed,
+    seed,
   );
   const bonusActive = isBonusLevel(level);
   if (bonusActive) {
@@ -256,16 +256,15 @@ function findSafePelletGuyRespawn(
 }
 
 export function useGhostMaze(opts?: {
-  mode?: "classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack";
-  dailySeed?: number;
-  dailySeedDate?: string;
+  mode?: "classic" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack";
+  seed?: number;
   startingLevel?: number;
   practiceMode?: boolean;
   onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
-  const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");
+  const modeRef = useRef<"classic" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");
   const musicEnabledRef = useRef<boolean>(true);
   const hardcoreEliminatedRef = useRef<GhostId[]>([]);
   const oathShieldAvailableRef = useRef(false);
@@ -275,11 +274,7 @@ export function useGhostMaze(opts?: {
   const lastSpectreRollRef = useRef(0);
   const lastMonoRollRef = useRef(0);
   const lastCatchAtRef = useRef(performance.now());
-  const dailyRef = useRef<{ seed: number; seedDate: string } | null>(
-    opts?.dailySeed != null
-      ? { seed: opts.dailySeed, seedDate: opts.dailySeedDate ?? "" }
-      : null,
-  );
+  const seedRef = useRef<number | undefined>(opts?.seed);
   const onCoinsEarnedRef = useRef(opts?.onCoinsEarned);
   onCoinsEarnedRef.current = opts?.onCoinsEarned;
   const practiceModeRef = useRef(!!opts?.practiceMode);
@@ -288,7 +283,7 @@ export function useGhostMaze(opts?: {
   const initialLevel = Math.max(1, opts?.startingLevel ?? 1);
 
   const [state, setState] = useState<GameState>(() =>
-    buildInitialState(initialLevel, STARTING_LIVES, 0, "classic", dailyRef.current),
+    buildInitialState(initialLevel, STARTING_LIVES, 0, "classic", seedRef.current),
   );
 
   // Load saved progress (theme + stats) on mount
@@ -305,7 +300,7 @@ export function useGhostMaze(opts?: {
           STARTING_LIVES,
           0,
           p.selectedThemeId,
-          dailyRef.current,
+          seedRef.current,
           [],
         );
       });
@@ -343,7 +338,7 @@ export function useGhostMaze(opts?: {
       lives,
       score,
       themeIdRef.current,
-      dailyRef.current,
+      seedRef.current,
       modeRef.current === "hardcore" ? hardcoreEliminatedRef.current : [],
     );
     readyStartRef.current = performance.now();
@@ -1430,9 +1425,7 @@ export function useGhostMaze(opts?: {
         throw new Error("Practice runs do not submit scores");
       }
       const { submitScore } = await import("./api");
-      const isDaily = modeRef.current === "daily" && dailyRef.current?.seedDate;
       const isSpeedrun = modeRef.current === "speedrun";
-      const isEndless = modeRef.current === "endless";
       const isTimeAttack = modeRef.current === "timeattack";
       return submitScore({
         player_name: playerName,
@@ -1440,9 +1433,8 @@ export function useGhostMaze(opts?: {
         level: state.level,
         catches: state.catches,
         theme_id: themeIdRef.current,
-        // Custom challenges score against classic leaderboard (no daily date)
-        mode: isDaily ? "daily" : isSpeedrun ? "speedrun" : isTimeAttack ? "timeattack" : isEndless ? "classic" : "classic",
-        daily_seed_date: isDaily ? dailyRef.current?.seedDate : undefined,
+        // Custom, hardcore, and endless runs score against the classic leaderboard.
+        mode: isSpeedrun ? "speedrun" : isTimeAttack ? "timeattack" : "classic",
         run_time_ms: isSpeedrun ? Math.max(0, Math.floor(runTimeMs ?? 0)) : undefined,
       });
     },
@@ -1796,8 +1788,7 @@ export function useGhostMaze(opts?: {
   return {
     state,
     mode: modeRef.current,
-    seed: dailyRef.current?.seed,
-    dailySeedDate: dailyRef.current?.seedDate,
+    seed: seedRef.current,
     setGhostDirection,
     selectGhost,
     togglePause,

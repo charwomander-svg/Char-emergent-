@@ -1,6 +1,6 @@
 // Maze generation using recursive backtracking + loop carving
 // Produces a symmetric, randomized Pac-Man style maze
-// Optional seed for deterministic Daily Challenge mazes
+// Optional seed for deterministic custom challenge mazes
 
 import type { CellType } from "./types";
 import { MAZE_COLS, MAZE_ROWS } from "./constants";
@@ -395,7 +395,7 @@ function decorateMaze(
 /**
  * Generate a randomized maze.
  * @param level Difficulty level (affects loop density + super pellet count)
- * @param seed  Optional 32-bit seed for deterministic generation (Daily Challenge)
+ * @param seed  Optional 32-bit seed for deterministic custom challenge generation
  */
 export function generateMaze(
   level: number,

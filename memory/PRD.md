@@ -1,7 +1,7 @@
 # Ghost Maze - Product Requirements Document
 
 ## Overview
-**Ghost Maze** is a reverse Pac-Man mobile game built with Expo/React Native. The player controls all 4 ghosts simultaneously to chase and catch Pellet Guy through randomized mazes. Now features online leaderboards, daily challenges, friend invites, custom seeds, gamepad support, bundled native audio, **dual-currency economy with Google Play Billing coin packs**, and **11 strategic power-ups**.
+**Ghost Maze** is a reverse Pac-Man mobile game built with Expo/React Native. The player controls all 4 ghosts simultaneously to chase and catch Pellet Guy through randomized mazes. Now features online leaderboards, friend invites, custom seeds, gamepad support, bundled native audio, **dual-currency economy with Google Play Billing coin packs**, and **11 strategic power-ups**.
 
 ## Implemented Features (v5.0)
 
@@ -12,7 +12,7 @@ Maze gen, 4 ghosts, individual control, catches/lives/scoring.
 Smooth animation, sounds + music, traps & barricades, character unlocks, smarter AI.
 
 ### Phase 3 — Network (24 tests)
-Daily challenge, leaderboard, score submission, ghost-house stagger, particle effects, swipe gestures.
+Leaderboard, score submission, ghost-house stagger, particle effects, swipe gestures.
 
 ### Phase 6 — Boss Fights (v6.0)
 - **Boss levels every 5 levels** (5, 10, 15, …): Pellet Guy becomes the "Boss" with **3 HP** displayed as a red bar replacing the pellets bar.
@@ -36,15 +36,14 @@ Daily challenge, leaderboard, score submission, ghost-house stagger, particle ef
 - **Web Gamepad API**: `useGamepad` hook polls connected gamepads at 60Hz. D-pad/left stick → direction for selected ghost. Face buttons A/B/X/Y → select Blinky/Pinky/Inky/Clyde. LB/RB → cycle selection. Edge-triggered debounce so a single button press doesn't fire repeatedly. Native gracefully no-ops.
 - **Share Score**: 📤 SHARE SCORE button on game over uses native `Share.share()` on iOS/Android, Web Share API + clipboard fallback on web.
 - **Friend Challenges**: ⚔️ CHALLENGE A FRIEND button generates a custom-seed URL (`/game?mode=custom&seed=X&label=NAME`) and shares it. Recipients open the link and play the EXACT same maze.
-- **Custom-mode game**: Anyone can deep-link a specific seed. Scores from custom mode submit to the regular classic leaderboard (no daily cheating).
+- **Custom-mode game**: Anyone can deep-link a specific seed. Scores from custom mode submit to the regular classic leaderboard.
 
 ## Backend API
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/daily-seed` | UTC-date seeded `{seed_date, seed}` |
-| POST | `/api/scores` | Submit run; sanitizes player_name; rejects daily date mismatch |
-| GET | `/api/leaderboard?mode=classic\|daily\|all&limit=N&daily_seed_date=YYYY-MM-DD` | Top scores |
+| POST | `/api/scores` | Submit run; sanitizes player_name; supports classic, speedrun, and time attack modes |
+| GET | `/api/leaderboard?mode=classic\|speedrun\|timeattack\|all&limit=N` | Top scores |
 | GET/POST | `/api/status` | Legacy health check |
 
 ## Test Coverage Summary
@@ -70,10 +69,10 @@ Daily challenge, leaderboard, score submission, ghost-house stagger, particle ef
 └── frontend/
     ├── app/
     │   ├── _layout.tsx
-    │   ├── index.tsx                    # Menu: Play / Characters / Daily / Leaderboard
+    │   ├── index.tsx                    # Menu: Play / Characters / Leaderboard
     │   ├── game.tsx                     # Game + swipe + particles + gamepad + share
     │   ├── characters.tsx               # Theme unlocks
-    │   └── leaderboard.tsx              # Classic & Daily tabs
+    │   └── leaderboard.tsx              # Classic, Speedrun, and Time Attack tabs
     ├── assets/sounds/                   # 10 bundled WAV files
     └── src/game/
         ├── types.ts, constants.ts
@@ -99,9 +98,8 @@ Daily challenge, leaderboard, score submission, ghost-house stagger, particle ef
 - Smooth animation + particles + stagger
 - Cross-platform audio (bundled WAVs + procedural music)
 - Touch + swipe + gamepad input
-- Daily challenge with shared global leaderboard
 - Friend challenges via shareable seed URLs
-- Online classic + daily leaderboard with submission
+- Online classic, speedrun, and time attack leaderboards with submission
 
 **Polish opportunities (future):**
 - Bundled music asset (currently web-only)
