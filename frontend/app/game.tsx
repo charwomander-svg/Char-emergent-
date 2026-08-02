@@ -148,6 +148,43 @@ export default function GameScreen() {
   return <FullGameScreen />;
 }
 
+function getDirectionalStepTowardTarget(
+  maze: CellType[][],
+  start: { x: number; y: number },
+  target: { x: number; y: number },
+): Direction | null {
+  const dirs: { dir: Direction; dx: number; dy: number }[] = [
+    { dir: "up", dx: 0, dy: -1 },
+    { dir: "down", dx: 0, dy: 1 },
+    { dir: "left", dx: -1, dy: 0 },
+    { dir: "right", dx: 1, dy: 0 },
+  ];
+  const inBounds = (x: number, y: number) => y >= 0 && y < maze.length && x >= 0 && x < maze[0].length;
+  if (!inBounds(target.x, target.y) || !isWalkable(maze, target.x, target.y, false)) return null;
+  if (start.x === target.x && start.y === target.y) return null;
+
+  const queue: { x: number; y: number }[] = [{ x: start.x, y: start.y }];
+  const visited = new Set<string>([`${start.x},${start.y}`]);
+  const firstStepByCell = new Map<string, Direction>();
+
+  for (let idx = 0; idx < queue.length; idx++) {
+    const current = queue[idx];
+    if (current.x === target.x && current.y === target.y) {
+      return firstStepByCell.get(`${current.x},${current.y}`) ?? null;
+    }
+    for (const { dir, dx, dy } of dirs) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      if (!inBounds(nx, ny) || visited.has(key) || !isWalkable(maze, nx, ny, false)) continue;
+      visited.add(key);
+      queue.push({ x: nx, y: ny });
+      firstStepByCell.set(key, firstStepByCell.get(`${current.x},${current.y}`) ?? dir);
+    }
+  }
+  return null;
+}
+
 const GHOST_ROLE_LABELS: Record<GhostAiRole, string> = {
   free: "FREE",
   hunter: "HUNTER",
