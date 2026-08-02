@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns='http://www.w3.org/2000/svg' width='240' height='304' viewBox='0 0 240 304'>
+<rect width='100%' height='100%' fill='#071018'/>
+<rect x='0' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='16' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='32' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='112' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='128' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='208' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='224' y='0' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='16' width='16' height='16' fill='#001' stroke='#022'/>
+<circle cx='24' cy='24' r='4' fill='#ffea00'/>
+<rect x='34' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='146' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='162' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='18' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='18' width='12' height='12' fill='#0d6'/>
+<circle cx='216' cy='24' r='4' fill='#ffea00'/>
+<rect x='224' y='16' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='32' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='146' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='162' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='34' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='32' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='50' width='12' height='12' fill='#0d6'/>
+<rect x='32' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='50' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='210' y='50' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='48' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='210' y='66' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='64' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='48' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='146' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='162' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='82' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='80' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='98' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='98' width='12' height='12' fill='#0d6'/>
+<rect x='48' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='98' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='194' y='98' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='98' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='96' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='112' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='144' y='112' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='112' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='112' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='194' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='114' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='112' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='128' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='64' y='128' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='128' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='96' y='128' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='112' y='128' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='128' y='128' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='144' y='128' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='162' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='130' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='128' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='144' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='80' y='144' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='96' y='144' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='112' y='144' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='128' y='144' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='144' y='144' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='162' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='146' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='144' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='160' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='80' y='160' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='96' y='160' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='112' y='160' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='128' y='160' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='144' y='160' width='16' height='16' fill='#222' stroke='#334'/>
+<rect x='160' y='160' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='178' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='162' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='160' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='32' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='162' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='178' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='176' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='194' width='12' height='12' fill='#0d6'/>
+<rect x='32' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='194' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='210' y='194' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='192' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='210' y='210' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='208' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='48' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='146' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='162' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='226' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='224' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='242' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='242' width='12' height='12' fill='#0d6'/>
+<rect x='48' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='114' y='242' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='194' y='242' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='242' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='240' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='18' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='34' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='128' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='194' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='210' y='258' width='12' height='12' fill='#0d6'/>
+<rect x='224' y='256' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='272' width='16' height='16' fill='#001' stroke='#022'/>
+<circle cx='24' cy='280' r='4' fill='#ffea00'/>
+<rect x='34' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='50' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='66' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='82' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='98' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='114' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='130' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='146' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='162' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='178' y='274' width='12' height='12' fill='#0d6'/>
+<rect x='194' y='274' width='12' height='12' fill='#0d6'/>
+<circle cx='216' cy='280' r='4' fill='#ffea00'/>
+<rect x='224' y='272' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='0' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='16' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='32' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='48' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='64' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='80' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='96' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='112' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='128' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='144' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='160' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='176' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='192' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='208' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<rect x='224' y='288' width='16' height='16' fill='#001' stroke='#022'/>
+<text x='8' y='296' font-family='monospace' font-size='10' fill='#9ff'>Template 28</text>
+</svg>
