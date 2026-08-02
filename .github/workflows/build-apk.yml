@@ -2,6 +2,16 @@ name: Build Android Release Artifacts (AAB Only)
 
 on:
   workflow_dispatch:
+    inputs:
+      version_code:
+https://github.com/charwomander-svg/Char-emergent-/commit/b43f0bd5e52ec59f04848a4f39e46f8fa3ae25ec        description: "Android versionCode for Play Console (must increase each upload). Leave blank to auto-generate from the workflow run number (baseVersionCode + runNumber - 1)."
+        required: false
+        type: string
+      version_name:
+        description: "Android versionName shown to users"
+        required: false
+        default: "1.0.0"
+        type: string
 
 concurrency:
   group: android-release-${{ github.ref }}
@@ -48,10 +58,14 @@ jobs:
         working-directory: frontend/android
         env:
           EXPO_PUBLIC_BACKEND_URL: https://ghost-maze-backend.onrender.com
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew bundleRelease --no-daemon
+        run: |
+          echo "Building versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+          ./gradlew bundleRelease --no-daemon
 
       - name: Verify artifact signing certificate
         working-directory: frontend/android

@@ -1,5 +1,5 @@
 // Stable per-installation Player ID (UUID v4 derived from crypto-random bytes).
-// Used to associate Stripe purchases with a local player without requiring auth.
+// Used to identify this local save for promo redemption and lightweight backend calls.
 
 import { storage } from "@/src/utils/storage";
 

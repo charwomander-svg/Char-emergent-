@@ -1,13 +1,5 @@
 services:
   - type: web
-    name: ghost-maze-web
-    runtime: static
-    rootDir: ./frontend
-    buildCommand: npm ci --no-audit --no-fund && npx expo export --platform web --non-interactive
-    staticPublishPath: ./dist
-    plan: free
-
-  - type: web
     name: ghost-maze-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
@@ -18,10 +10,6 @@ services:
         sync: false          # set in Render dashboard
       - key: DB_NAME
         value: ghost_maze
-      - key: STRIPE_API_KEY
-        sync: false          # set in Render dashboard (sk_live_...)
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false          # set after creating webhook in Stripe dashboard
       - key: EXPO_PUBLIC_BACKEND_URL
         sync: false          # set to your Render service URL once deployed
       - key: CORS_ORIGINS

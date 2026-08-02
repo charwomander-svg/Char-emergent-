@@ -9,7 +9,6 @@ export interface SettingsData {
   haptics: boolean;
   soundOn: boolean;
   musicOn: boolean;
-  musicLibrary: "chiptunes" | "instrumetal" | "everything";
   sfxVolume: number;
   musicVolume: number;
   gamepadInvertY: boolean;
@@ -18,9 +17,6 @@ export interface SettingsData {
   highContrast: boolean;
   largeHud: boolean;
   controlMode: "swipe" | "tap" | "both";
-  masterControlMode: boolean;
-  soundTestFavorites: string[];
-  soundTestOrder: string[];
   devMode: boolean;
   devInfiniteCoins: boolean;
   devInfiniteItems: boolean;
@@ -31,7 +27,6 @@ export const DEFAULT_SETTINGS: SettingsData = {
   haptics: true,
   soundOn: true,
   musicOn: true,
-  musicLibrary: "everything",
   sfxVolume: 0.6,
   musicVolume: 0.45,
   gamepadInvertY: false,
@@ -40,9 +35,6 @@ export const DEFAULT_SETTINGS: SettingsData = {
   highContrast: false,
   largeHud: false,
   controlMode: "swipe",
-  masterControlMode: false,
-  soundTestFavorites: [],
-  soundTestOrder: [],
   devMode: false,
   devInfiniteCoins: false,
   devInfiniteItems: false,

@@ -7,7 +7,7 @@ import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
-import { chooseMusicTrack, getSoundEngine } from "@/src/game/sounds";
+import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
 import { redeemPromoCode } from "@/src/game/api";
@@ -63,7 +63,7 @@ export default function MainMenu() {
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       if (s.soundOn && s.musicOn) {
-        getSoundEngine().startMusic(chooseMusicTrack(1, null, s.musicLibrary ?? "everything"));
+        getSoundEngine().startMusic(getMusicTrackForLevel(1));
       }
     });
     loadProgress().then((p) => {
@@ -76,16 +76,20 @@ export default function MainMenu() {
       const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
       setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
     });
-    storage.getItem(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
+    storage.getItem<string>(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
       if (seen !== RELEASE_NOTES_VERSION) {
         setShowReleaseNotes(true);
       }
     });
-    storage.getItem(PROMO_HISTORY_KEY, null).then((value) => {
-      if (!mounted || !value || typeof value !== "object") return;
-      const maybe = value as PromoHistoryEntry;
-      if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
-      setPromoHistory(maybe);
+    storage.getItem<string>(PROMO_HISTORY_KEY, "").then((value) => {
+      if (!mounted || !value) return;
+      try {
+        const maybe = JSON.parse(value) as PromoHistoryEntry;
+        if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
+        setPromoHistory(maybe);
+      } catch {
+        // Ignore malformed legacy entries.
+      }
     });
     return () => {
       mounted = false;
@@ -159,7 +163,7 @@ export default function MainMenu() {
         summary: message,
       };
       setPromoHistory(history);
-      void storage.setItem(PROMO_HISTORY_KEY, history);
+      void storage.setItem(PROMO_HISTORY_KEY, JSON.stringify(history));
       Alert.alert("Code redeemed", message);
       setPromoCode("");
     } catch (error) {

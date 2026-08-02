@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import { useEconomy } from "@/src/game/useEconomy";
 import { POWER_UPS, POWER_UP_ORDER } from "@/src/game/powerups";
 import { DEFAULT_SETTINGS, loadSettings } from "@/src/game/settings";
 import { getSoundEngine } from "@/src/game/sounds";
+import { storage } from "@/src/utils/storage";
 
 // SKU → coins mapping (must match Play Console in-app product IDs exactly)
 const COIN_SKUS: { sku: string; coins: number; label: string; price: string; badge?: string }[] = [
@@ -39,6 +40,56 @@ const COIN_SKUS: { sku: string; coins: number; label: string; price: string; bad
   { sku: "ghost_coins_2500",  coins: 2500,  label: "Mega Pack",     price: "$14.99" },
   { sku: "ghost_coins_6000",  coins: 6000,  label: "Ultimate Pack", price: "$29.99", badge: "MEGA DEAL" },
 ];
+const PROCESSED_IAP_KEY = "ghostMaze.processedIapPurchases.v1";
+const MAX_PROCESSED_IAP_IDS = 100;
+
+function getPurchaseProductId(purchase: Purchase): string | null {
+  return (
+    purchase.productId ??
+    (Array.isArray((purchase as any).productIds) ? (purchase as any).productIds[0] : null) ??
+    null
+  );
+}
+
+function getPurchaseDedupId(purchase: Purchase): string | null {
+  const token =
+    purchase.purchaseToken ??
+    purchase.transactionId ??
+    (purchase as any).orderId ??
+    null;
+  if (token) return String(token);
+
+  const productId = getPurchaseProductId(purchase);
+  const transactionDate = purchase.transactionDate;
+  if (productId && transactionDate != null) return `${productId}:${transactionDate}`;
+  return productId;
+}
+
+function getPurchaseQuantity(purchase: Purchase): number {
+  const quantity = Number((purchase as any).quantity ?? 1);
+  return Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+}
+
+async function loadProcessedPurchaseIds(): Promise<string[]> {
+  const raw = await storage.getItem<string>(PROCESSED_IAP_KEY, "[]");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function hasProcessedPurchase(id: string): Promise<boolean> {
+  return (await loadProcessedPurchaseIds()).includes(id);
+}
+
+async function recordProcessedPurchase(id: string): Promise<void> {
+  const ids = await loadProcessedPurchaseIds();
+  const next = [id, ...ids.filter((existing) => existing !== id)].slice(0, MAX_PROCESSED_IAP_IDS);
+  await storage.setItem(PROCESSED_IAP_KEY, JSON.stringify(next));
+}
 
 export default function Shop() {
   const router = useRouter();
@@ -53,6 +104,7 @@ export default function Shop() {
   const [loadingIap, setLoadingIap] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [storeError, setStoreError] = useState<string | null>(null);
+  const processingPurchaseIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     loadSettings().then((settings) => {
@@ -81,17 +133,48 @@ export default function Shop() {
         setStoreError((prods?.length ?? 0) > 0 ? null : "No Google Play products were returned.");
 
         purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
-          const purchasedSku =
-            purchase.productId ??
-            (Array.isArray((purchase as any).productIds) ? (purchase as any).productIds[0] : null) ??
-            null;
+          const purchasedSku = getPurchaseProductId(purchase);
           const entry = purchasedSku ? COIN_SKUS.find((s) => s.sku === purchasedSku) : undefined;
-          if (entry) {
-            grantCoins(entry.coins);
-            Alert.alert("Purchase complete! 🎉", `+${entry.coins.toLocaleString()} Ghost Coins added.`);
+          const purchaseId = getPurchaseDedupId(purchase);
+          const purchaseState = (purchase as any).purchaseState;
+
+          if (purchaseState && purchaseState !== "purchased") {
+            setPurchasing(null);
+            return;
           }
-          await finishTransaction({ purchase, isConsumable: true });
-          setPurchasing(null);
+
+          if (purchaseId) {
+            if (processingPurchaseIdsRef.current.has(purchaseId)) return;
+            processingPurchaseIdsRef.current.add(purchaseId);
+          }
+
+          try {
+            if (purchaseId && await hasProcessedPurchase(purchaseId)) {
+              await finishTransaction({ purchase, isConsumable: true });
+              return;
+            }
+
+            if (entry) {
+              const coinsGranted = entry.coins * getPurchaseQuantity(purchase);
+              grantCoins(coinsGranted);
+              if (purchaseId) {
+                await recordProcessedPurchase(purchaseId);
+              }
+              Alert.alert("Purchase complete! 🎉", `+${coinsGranted.toLocaleString()} Ghost Coins added.`);
+            } else {
+              Alert.alert(
+                "Purchase needs support",
+                "Google Play returned an unknown product. Please contact support before retrying.",
+              );
+              return;
+            }
+            await finishTransaction({ purchase, isConsumable: true });
+          } finally {
+            if (purchaseId) {
+              processingPurchaseIdsRef.current.delete(purchaseId);
+            }
+            setPurchasing(null);
+          }
         });
 
         purchaseErrorSub = purchaseErrorListener((error: PurchaseError) => {
