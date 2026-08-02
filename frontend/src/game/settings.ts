@@ -17,7 +17,6 @@ export interface SettingsData {
   highContrast: boolean;
   largeHud: boolean;
   controlMode: "swipe" | "tap" | "both";
-  masterControlMode: boolean;
   devMode: boolean;
   devInfiniteCoins: boolean;
   devInfiniteItems: boolean;
@@ -36,7 +35,6 @@ export const DEFAULT_SETTINGS: SettingsData = {
   highContrast: false,
   largeHud: false,
   controlMode: "swipe",
-  masterControlMode: false,
   devMode: false,
   devInfiniteCoins: false,
   devInfiniteItems: false,
