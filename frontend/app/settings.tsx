@@ -10,29 +10,7 @@ import { fetchApiVersion } from "@/src/game/api";
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
-<<<<<<< HEAD
-  const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
-  const [promoCode, setPromoCode] = useState("");
-  const [redeemingPromo, setRedeemingPromo] = useState(false);
-  const [promoFeedback, setPromoFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
-  const orderedSoundTestTracks = React.useMemo(() => {
-    const order = settings.soundTestOrder ?? [];
-    const orderMap = new Map(order.map((id, index) => [id, index]));
-    const favorites = new Set(settings.soundTestFavorites ?? []);
-    return [...SOUND_TEST_TRACKS].sort((a, b) => {
-      const favDiff = Number(favorites.has(b.id)) - Number(favorites.has(a.id));
-      if (favDiff !== 0) return favDiff;
-      const ai = orderMap.get(a.id);
-      const bi = orderMap.get(b.id);
-      if (ai != null && bi != null) return ai - bi;
-      if (ai != null) return -1;
-      if (bi != null) return 1;
-      return 0;
-    });
-  }, [settings.soundTestFavorites, settings.soundTestOrder]);
-=======
   const [backendBuild, setBackendBuild] = useState<string>("unknown");
->>>>>>> origin/main
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -63,71 +41,6 @@ export default function Settings() {
     }
   };
 
-<<<<<<< HEAD
-  const openExternal = async (url: string) => {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert("Link unavailable", url);
-      return;
-    }
-    await Linking.openURL(url);
-  };
-
-  const redeemSecretCode = async () => {
-    const cleaned = promoCode.trim();
-    if (!cleaned || redeemingPromo) return;
-    setRedeemingPromo(true);
-    setPromoFeedback(null);
-    try {
-      if (cleaned.toUpperCase() === "WARM0NGER") {
-        const next = {
-          ...settings,
-          devMode: true,
-          devInfiniteCoins: true,
-          devInfiniteItems: true,
-        };
-        setSettings(next);
-        await saveSettings(next);
-        const message = "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.";
-        setPromoFeedback({ kind: "success", message });
-        Alert.alert("Dev mode unlocked", message);
-        setPromoCode("");
-        return;
-      }
-      const playerId = await getPlayerId();
-      const redeemed = await redeemPromoCode(cleaned, playerId);
-      const economy = await loadEconomy();
-      let nextEconomy = addCoins(economy, redeemed.rewards.coins ?? 0);
-      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
-        const id = rawId as PowerUpId;
-        if (typeof qty === "number" && qty > 0) {
-          nextEconomy = addInventory(nextEconomy, id, qty);
-        }
-      }
-      await saveEconomy(nextEconomy);
-      const coins = redeemed.rewards.coins ?? 0;
-      const powerUps = Object.entries(redeemed.rewards.powerUps ?? {})
-        .filter(([, qty]) => typeof qty === "number" && qty > 0)
-        .map(([id, qty]) => `${qty} ${id}`);
-      const rewards = [
-        coins > 0 ? `${coins.toLocaleString()} Ghost Coins` : null,
-        ...powerUps,
-      ].filter(Boolean);
-      const message = rewards.length > 0 ? `Added ${rewards.join(", ")} to your save.` : redeemed.message;
-      setPromoFeedback({ kind: "success", message });
-      Alert.alert("Code redeemed", message);
-      setPromoCode("");
-    } catch (error) {
-      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
-      setPromoFeedback({ kind: "error", message });
-      Alert.alert("Redeem failed", message);
-    } finally {
-      setRedeemingPromo(false);
-    }
-  };
-
-=======
->>>>>>> origin/main
   const NumberRow = ({
     label,
     desc,
@@ -163,17 +76,6 @@ export default function Settings() {
           <Text style={styles.stepBtnText}>+</Text>
         </TouchableOpacity>
       </View>
-      {promoFeedback && (
-        <Text
-          style={[
-            styles.promoFeedback,
-            promoFeedback.kind === "success" ? styles.promoFeedbackSuccess : styles.promoFeedbackError,
-          ]}
-          testID="promo-code-feedback"
-        >
-          {promoFeedback.message}
-        </Text>
-      )}
     </View>
   );
 
@@ -485,40 +387,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
   },
-<<<<<<< HEAD
-  promoButton: {
-    borderWidth: 1,
-    borderColor: "#FFD23F",
-    borderRadius: 8,
-    backgroundColor: "#202b4f",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  promoButtonDisabled: {
-    opacity: 0.6,
-  },
-  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
-  promoFeedback: {
-    borderWidth: 1,
-    borderRadius: 8,
-    fontSize: 12,
-    fontWeight: "900",
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  promoFeedbackSuccess: {
-    backgroundColor: "rgba(40, 167, 69, 0.16)",
-    borderColor: "#39D98A",
-    color: "#B7FFD2",
-  },
-  promoFeedbackError: {
-    backgroundColor: "rgba(255, 79, 112, 0.14)",
-    borderColor: "#FF6B8A",
-    color: "#FFD1DC",
-  },
-=======
   buildInfoLabel: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   buildInfoValue: { color: "#f4f7ff", fontSize: 12, fontWeight: "900", marginTop: 3 },
->>>>>>> origin/main
 });
