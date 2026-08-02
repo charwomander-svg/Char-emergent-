@@ -37,7 +37,6 @@ import {
   submitTimeAttackRun,
   syncPlayGames,
 } from "@/src/game/playGames";
-import { isItchWebRuntime } from "@/src/game/runtime";
 
 
 function fmtMs(ms: number): string {
@@ -146,353 +145,7 @@ class GameplayErrorBoundary extends React.Component<
 }
 
 export default function GameScreen() {
-  const [webMounted, setWebMounted] = useState(false);
-
-  useEffect(() => {
-    setWebMounted(true);
-  }, []);
-
-  if (typeof window === "undefined" || !webMounted) {
-    return <View style={styles.webBootPlaceholder} />;
-  }
-
-  return isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
-}
-
-function ItchGameScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
-    mode?: string;
-    seed?: string;
-    seedDate?: string;
-    level?: string;
-  }>();
-  const mode = getGameMode(params.mode);
-  const seed = params.seed != null ? Number(params.seed) : undefined;
-  const startLevel = params.level != null ? Number(params.level) : undefined;
-  const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
-  const { earnCoins, spendCoins, coins } = useEconomy(runtimeSettings);
-  const {
-    state,
-    setGhostDirection,
-    selectGhost,
-    cycleGhostAiRole,
-    togglePause,
-    advanceLevel,
-    retryLevel,
-    continueEndlessRun,
-    endRun,
-    startNewGame,
-    getEndlessBlessings,
-  } = useGhostMaze({
-    mode,
-    dailySeed: Number.isFinite(seed) ? seed : undefined,
-    dailySeedDate: params.seedDate ?? undefined,
-    startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
-    onCoinsEarned: (n) => earnCoins(n),
-  });
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const timerAccumulatedRef = useRef(0);
-  const timerRunningFromRef = useRef<number | null>(null);
-  const endlessBlessings = getEndlessBlessings();
-  const [endlessContinueCount, setEndlessContinueCount] = useState(0);
-
-  useEffect(() => {
-    loadSettings().then((s) => {
-      setRuntimeSettings(s);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (mode !== "speedrun" && mode !== "timeattack") return;
-    if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
-    }
-    if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
-      timerRunningFromRef.current = null;
-    }
-  }, [mode, state.status]);
-
-  useEffect(() => {
-    if (state.status === "ready" && state.score === 0) {
-      timerAccumulatedRef.current = 0;
-      timerRunningFromRef.current = null;
-      setElapsedMs(0);
-      setEndlessContinueCount(0);
-    }
-  }, [state.score, state.status]);
-
-  useEffect(() => {
-    if (mode !== "speedrun" && mode !== "timeattack") return;
-    let raf = 0;
-    const frame = () => {
-      if (timerRunningFromRef.current != null) {
-        setElapsedMs(timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current));
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [mode]);
-
-  useEffect(() => {
-    if (mode !== "timeattack") return;
-    if (state.status !== "playing") return;
-    if (elapsedMs < TIME_ATTACK_DURATION_MS) return;
-    endRun(`TIME ATTACK OVER\nFINAL SCORE: ${state.score}`);
-  }, [elapsedMs, endRun, mode, state.score, state.status]);
-
-  const endlessContinueCost = useMemo(() => {
-    const tier = endlessContinueCount + 1;
-    const base = tier <= 4 ? tier * 25 : 100 + (tier - 4) * 100;
-    return endlessBlessings.continueDiscount ? Math.max(1, Math.floor(base * 0.5)) : base;
-  }, [endlessBlessings.continueDiscount, endlessContinueCount]);
-
-  const handleEndlessContinue = useCallback(() => {
-    if (coins < endlessContinueCost) return;
-    if (!spendCoins(endlessContinueCost)) return;
-    if (continueEndlessRun()) {
-      setEndlessContinueCount((count) => count + 1);
-    }
-  }, [coins, continueEndlessRun, endlessContinueCost, spendCoins]);
-
-  const timeAttackRemainingMs = Math.max(0, TIME_ATTACK_DURATION_MS - elapsedMs);
-  const catchesToWin = mode === "endless" && endlessBlessings.quickClear ? 2 : CATCH_TO_WIN;
-  const pelletGuyLivesRemaining = Math.max(0, catchesToWin - state.catches);
-  const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
-  const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    let host = document.getElementById("ghost-maze-itch-overlay");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "ghost-maze-itch-overlay";
-      document.body.appendChild(host);
-    }
-
-    const overlay = host;
-    const cellSize = Math.max(
-      10,
-      Math.floor(Math.min((window.innerWidth - 24) / MAZE_COLS, (window.innerHeight * 0.42) / MAZE_ROWS)),
-    );
-    const boardWidth = cellSize * MAZE_COLS;
-    const boardHeight = cellSize * MAZE_ROWS;
-    const catchesGoal = mode === "endless" && endlessBlessings.quickClear ? 2 : CATCH_TO_WIN;
-    const title = mode === "timeattack" ? `TIME LEFT ${fmtMs(timeAttackRemainingMs)}` : `${mode.toUpperCase()} · LEVEL ${state.level}`;
-
-    const cellsHtml = state.maze
-      .map((row) =>
-        row
-          .map((cell) => {
-            if (cell === 1) {
-              return `<div style="width:${cellSize}px;height:${cellSize}px;background:#263673;border:1px solid #6d8cff;box-sizing:border-box;border-radius:2px"></div>`;
-            }
-            if (cell === 2) {
-              return `<div style="width:${cellSize}px;height:${cellSize}px;display:flex;align-items:center;justify-content:center"><div style="width:${Math.max(2, Math.floor(cellSize * 0.22))}px;height:${Math.max(2, Math.floor(cellSize * 0.22))}px;border-radius:999px;background:#ffd166"></div></div>`;
-            }
-            if (cell === 3) {
-              const dot = Math.max(6, Math.floor(cellSize * 0.55));
-              return `<div style="width:${cellSize}px;height:${cellSize}px;display:flex;align-items:center;justify-content:center"><div style="width:${dot}px;height:${dot}px;border-radius:999px;background:#7cf0ff"></div></div>`;
-            }
-            if (cell === 6) {
-              const dot = Math.max(4, Math.floor(cellSize * 0.3));
-              return `<div style="width:${cellSize}px;height:${cellSize}px;display:flex;align-items:center;justify-content:center"><div style="width:${dot}px;height:${dot}px;background:#ff2255;border:1px solid #ffff66;transform:rotate(45deg)"></div></div>`;
-            }
-            if (cell === 7) {
-              return `<div style="width:${cellSize}px;height:${cellSize}px;background:#8B4513;border:1px solid #FF8C00;box-sizing:border-box;border-radius:2px"></div>`;
-            }
-            return `<div style="width:${cellSize}px;height:${cellSize}px"></div>`;
-          })
-          .join(""),
-      )
-      .join("");
-
-    const pelletGuyHtml = !state.bonusGame && state.pelletGuy.alive
-      ? `<div style="position:absolute;left:${state.pelletGuy.x * cellSize + cellSize * 0.1}px;top:${state.pelletGuy.y * cellSize + cellSize * 0.1}px;width:${cellSize * 0.8}px;height:${cellSize * 0.8}px;border-radius:999px;background:#ffd21f;border:1px solid #111"></div>`
-      : "";
-
-    const ghostsHtml = state.ghosts
-      .filter((ghost) => !state.bonusGame || ghost.id === state.selectedGhostId)
-      .map((ghost) => {
-        const color = ghost.alive ? (ghost.vulnerable ? "#4fd1ff" : ghost.color) : "transparent";
-        return `<div style="position:absolute;left:${ghost.x * cellSize + cellSize * 0.1}px;top:${ghost.y * cellSize + cellSize * 0.1}px;width:${cellSize * 0.8}px;height:${cellSize * 0.8}px;border-radius:999px;background:${color};border:${ghost.id === state.selectedGhostId ? "2px solid #facc15" : "1px solid rgba(255,255,255,0.18)"};opacity:${ghost.alive ? 1 : 0.3};box-sizing:border-box"></div>`;
-      })
-      .join("");
-
-    const bonusItemsHtml = state.bonusGame
-      ? state.bonusGame.items
-          .filter((item) => !item.collected)
-          .map((item) => {
-            const emoji = state.bonusGame?.type === "powerHunt" ? "🟡" : BONUS_CONFIG[state.bonusGame!.type].emoji;
-            return `<div style="position:absolute;left:${item.x * cellSize}px;top:${item.y * cellSize}px;width:${cellSize}px;height:${cellSize}px;display:flex;align-items:center;justify-content:center;font-size:${Math.floor(cellSize * 0.65)}px">${emoji}</div>`;
-          })
-          .join("")
-      : "";
-
-    overlay.innerHTML = `
-      <div style="position:fixed;inset:0;z-index:2147483646;background:#080b16;color:#fff;padding:10px;overflow:auto;font-family:Arial,sans-serif">
-        <div style="max-width:${Math.max(boardWidth + 24, 360)}px;margin:0 auto;display:flex;flex-direction:column;gap:10px;align-items:center">
-          <div style="font-size:24px;font-weight:900">Ghost Maze</div>
-          <div style="font-size:14px;color:#c8d0f0;text-align:center">${escapeHtml(title)}</div>
-          <div style="font-size:12px;color:#e6ebff;text-align:center">SCORE ${state.score} · CATCHES ${state.catches}/${catchesGoal} · PG ${pelletGuyLivesRemaining} · GHOSTS ${ghostLivesRemaining} · COINS ${coins}</div>
-          <div style="position:relative;width:${boardWidth}px;height:${boardHeight}px;background:#02040a;border:2px solid #3d4d88;display:grid;grid-template-columns:repeat(${MAZE_COLS}, ${cellSize}px);grid-template-rows:repeat(${MAZE_ROWS}, ${cellSize}px)">${cellsHtml}${pelletGuyHtml}${ghostsHtml}${bonusItemsHtml}</div>
-          <div style="min-height:36px;font-size:13px;color:#ffd6f5;text-align:center;white-space:pre-wrap">${escapeHtml(state.message ?? "Ready.")}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
-            ${state.ghosts
-              .map(
-                (ghost) =>
-                  `<button data-select="${ghost.id}" ${ghost.alive ? "" : "disabled"} style="padding:6px 10px;border-radius:999px;border:${state.selectedGhostId === ghost.id ? "1px solid #facc15;background:#2a2210" : "1px solid #4a5580;background:#12172d"};color:#fff;opacity:${ghost.alive ? 1 : 0.45}">${escapeHtml(ghost.name)}</button>`,
-              )
-              .join("")}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
-            <button data-dir="up" style="min-width:76px;padding:10px;border-radius:8px;border:1px solid #52608f;background:#16203a;color:#fff;font-weight:900">UP</button>
-            <div style="display:flex;gap:6px">
-              <button data-dir="left" style="min-width:76px;padding:10px;border-radius:8px;border:1px solid #52608f;background:#16203a;color:#fff;font-weight:900">LEFT</button>
-              <button data-dir="down" style="min-width:76px;padding:10px;border-radius:8px;border:1px solid #52608f;background:#16203a;color:#fff;font-weight:900">DOWN</button>
-              <button data-dir="right" style="min-width:76px;padding:10px;border-radius:8px;border:1px solid #52608f;background:#16203a;color:#fff;font-weight:900">RIGHT</button>
-            </div>
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-            <button id="itch-pause" style="padding:10px 12px;border-radius:8px;border:1px solid #6a78a8;background:#192443;color:#fff;font-weight:900">${state.status === "paused" ? "RESUME" : "PAUSE"}</button>
-            ${
-              state.status === "levelWon"
-                ? `<button id="itch-next" style="padding:10px 12px;border-radius:8px;border:1px solid #6a78a8;background:#192443;color:#fff;font-weight:900">NEXT LEVEL</button>`
-                : ""
-            }
-            ${
-              state.status === "gameOver" && mode === "endless"
-                ? `<button id="itch-continue" style="padding:10px 12px;border-radius:8px;border:1px solid #6a78a8;background:#192443;color:#fff;font-weight:900">CONTINUE ${endlessContinueCost}</button>`
-                : ""
-            }
-            ${
-              state.status === "gameOver" && mode !== "endless"
-                ? `<button id="itch-retry" style="padding:10px 12px;border-radius:8px;border:1px solid #6a78a8;background:#192443;color:#fff;font-weight:900">RETRY</button>`
-                : ""
-            }
-            <button id="itch-exit" style="padding:10px 12px;border-radius:8px;border:1px solid #6a78a8;background:#192443;color:#fff;font-weight:900">EXIT</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    overlay.querySelectorAll<HTMLButtonElement>("[data-select]").forEach((button) => {
-      button.onclick = () => selectGhost(Number(button.dataset.select) as GhostId);
-    });
-    overlay.querySelectorAll<HTMLButtonElement>("[data-dir]").forEach((button) => {
-      button.onclick = () => setGhostDirection(state.selectedGhostId, button.dataset.dir as Direction);
-    });
-    const pauseButton = overlay.querySelector<HTMLButtonElement>("#itch-pause");
-    if (pauseButton) pauseButton.onclick = () => togglePause();
-    const nextButton = overlay.querySelector<HTMLButtonElement>("#itch-next");
-    if (nextButton) nextButton.onclick = () => advanceLevel();
-    const continueButton = overlay.querySelector<HTMLButtonElement>("#itch-continue");
-    if (continueButton) continueButton.onclick = () => handleEndlessContinue();
-    const retryButton = overlay.querySelector<HTMLButtonElement>("#itch-retry");
-    if (retryButton) retryButton.onclick = () => retryLevel();
-    const exitButton = overlay.querySelector<HTMLButtonElement>("#itch-exit");
-    if (exitButton) {
-      exitButton.onclick = () => {
-        startNewGame();
-        router.replace("/");
-      };
-    }
-    const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
-    const holdTriggered = new Set<GhostId>();
-    const confirmExitToMenu = () => {
-      if (typeof window === "undefined") return true;
-      return window.confirm("Leave this run and return to the main menu?");
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      const dir = STANDARD_DIRECTION_BY_KEY[key];
-      if (dir) {
-        event.preventDefault();
-        setGhostDirection(state.selectedGhostId, dir);
-        return;
-      }
-
-      if (key === "backspace") {
-        event.preventDefault();
-        if (!confirmExitToMenu()) return;
-        startNewGame();
-        router.replace("/");
-        return;
-      }
-
-      const ghostId = GHOST_BY_NUMBER_KEY[key];
-      if (ghostId == null) return;
-      event.preventDefault();
-      if (!state.ghosts[ghostId]?.alive) return;
-      selectGhost(ghostId);
-      if (event.repeat || holdTimers.has(ghostId)) return;
-      const timer = setTimeout(() => {
-        holdTriggered.add(ghostId);
-        selectGhost(ghostId);
-        cycleGhostAiRole(ghostId);
-      }, 350);
-      holdTimers.set(ghostId, timer);
-    };
-    const handleKeyUp = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      const ghostId = GHOST_BY_NUMBER_KEY[key];
-      if (ghostId == null) return;
-      const timer = holdTimers.get(ghostId);
-      if (timer) {
-        clearTimeout(timer);
-        holdTimers.delete(ghostId);
-      }
-      if (holdTriggered.has(ghostId)) {
-        holdTriggered.delete(ghostId);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-
-    return () => {
-      holdTimers.forEach((timer) => clearTimeout(timer));
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      if (overlay.parentNode) {
-        overlay.parentNode.removeChild(overlay);
-      }
-    };
-  }, [
-    advanceLevel,
-    coins,
-    endlessBlessings.quickClear,
-    endlessContinueCost,
-    ghostLivesRemaining,
-    handleEndlessContinue,
-    mode,
-    pelletGuyLivesRemaining,
-    retryLevel,
-    router,
-    cycleGhostAiRole,
-    selectGhost,
-    setGhostDirection,
-    startNewGame,
-    state.bonusGame,
-    state.catches,
-    state.ghostDeathsThisLevel,
-    state.ghosts,
-    state.level,
-    state.maze,
-    state.message,
-    state.pelletGuy,
-    state.score,
-    state.selectedGhostId,
-    state.status,
-    timeAttackRemainingMs,
-    togglePause,
-  ]);
-
-  return (
-    <SafeAreaView style={styles.container} />
-  );
+  return <FullGameScreen />;
 }
 
 function getDirectionalStepTowardTarget(
@@ -559,8 +212,7 @@ function FullGameScreen() {
     isPracticeMode?: string;
   }>();
   const mode = getGameMode(params.mode);
-  const isItchWeb = isItchWebRuntime();
-  const platformServicesEnabled = !isItchWeb;
+  const platformServicesEnabled = true;
   const isPracticeMode =
     params.practice === "1" || params.ispracticemode === "1" || params.isPracticeMode === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
@@ -686,14 +338,14 @@ function FullGameScreen() {
   useEffect(() => {
     loadSettings().then((s) => {
       setRuntimeSettings(s);
-      const audioEnabled = !isItchWeb && !!s.soundOn;
+      const audioEnabled = !!s.soundOn;
       getSoundEngine().setEnabled(audioEnabled);
       getSoundEngine().setVolumes({
         sfx: audioEnabled ? s.sfxVolume : 0,
         music: audioEnabled ? s.musicVolume : 0,
       });
     });
-  }, [isItchWeb]);
+  }, []);
 
   useEffect(() => {
     setControlledGhosts(armedGhosts);
@@ -711,12 +363,12 @@ function FullGameScreen() {
     if (state.status === "playing" || state.status === "ready") {
       loadSettings().then((s) => {
         setRuntimeSettings(s);
-        if (!isItchWeb && !!s.soundOn) {
+        if (!!s.soundOn) {
           getSoundEngine().fadeMusicTo(s.musicVolume, 180);
         }
       });
     }
-  }, [isItchWeb, state.status]);
+  }, [state.status]);
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
@@ -1249,7 +901,7 @@ function FullGameScreen() {
     isGhostSelectable: (id) => stateRef.current.ghosts[id]?.alive ?? false,
     deadzone: gamepadDeadzone,
     invertY: gamepadInvertY,
-    enabled: !isItchWeb,
+    enabled: true,
   });
 
   useEffect(() => {
@@ -1518,7 +1170,7 @@ function FullGameScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <GameplayErrorBoundary label={isItchWeb ? "itch gameplay route" : "gameplay route"}>
+      <GameplayErrorBoundary label="gameplay route">
       <View style={styles.gameWrapper} {...panResponder.panHandlers}>
         <View
           style={styles.mazeArea}
@@ -1937,112 +1589,7 @@ function FullGameScreen() {
 }
 
 const styles = StyleSheet.create({
-  webBootPlaceholder: { flex: 1, backgroundColor: "#0a0a12" },
   container: { flex: 1, backgroundColor: "#0a0a12" },
-  itchShell: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
-  },
-  itchTitle: {
-    color: "#ffffff",
-    fontSize: 24,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  itchSubtitle: {
-    color: "#c8d0f0",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  itchStatText: {
-    color: "#e6ebff",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  itchMazeWrap: {
-    flex: 1,
-    minHeight: 320,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  itchMessage: {
-    color: "#ffd6f5",
-    fontSize: 13,
-    textAlign: "center",
-    minHeight: 36,
-  },
-  itchGhostRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-  },
-  itchGhostButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#4a5580",
-    backgroundColor: "#12172d",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  itchGhostButtonSelected: {
-    borderColor: "#facc15",
-    backgroundColor: "#2a2210",
-  },
-  itchGhostButtonDisabled: {
-    opacity: 0.45,
-  },
-  itchGhostButtonText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  itchControls: {
-    alignItems: "center",
-    gap: 6,
-  },
-  itchControlMiddleRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  itchControlButton: {
-    minWidth: 76,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#52608f",
-    backgroundColor: "#16203a",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  itchControlButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  itchActionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-  },
-  itchActionButton: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#6a78a8",
-    backgroundColor: "#192443",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  itchActionButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "900",
-  },
   errorPanel: {
     flex: 1,
     alignItems: "center",
