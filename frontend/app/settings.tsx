@@ -1,18 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Linking, Alert, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/src/game/constants";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
-import { getSoundEngine, SOUND_TEST_TRACKS } from "@/src/game/sounds";
-import { redeemPromoCode } from "@/src/game/api";
-import { getPlayerId } from "@/src/game/playerId";
-import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
-import type { PowerUpId } from "@/src/game/powerups";
+import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
+import { fetchApiVersion } from "@/src/game/api";
 
 export default function Settings() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+<<<<<<< HEAD
   const [activeSoundTestTrack, setActiveSoundTestTrack] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [redeemingPromo, setRedeemingPromo] = useState(false);
@@ -32,9 +30,13 @@ export default function Settings() {
       return 0;
     });
   }, [settings.soundTestFavorites, settings.soundTestOrder]);
+=======
+  const [backendBuild, setBackendBuild] = useState<string>("unknown");
+>>>>>>> origin/main
 
   useEffect(() => {
     loadSettings().then(setSettings);
+    fetchApiVersion().then((info) => setBackendBuild(info.build)).catch(() => setBackendBuild("offline"));
   }, []);
 
   const update = <K extends keyof SettingsData>(k: K, v: SettingsData[K]) => {
@@ -45,14 +47,12 @@ export default function Settings() {
       getSoundEngine().setEnabled(Boolean(v));
       if (!v) {
         getSoundEngine().stopMusic();
-        setActiveSoundTestTrack(null);
       }
     }
     if (k === "musicOn") {
-      if (v && settings.soundOn) getSoundEngine().startMusic();
+      if (v && settings.soundOn) getSoundEngine().startMusic(getMusicTrackForLevel(1));
       if (!v) {
         getSoundEngine().stopMusic();
-        setActiveSoundTestTrack(null);
       }
     }
     if (k === "sfxVolume" || k === "musicVolume") {
@@ -63,6 +63,7 @@ export default function Settings() {
     }
   };
 
+<<<<<<< HEAD
   const openExternal = async (url: string) => {
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
@@ -125,6 +126,8 @@ export default function Settings() {
     }
   };
 
+=======
+>>>>>>> origin/main
   const NumberRow = ({
     label,
     desc,
@@ -305,13 +308,6 @@ export default function Settings() {
           onChange={(v) => update("controlMode", v)}
         />
         <Row
-          label="Puppet Master Mode"
-          desc="Control all four ghosts at once with split keyboard lanes"
-          value={settings.masterControlMode}
-          onChange={(v) => update("masterControlMode", v)}
-          testID="toggle-puppet-master-mode"
-        />
-        <Row
           label="CRT Scanlines"
           desc="Retro horizontal lines overlay"
           value={settings.scanlines}
@@ -339,102 +335,6 @@ export default function Settings() {
           onChange={(v) => update("largeHud", v)}
           testID="toggle-large-hud"
         />
-        <View style={styles.musicCard}>
-          <Text style={styles.musicCardTitle}>SOUND TEST MODE</Text>
-          <Text style={styles.musicCardBody}>
-            Enjoying the music? Chardcore is a musical artist with 8 albums released. You might like it, so we are
-            providing her most recent album, Instrumetal, which you can listen to here or download for free. Yes,
-            free. She is awesome like that.
-          </Text>
-          <View style={styles.musicLinkRow}>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://charware.dev/instrumetal")}
-              testID="instrumetal-link"
-            >
-              <Text style={styles.musicLinkBtnText}>INSTRUMETAL (FREE)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://open.spotify.com/artist/23uBgaylUzFwSFkLRPxX80")}
-              testID="spotify-link"
-            >
-              <Text style={styles.musicLinkBtnText}>SPOTIFY</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.musicLinkBtn}
-              onPress={() => openExternal("https://charware.dev")}
-              testID="charware-link"
-            >
-              <Text style={styles.musicLinkBtnText}>CHARWARE.DEV</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.musicCardSub}>Tap a track to preview your favorites.</Text>
-          {orderedSoundTestTracks.map((entry) => (
-            <TouchableOpacity
-              key={entry.id}
-              style={[
-                styles.soundTestBtn,
-                activeSoundTestTrack === entry.id && styles.soundTestBtnActive,
-              ]}
-              onPress={() => {
-                if (activeSoundTestTrack === entry.id) {
-                  getSoundEngine().stopMusic();
-                  setActiveSoundTestTrack(null);
-                  return;
-                }
-                getSoundEngine().startMusic(entry.track);
-                setActiveSoundTestTrack(entry.id);
-                const nextOrder = [entry.id, ...(settings.soundTestOrder ?? []).filter((id) => id !== entry.id)];
-                update("soundTestOrder", nextOrder);
-              }}
-              testID={`sound-test-${entry.id}`}
-            >
-              <View style={styles.soundTestHeader}>
-                <Text style={styles.soundTestTitle}>{entry.label}</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    const current = new Set(settings.soundTestFavorites ?? []);
-                    if (current.has(entry.id)) current.delete(entry.id);
-                    else current.add(entry.id);
-                    update("soundTestFavorites", Array.from(current));
-                  }}
-                  style={styles.favoriteBtn}
-                  testID={`sound-test-fav-${entry.id}`}
-                >
-                  <Text style={styles.favoriteBtnText}>
-                    {(settings.soundTestFavorites ?? []).includes(entry.id) ? "★" : "☆"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.soundTestSub}>{entry.description}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={styles.musicCard}>
-          <Text style={styles.musicCardTitle}>PROMO / SECRET CODE</Text>
-          <Text style={styles.musicCardSub}>Enter a code to claim rewards or unlock hidden features.</Text>
-          <View style={styles.promoRow}>
-            <TextInput
-              value={promoCode}
-              onChangeText={setPromoCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              placeholder="ENTER CODE"
-              placeholderTextColor="#7d88a8"
-              style={styles.promoInput}
-              testID="promo-code-input"
-            />
-            <TouchableOpacity
-              onPress={redeemSecretCode}
-              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
-              disabled={redeemingPromo}
-              testID="promo-code-submit"
-            >
-              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
         {settings.devMode && (
           <View style={styles.musicCard} testID="dev-mode-card">
             <Text style={styles.musicCardTitle}>DEV MODE</Text>
@@ -455,6 +355,10 @@ export default function Settings() {
             />
           </View>
         )}
+        <View style={styles.buildInfoCard} testID="backend-build-info">
+          <Text style={styles.buildInfoLabel}>BACKEND BUILD</Text>
+          <Text style={styles.buildInfoValue}>{backendBuild}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -501,7 +405,14 @@ const styles = StyleSheet.create({
   },
   stepBtnText: { color: "#FFFF00", fontSize: 16, fontWeight: "900" },
   stepValue: { color: "#FFFFFF", minWidth: 52, textAlign: "center", fontWeight: "900" },
-  modeSelector: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modeSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    flexWrap: "wrap",
+    maxWidth: "52%",
+  },
   modeBtn: {
     borderWidth: 1,
     borderColor: COLORS.uiBorder,
@@ -509,6 +420,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#121a32",
     paddingHorizontal: 8,
     paddingVertical: 6,
+    minWidth: 52,
+    alignItems: "center",
   },
   modeBtnActive: {
     borderColor: "#FFD23F",
@@ -563,19 +476,16 @@ const styles = StyleSheet.create({
   favoriteBtnText: { color: "#FFE082", fontSize: 12, fontWeight: "900" },
   soundTestTitle: { color: "#f4f7ff", fontWeight: "900", fontSize: 12 },
   soundTestSub: { color: "#b8c2eb", fontSize: 10, marginTop: 2 },
-  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  promoInput: {
-    flex: 1,
+  buildInfoCard: {
+    backgroundColor: COLORS.uiPanel,
     borderWidth: 1,
-    borderColor: "#394572",
-    borderRadius: 8,
-    backgroundColor: "#10172d",
-    color: "#f4f7ff",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontWeight: "900",
-    letterSpacing: 1,
+    borderColor: COLORS.uiBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
+<<<<<<< HEAD
   promoButton: {
     borderWidth: 1,
     borderColor: "#FFD23F",
@@ -607,4 +517,8 @@ const styles = StyleSheet.create({
     borderColor: "#FF6B8A",
     color: "#FFD1DC",
   },
+=======
+  buildInfoLabel: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  buildInfoValue: { color: "#f4f7ff", fontSize: 12, fontWeight: "900", marginTop: 3 },
+>>>>>>> origin/main
 });

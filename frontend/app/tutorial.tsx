@@ -27,7 +27,6 @@ const SECTIONS: TutorialSection[] = [
       "• Keyboard movement: WASD or Arrow keys.\n" +
       "• Keyboard ghost controls: 1-4 selects a ghost, hold 1-4 to cycle that ghost's AI role.\n" +
       "• Keyboard power-ups: F1-F8 uses the matching power-up slot in your HUD.\n" +
-      "• Puppet Master Mode: Ghost 1 uses WASD, Ghost 2 uses Y/G/H/J, Ghost 3 uses Arrow keys, Ghost 4 uses Numpad 8/4/2/6.\n" +
       "• Backspace: leave run (with confirmation).\n" +
       "• Tap-to-move: tap a walkable tile and your armed ghosts path toward that spot (enable in Settings → Controls).\n" +
       "• We recommend using a controller for the best experience, but swiping is still good.\n" +
@@ -150,11 +149,19 @@ export default function TutorialScreen() {
           <Text style={styles.title}>TUTORIAL</Text>
           <Text style={styles.subtitle}>Complete guide to modes, systems, and progression</Text>
           <TouchableOpacity
+<<<<<<< HEAD
             style={styles.practiceBtn}
             onPress={() => router.push("/game?mode=classic&practice=1")}
             testID="tutorial-practice-btn"
           >
             <Text style={styles.practiceBtnText}>▶ START INTERACTIVE PRACTICE</Text>
+=======
+            style={styles.playableTutorialBtn}
+            onPress={() => router.push("/game?practice=1")}
+            testID="tutorial-hero-btn"
+          >
+            <Text style={styles.playableTutorialBtnText}>▶ PLAY PLAYABLE TUTORIAL</Text>
+>>>>>>> origin/main
           </TouchableOpacity>
         </View>
 
@@ -192,6 +199,7 @@ const styles = StyleSheet.create({
   },
   title: { color: "#FFFF00", fontSize: 22, fontWeight: "900", letterSpacing: 2.5 },
   subtitle: { color: "#b9d3ff", fontSize: 12, fontWeight: "700" },
+<<<<<<< HEAD
   practiceBtn: {
     marginTop: 8,
     borderWidth: 1,
@@ -203,6 +211,18 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   practiceBtnText: { color: "#FFF4BF", fontWeight: "900", letterSpacing: 0.6, fontSize: 12 },
+=======
+  playableTutorialBtn: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#6caef1",
+    backgroundColor: "#132446",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  playableTutorialBtnText: { color: "#d9edff", fontWeight: "900", fontSize: 13, letterSpacing: 1 },
+>>>>>>> origin/main
   card: {
     borderRadius: 10,
     borderWidth: 1,

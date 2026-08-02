@@ -17,8 +17,6 @@ export interface SettingsData {
   highContrast: boolean;
   largeHud: boolean;
   controlMode: "swipe" | "tap" | "both";
-  soundTestFavorites: string[];
-  soundTestOrder: string[];
   devMode: boolean;
   devInfiniteCoins: boolean;
   devInfiniteItems: boolean;
@@ -37,8 +35,6 @@ export const DEFAULT_SETTINGS: SettingsData = {
   highContrast: false,
   largeHud: false,
   controlMode: "swipe",
-  soundTestFavorites: [],
-  soundTestOrder: [],
   devMode: false,
   devInfiniteCoins: false,
   devInfiniteItems: false,

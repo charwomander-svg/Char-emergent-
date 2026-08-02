@@ -20,9 +20,7 @@ export type MusicTrack =
   | "tier3"
   | "tier4"
   | "bonus"
-  | "bonusHunt"
-  | "instrumetalA"
-  | "instrumetalB";
+  | "bonusHunt";
 
 // Bundled WAVs. Use require() so Metro resolves them and bundles into the app.
 const SFX_SOURCES: Record<SfxKey, number> = {
@@ -45,8 +43,6 @@ const MUSIC_SOURCES: Record<MusicTrack, number> = {
   tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
   bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
-  instrumetalA: require("@/assets/sounds/cloudy.mp3"),
-  instrumetalB: require("@/assets/sounds/Hypervelocity.mp3"),
 };
 
 const LEVEL_MUSIC_ROTATION: MusicTrack[] = ["main", "tier2", "tier3", "tier4"];
@@ -56,25 +52,6 @@ export function getMusicTrackForLevel(level: number, bonusType?: BonusGameType |
   const safeLevel = Math.max(1, Math.floor(level));
   const tierIndex = Math.floor((safeLevel - 1) / 10) % LEVEL_MUSIC_ROTATION.length;
   return LEVEL_MUSIC_ROTATION[tierIndex];
-}
-
-export const SOUND_TEST_TRACKS: { id: string; label: string; track: MusicTrack; description: string }[] = [
-  { id: "arcade-1", label: "Arcade: Blinky's Revenge", track: "main", description: "Levels 1–10" },
-  { id: "arcade-2", label: "Arcade: Ghost Maze Song 2", track: "tier2", description: "Levels 11–20" },
-  { id: "arcade-3", label: "Arcade: Song 3", track: "tier3", description: "Levels 21–30" },
-  { id: "arcade-4", label: "Arcade: Corrupted Nightmare", track: "tier4", description: "Levels 31+" },
-  { id: "bonus", label: "Bonus Stage Theme", track: "bonus", description: "Dedicated bonus music" },
-  { id: "bonus-hunt", label: "Bonus Hunt Theme", track: "bonusHunt", description: "Power Hunt levels" },
-  { id: "instr-a", label: "Instrumetal: cloudy", track: "instrumetalA", description: "Featured album" },
-  { id: "instr-b", label: "Instrumetal: Hypervelocity", track: "instrumetalB", description: "Featured album" },
-];
-
-const TRACK_LABEL_BY_ID = Object.fromEntries(
-  SOUND_TEST_TRACKS.map((entry) => [entry.track, entry.label]),
-) as Record<MusicTrack, string>;
-
-export function getMusicTrackLabel(track: MusicTrack): string {
-  return TRACK_LABEL_BY_ID[track] ?? track;
 }
 
 interface SoundEngine {
@@ -136,7 +113,7 @@ function playSfx(key: SfxKey) {
       applyMusicVolumeNow();
     }
     player.seekTo(0);
-    player.play();
+    ignorePlaybackRejection(player.play());
   } catch {}
 }
 
@@ -177,6 +154,14 @@ function applyMusicVolumeNow() {
   });
 }
 
+function ignorePlaybackRejection(result: unknown) {
+  if (!result || typeof result !== "object") return;
+  const maybePromise = result as { catch?: (onRejected: () => void) => unknown };
+  if (typeof maybePromise.catch === "function") {
+    void maybePromise.catch(() => {});
+  }
+}
+
 export function createSoundEngine(): SoundEngine {
   let enabled = true;
   const safePlay = (key: SfxKey) => {
@@ -215,11 +200,15 @@ export function createSoundEngine(): SoundEngine {
       if (!player || player.playing) return;
       try {
         player.seekTo(0);
-        player.play();
+        ignorePlaybackRejection(player.play());
         activeMusicTrack = track;
       } catch {}
     },
     stopMusic() {
+      if (musicFadeInterval) {
+        clearInterval(musicFadeInterval);
+        musicFadeInterval = null;
+      }
       pausePlayer(activeMusicTrack ? musicPlayers[activeMusicTrack] : null);
       activeMusicTrack = null;
     },

@@ -3,7 +3,14 @@ import { View, StyleSheet, Animated, Easing, Text } from "react-native";
 import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
-import { COLORS, SPEED } from "@/src/game/constants";
+import { COLORS, SPEED, getLevelSpeedScale } from "@/src/game/constants";
+
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
 
 interface Props {
   maze: CellType[][];
@@ -78,10 +85,6 @@ function useSmoothPosition(
   }, [x, y, cellSize, duration, animX, animY]);
 
   return { animX, animY };
-}
-
-function speedScale(level: number): number {
-  return Math.max(0.55, 1 - (level - 1) * 0.05);
 }
 
 function useChompAnimation(duration = 120) {
@@ -263,11 +266,11 @@ const GhostSprite = React.memo(function GhostSprite({
 }) {
   const { animX, animY } = useSmoothPosition(ghost.x, ghost.y, moveDuration, size);
 
-  const blink = ghost.vulnerable && ghost.vulnerableUntil - performance.now() < 2000;
+  const blink = ghost.vulnerable && ghost.vulnerableUntil - nowMs() < 2000;
   const color = !ghost.alive
     ? "transparent"
     : ghost.vulnerable
-    ? blink && Math.floor(performance.now() / 200) % 2 === 0
+    ? blink && Math.floor(nowMs() / 200) % 2 === 0
       ? COLORS.ghostVulnerableEnd
       : COLORS.ghostVulnerable
     : ghost.color;
@@ -640,7 +643,7 @@ export default function MazeRenderer({
   if (!maze || !maze.length || !maze[0]) return null;
   const width = maze[0].length * cellSize;
   const height = maze.length * cellSize;
-  const scale = speedScale(level);
+  const scale = getLevelSpeedScale(level);
   const pgDuration = SPEED.pelletGuy * scale;
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;

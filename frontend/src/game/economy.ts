@@ -1,5 +1,5 @@
 // Ghost Maze Economy - Ghost Coins + Power-Up Inventory
-// Persisted via AsyncStorage. Real-money coin packs (Stripe) deferred.
+// Persisted via AsyncStorage. Android real-money coin packs are granted by Play Store billing.
 
 import { storage } from "@/src/utils/storage";
 import type { PowerUpId } from "./powerups";

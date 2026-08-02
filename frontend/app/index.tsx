@@ -1,14 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform, View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Platform, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
 import { syncPlayGames } from "@/src/game/playGames";
-import { getSoundEngine } from "@/src/game/sounds";
+import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
-import { loadSettings } from "@/src/game/settings";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
+import { redeemPromoCode } from "@/src/game/api";
+import { getPlayerId } from "@/src/game/playerId";
+import { addCoins, addInventory, loadEconomy, saveEconomy } from "@/src/game/economy";
+import type { PowerUpId } from "@/src/game/powerups";
 import {
   computeUnlockedThemeIds,
   getTotalGoldStars,
@@ -16,10 +21,20 @@ import {
   loadProgress,
   THEMES,
 } from "@/src/game/progress";
+import { storage } from "@/src/utils/storage";
+
+const RELEASE_NOTES_SEEN_KEY = "ghostMaze.releaseNotesSeen.v1";
+const RELEASE_NOTES_VERSION = "2026-07-26-production-polish";
+const PROMO_HISTORY_KEY = "ghostMaze.promoHistory.v1";
+
+interface PromoHistoryEntry {
+  code: string;
+  redeemedAt: string;
+  summary: string;
+}
 
 export default function MainMenu() {
   const router = useRouter();
-  const [webMounted, setWebMounted] = useState(false);
   const { width } = useWindowDimensions();
   const isCompactMenu = width < 390;
   const { coins, economy, grantCoins } = useEconomy();
@@ -28,17 +43,28 @@ export default function MainMenu() {
   const [totalStars, setTotalStars] = useState(0);
   const [totalGoldStars, setTotalGoldStars] = useState(0);
   const [nextUnlockText, setNextUnlockText] = useState("All visible teams unlocked.");
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const [menuSettings, setMenuSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
+  const [promoCode, setPromoCode] = useState("");
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [promoFeedback, setPromoFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [promoHistory, setPromoHistory] = useState<PromoHistoryEntry | null>(null);
   const { missions, completedCount, rewardClaimed, rewardCoins, dateKey, refresh } =
     useDailyMissions(economy ? grantCoins : undefined);
 
   useEffect(() => {
     let mounted = true;
-    void syncPlayGames();
+    if (Platform.OS === "android") {
+      void syncPlayGames();
+    }
     loadSettings().then((s) => {
       if (!mounted) return;
+      setMenuSettings(s);
       getSoundEngine().setEnabled(!!s.soundOn);
       getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
-      if (s.soundOn && s.musicOn) getSoundEngine().startMusic();
+      if (s.soundOn && s.musicOn) {
+        getSoundEngine().startMusic(getMusicTrackForLevel(1));
+      }
     });
     loadProgress().then((p) => {
       if (!mounted) return;
@@ -49,6 +75,21 @@ export default function MainMenu() {
       setTotalGoldStars(getTotalGoldStars(p));
       const nextTheme = THEMES.filter((theme) => !theme.hidden && !unlocked.has(theme.id))[0];
       setNextUnlockText(nextTheme ? `${nextTheme.name}: ${nextTheme.unlockHint}` : "All visible teams unlocked.");
+    });
+    storage.getItem<string>(RELEASE_NOTES_SEEN_KEY, "").then((seen) => {
+      if (seen !== RELEASE_NOTES_VERSION) {
+        setShowReleaseNotes(true);
+      }
+    });
+    storage.getItem<string>(PROMO_HISTORY_KEY, "").then((value) => {
+      if (!mounted || !value) return;
+      try {
+        const maybe = JSON.parse(value) as PromoHistoryEntry;
+        if (typeof maybe.code !== "string" || typeof maybe.redeemedAt !== "string" || typeof maybe.summary !== "string") return;
+        setPromoHistory(maybe);
+      } catch {
+        // Ignore malformed legacy entries.
+      }
     });
     return () => {
       mounted = false;
@@ -62,25 +103,77 @@ export default function MainMenu() {
     }, [refresh]),
   );
 
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    setWebMounted(true);
-  }, []);
-
   const go = (route: string) => {
     getSoundEngine().uiClick();
     router.push(route as any);
   };
 
-  if (Platform.OS === "web" && !webMounted) {
-    return (
-      <SafeAreaView style={styles.container} testID="main-menu">
-        <View style={styles.webBootPlaceholder}>
-          <Text style={styles.webBootText}>Loading menu…</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const dismissReleaseNotes = () => {
+    setShowReleaseNotes(false);
+    void storage.setItem(RELEASE_NOTES_SEEN_KEY, RELEASE_NOTES_VERSION);
+  };
+  const redeemSecretCode = async () => {
+    const cleaned = promoCode.trim();
+    if (!cleaned || redeemingPromo) return;
+    setRedeemingPromo(true);
+    setPromoFeedback(null);
+    try {
+      if (cleaned.toUpperCase() === "WARM0NGER") {
+        const next = {
+          ...menuSettings,
+          devMode: true,
+          devInfiniteCoins: true,
+          devInfiniteItems: true,
+        };
+        setMenuSettings(next);
+        await saveSettings(next);
+        const message = "Warm0nger enabled infinite coins, infinite items, and in-game dev actions.";
+        setPromoFeedback({ kind: "success", message });
+        if (menuSettings.haptics) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        Alert.alert("Dev mode unlocked", message);
+        setPromoCode("");
+        return;
+      }
+      const playerId = await getPlayerId();
+      const redeemed = await redeemPromoCode(cleaned, playerId);
+      const economyData = await loadEconomy();
+      let nextEconomy = addCoins(economyData, redeemed.rewards.coins ?? 0);
+      for (const [rawId, qty] of Object.entries(redeemed.rewards.powerUps ?? {})) {
+        const id = rawId as PowerUpId;
+        if (typeof qty === "number" && qty > 0) {
+          nextEconomy = addInventory(nextEconomy, id, qty);
+        }
+      }
+      await saveEconomy(nextEconomy);
+      const coinsReward = redeemed.rewards.coins ?? 0;
+      const powerUps = Object.entries(redeemed.rewards.powerUps ?? {})
+        .filter(([, qty]) => typeof qty === "number" && qty > 0)
+        .map(([id, qty]) => `${qty} ${id}`);
+      const rewards = [coinsReward > 0 ? `${coinsReward.toLocaleString()} Ghost Coins` : null, ...powerUps].filter(Boolean);
+      const message = rewards.length > 0 ? `Added ${rewards.join(", ")} to your save.` : redeemed.message;
+      setPromoFeedback({ kind: "success", message });
+      if (menuSettings.haptics) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      const history: PromoHistoryEntry = {
+        code: cleaned.toUpperCase(),
+        redeemedAt: new Date().toISOString(),
+        summary: message,
+      };
+      setPromoHistory(history);
+      void storage.setItem(PROMO_HISTORY_KEY, JSON.stringify(history));
+      Alert.alert("Code redeemed", message);
+      setPromoCode("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/, "") : "Unable to redeem code.";
+      setPromoFeedback({ kind: "error", message });
+      Alert.alert("Redeem failed", message);
+    } finally {
+      setRedeemingPromo(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} testID="main-menu">
@@ -149,6 +242,7 @@ export default function MainMenu() {
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/statistics")} testID="statistics-btn"><Text style={styles.actionBtnText}>📊 STATISTICS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/tutorial")} testID="tutorial-btn"><Text style={styles.actionBtnText}>📘 TUTORIAL</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/news")} testID="news-btn"><Text style={styles.actionBtnText}>📰 NEWS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
         </View>
@@ -178,22 +272,66 @@ export default function MainMenu() {
           ))}
           <Text style={styles.dailyMissionFooter}>{completedCount}/3 complete</Text>
         </View>
-
-        <View style={styles.howToWrap}>
-          <Text style={styles.howToTitle}>HOW TO PLAY</Text>
-          <Text style={styles.howToText}>
-            • Catch Pellet Guy 3 times to clear{"\n"}
-            • Swipe to direct armed ghosts{"\n"}
-            • Every 5th level is a bonus stage{"\n"}
-            • Don&apos;t lose all ghosts or all pellets{"\n"}
-            • 20 total ghost deaths in a stage is an auto-fail (resets each stage){"\n"}
-            • Keyboard: WASD/Arrows move, 1-4 select/hold to cycle AI, F1-F8 use powerups, Backspace exits{"\n"}
-            • Puppet Master Mode: G1 WASD, G2 YGHJ, G3 Arrows, G4 Numpad 8/4/2/6{"\n"}
-            • Use 📘 TUTORIAL for complete systems and mode rules
-          </Text>
+        <View style={styles.promoCard} testID="promo-code-card">
+          <Text style={styles.promoTitle}>PROMO / SECRET CODE</Text>
+          <Text style={styles.promoSub}>Redeem rewards directly from the main menu.</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              value={promoCode}
+              onChangeText={setPromoCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="ENTER CODE"
+              placeholderTextColor="#7d88a8"
+              style={styles.promoInput}
+              testID="promo-code-input"
+            />
+            <TouchableOpacity
+              onPress={redeemSecretCode}
+              style={[styles.promoButton, redeemingPromo && styles.promoButtonDisabled]}
+              disabled={redeemingPromo}
+              testID="promo-code-submit"
+            >
+              <Text style={styles.promoButtonText}>{redeemingPromo ? "..." : "REDEEM"}</Text>
+            </TouchableOpacity>
+          </View>
+          {promoFeedback && (
+            <Text
+              style={[
+                styles.promoFeedback,
+                promoFeedback.kind === "success" ? styles.promoFeedbackSuccess : styles.promoFeedbackError,
+              ]}
+              testID="promo-code-feedback"
+            >
+              {promoFeedback.message}
+            </Text>
+          )}
+          {promoHistory && (
+            <View style={styles.promoHistoryCard} testID="promo-code-history">
+              <Text style={styles.promoHistoryTitle}>LAST REDEEMED</Text>
+              <Text style={styles.promoHistoryText}>{promoHistory.code}</Text>
+              <Text style={styles.promoHistoryText}>{new Date(promoHistory.redeemedAt).toLocaleString()}</Text>
+              <Text style={styles.promoHistorySub}>{promoHistory.summary}</Text>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.footer}>v1.0 · HUDFD</Text>
+        {showReleaseNotes && (
+          <View style={styles.releaseNotesCard} testID="release-notes-card">
+            <Text style={styles.releaseNotesTitle}>WHAT&apos;S NEW</Text>
+            <Text style={styles.releaseNotesText}>
+              • Interactive tutorial practice{"\n"}
+              • Leaderboard submission states + retry guidance{"\n"}
+              • Promo redemption confirmation and history{"\n"}
+              • Stability fixes from QA round
+            </Text>
+            <TouchableOpacity style={styles.releaseNotesBtn} onPress={dismissReleaseNotes} testID="release-notes-dismiss">
+              <Text style={styles.releaseNotesBtnText}>GOT IT</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <Text style={styles.footer}>v1.0 - HUDFD - SPRITEFIX2</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -263,23 +401,52 @@ const styles = StyleSheet.create({
   dailyMissionTextDone: { color: "#9fffa9" },
   dailyMissionProgress: { color: "#FFB897", fontSize: 12, fontWeight: "900", minWidth: 34, textAlign: "right" },
   dailyMissionFooter: { color: "#9eb3d8", fontSize: 11, fontWeight: "bold", letterSpacing: 1, textAlign: "right" },
-  howToWrap: {
-    width: "100%", padding: 12, backgroundColor: COLORS.uiPanel, borderRadius: 8, borderWidth: 1, borderColor: COLORS.uiBorder,
+  promoCard: {
+    width: "100%", padding: 14, borderRadius: 12, borderWidth: 2, borderColor: "#ffd23f", backgroundColor: "#16152b", gap: 8,
   },
-  howToTitle: {
-    color: "#FFFF00", fontWeight: "900", fontSize: 14, letterSpacing: 2, marginBottom: 8, textAlign: "center",
+  promoTitle: { color: "#FFF4A3", fontWeight: "900", fontSize: 15, letterSpacing: 1.5 },
+  promoSub: { color: "#d2d9fb", fontSize: 12, fontWeight: "700" },
+  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  promoInput: {
+    flex: 1, borderWidth: 1, borderColor: "#394572", borderRadius: 8, backgroundColor: "#10172d", color: "#f4f7ff",
+    paddingHorizontal: 12, paddingVertical: 10, fontWeight: "900", letterSpacing: 1,
   },
-  howToText: { color: "#FFFFFF", fontSize: 12, lineHeight: 18 },
+  promoButton: {
+    borderWidth: 1, borderColor: "#FFD23F", borderRadius: 8, backgroundColor: "#202b4f", paddingHorizontal: 12, paddingVertical: 10,
+  },
+  promoButtonDisabled: { opacity: 0.6 },
+  promoButtonText: { color: "#FFF4BF", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  promoFeedback: {
+    borderWidth: 1, borderRadius: 8, fontSize: 12, fontWeight: "900", marginTop: 4, paddingHorizontal: 10, paddingVertical: 8,
+  },
+  promoFeedbackSuccess: { backgroundColor: "rgba(40, 167, 69, 0.16)", borderColor: "#39D98A", color: "#B7FFD2" },
+  promoFeedbackError: { backgroundColor: "rgba(255, 79, 112, 0.14)", borderColor: "#FF6B8A", color: "#FFD1DC" },
+  promoHistoryCard: {
+    borderWidth: 1, borderColor: "#5f6aa0", borderRadius: 8, backgroundColor: "#10172d", paddingHorizontal: 10, paddingVertical: 8, gap: 2,
+  },
+  promoHistoryTitle: { color: "#9fb2e6", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  promoHistoryText: { color: "#f4f7ff", fontSize: 12, fontWeight: "900" },
+  promoHistorySub: { color: "#c6d1f3", fontSize: 11, fontWeight: "700", marginTop: 2 },
+  releaseNotesCard: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FFD23F",
+    backgroundColor: "#1c1b2f",
+    gap: 8,
+  },
+  releaseNotesTitle: { color: "#FFF4A3", fontWeight: "900", fontSize: 14, letterSpacing: 1.4 },
+  releaseNotesText: { color: "#f2f4ff", fontSize: 12, lineHeight: 18, fontWeight: "700" },
+  releaseNotesBtn: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#FFD23F",
+    borderRadius: 8,
+    backgroundColor: "#2b2545",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  releaseNotesBtnText: { color: "#FFF4A3", fontWeight: "900", fontSize: 11, letterSpacing: 0.8 },
   footer: { color: "#444466", fontSize: 11, marginTop: 4, marginBottom: 8, letterSpacing: 1, textAlign: "center" },
-  webBootPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  webBootText: {
-    color: "#9fb2e6",
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
 });

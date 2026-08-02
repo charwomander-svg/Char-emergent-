@@ -1,13 +1,8 @@
-// API client for Ghost Maze backend (leaderboard + daily seed)
+// API client for Ghost Maze backend (leaderboards, promo codes, news)
 
 const DEFAULT_BACKEND_URL = "https://ghost-maze-backend.onrender.com";
 const envBase = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();
 const BASE = (envBase && envBase.length > 0 ? envBase : DEFAULT_BACKEND_URL).replace(/\/+$/, "");
-
-export interface DailySeed {
-  seed_date: string;
-  seed: number;
-}
 
 export interface ScoreEntry {
   id: string;
@@ -16,8 +11,7 @@ export interface ScoreEntry {
   level: number;
   catches: number;
   theme_id: string;
-  mode: "classic" | "daily" | "speedrun" | "timeattack";
-  daily_seed_date?: string | null;
+  mode: "classic" | "speedrun" | "timeattack";
   run_time_ms?: number | null;
   timestamp: string;
 }
@@ -28,8 +22,7 @@ export interface ScoreSubmission {
   level: number;
   catches: number;
   theme_id?: string;
-  mode: "classic" | "daily" | "speedrun" | "timeattack";
-  daily_seed_date?: string;
+  mode: "classic" | "speedrun" | "timeattack";
   run_time_ms?: number;
 }
 
@@ -50,6 +43,17 @@ export interface PromoRedeemResponse {
   rewards: PromoRewards;
 }
 
+export interface ApiVersionInfo {
+  build: string;
+  built_in_promo_codes?: string[];
+}
+
+export interface NewsItem {
+  title: string;
+  date: string;
+  body: string;
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
@@ -65,10 +69,6 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchDailySeed(): Promise<DailySeed> {
-  return http<DailySeed>("/daily-seed");
-}
-
 export async function submitScore(s: ScoreSubmission): Promise<ScoreEntry> {
   return http<ScoreEntry>("/scores", {
     method: "POST",
@@ -77,11 +77,10 @@ export async function submitScore(s: ScoreSubmission): Promise<ScoreEntry> {
 }
 
 export async function fetchLeaderboard(
-  mode: "classic" | "daily" | "speedrun" | "timeattack" | "all" = "classic",
-  options?: { daily_seed_date?: string; limit?: number },
+  mode: "classic" | "speedrun" | "timeattack" | "all" = "classic",
+  options?: { limit?: number },
 ): Promise<ScoreEntry[]> {
   const params = new URLSearchParams({ mode });
-  if (options?.daily_seed_date) params.set("daily_seed_date", options.daily_seed_date);
   if (options?.limit) params.set("limit", String(options.limit));
   return http<ScoreEntry[]>(`/leaderboard?${params.toString()}`);
 }
@@ -101,4 +100,12 @@ export async function redeemPromoCode(code: string, playerId: string): Promise<P
       player_id: playerId,
     }),
   });
+}
+
+export async function fetchApiVersion(): Promise<ApiVersionInfo> {
+  return http<ApiVersionInfo>("/version");
+}
+
+export async function fetchNewsItems(): Promise<NewsItem[]> {
+  return http<NewsItem[]>("/news");
 }
