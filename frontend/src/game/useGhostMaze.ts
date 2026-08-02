@@ -70,6 +70,12 @@ import {
   syncProgressAchievements,
 } from "./playGames";
 import { updateStatistics } from "./statistics";
+import {
+  createLoggedEffect,
+  withStartupLogging,
+  logStartupStart,
+  logStartupSuccess,
+} from "./startupLogging";
 
 export type EndlessBlessingId =
   | "hunterInstinct"
@@ -107,33 +113,41 @@ function createInitialGhosts(
   themeId: string,
   eliminatedGhostIds: GhostId[] = [],
 ): Ghost[] {
-  const theme = getTheme(themeId);
-  const defaultRoles: GhostAiRole[] = ["hunter", "ambusher", "patrol", "cautious"];
-  return [0, 1, 2, 3].map((id) => {
-    const ghostId = id as GhostId;
-    const eliminated = eliminatedGhostIds.includes(ghostId);
-    return {
-      id: ghostId,
-      color: theme.ghostColors[id],
-      name: COLORS.ghostNames[id],
-      x: spawns[id].x,
-      y: spawns[id].y,
-      spawnX: spawns[id].x,
-      spawnY: spawns[id].y,
-      direction: (["left", "right", "up", "down"] as Direction[])[id],
-      nextDirection: (["left", "right", "up", "down"] as Direction[])[id],
-      vulnerable: false,
-      vulnerableUntil: 0,
-      alive: !eliminated,
-      permaDead: eliminated,
-      respawnAt: eliminated ? Number.POSITIVE_INFINITY : 0,
-      aiRole: defaultRoles[id],
-    };
+  return withStartupLogging("createInitialGhosts", () => {
+    const theme = getTheme(themeId);
+    const defaultRoles: GhostAiRole[] = ["hunter", "ambusher", "patrol", "cautious"];
+    return [0, 1, 2, 3].map((id) => {
+      const ghostId = id as GhostId;
+      const eliminated = eliminatedGhostIds.includes(ghostId);
+      return {
+        id: ghostId,
+        color: theme.ghostColors[id],
+        name: COLORS.ghostNames[id],
+        x: spawns[id].x,
+        y: spawns[id].y,
+        spawnX: spawns[id].x,
+        spawnY: spawns[id].y,
+        direction: (["left", "right", "up", "down"] as Direction[])[id],
+        nextDirection: (["left", "right", "up", "down"] as Direction[])[id],
+        vulnerable: false,
+        vulnerableUntil: 0,
+        alive: !eliminated,
+        permaDead: eliminated,
+        respawnAt: eliminated ? Number.POSITIVE_INFINITY : 0,
+        aiRole: defaultRoles[id],
+      };
+    });
+  }, {
+    details: {
+      themeId,
+      spawnCount: spawns.length,
+      eliminatedGhostIds,
+    },
   });
 }
 
 function createInitialPelletGuy(spawn: { x: number; y: number }): PelletGuy {
-  return {
+  return withStartupLogging("createInitialPelletGuy", () => ({
     x: spawn.x,
     y: spawn.y,
     spawnX: spawn.x,
@@ -141,7 +155,7 @@ function createInitialPelletGuy(spawn: { x: number; y: number }): PelletGuy {
     direction: "left",
     alive: true,
     respawnAt: 0,
-  };
+  }), { details: { spawn } });
 }
 
 function buildInitialState(
@@ -152,61 +166,73 @@ function buildInitialState(
   daily?: { seed: number; seedDate: string } | null,
   eliminatedGhostIds: GhostId[] = [],
 ): GameState {
-  let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
-    level,
-    daily?.seed,
-  );
-  const bonusActive = isBonusLevel(level);
-  if (bonusActive) {
-    let convertedSuperPellets = 0;
-    maze = maze.map((row) =>
-      row.map((cell) => {
-        if (cell === 3) {
-          convertedSuperPellets++;
-          return 2;
-        }
-        return cell;
-      }),
+  return withStartupLogging("buildInitialState", () => {
+    let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
+      level,
+      daily?.seed,
     );
-    totalPellets += convertedSuperPellets;
-  }
-  const now = performance.now();
-  const bonusGame = bonusActive
-    ? createBonusGame(getBonusGameType(level), maze, now)
-    : null;
-  const adjustedBonusGame = bonusGame && themeId === "royal-haunts"
-    ? {
-        ...bonusGame,
-        durationMs: bonusGame.durationMs + 1000,
-        endsAt: bonusGame.endsAt + 1000,
-      }
-    : bonusGame;
-  const initialEffects: ActiveEffects = {
-    ...EMPTY_EFFECTS,
-    speedBoostUntil: themeId === "rainbow" ? now + 3000 : 0,
-  };
-  return {
-    status: "ready",
-    level,
-    lives,
-    score,
-    catches: 0,
-    totalPellets,
-    pelletsRemaining: totalPellets,
-    maze,
-    ghosts: createInitialGhosts(ghostSpawns, themeId, eliminatedGhostIds),
-    pelletGuy: createInitialPelletGuy(pelletGuySpawn),
-    lastComboTime: 0,
-    comboCount: 0,
-    message: bonusActive
-      ? `🎮 BONUS STAGE! 🎮\n${BONUS_CONFIG[getBonusGameType(level)].label}`
-      : `LEVEL ${level}`,
-    selectedGhostId: ([0, 1, 2, 3] as GhostId[]).find((id) => !eliminatedGhostIds.includes(id)) ?? 0,
-    barricades: [],
-    ghostDeathsThisLevel: 0,
-    effects: initialEffects,
-    bonusGame: adjustedBonusGame,
-  };
+    const bonusActive = isBonusLevel(level);
+    if (bonusActive) {
+      let convertedSuperPellets = 0;
+      maze = maze.map((row) =>
+        row.map((cell) => {
+          if (cell === 3) {
+            convertedSuperPellets++;
+            return 2;
+          }
+          return cell;
+        }),
+      );
+      totalPellets += convertedSuperPellets;
+    }
+    const now = performance.now();
+    const bonusGame = bonusActive
+      ? createBonusGame(getBonusGameType(level), maze, now)
+      : null;
+    const adjustedBonusGame = bonusGame && themeId === "royal-haunts"
+      ? {
+          ...bonusGame,
+          durationMs: bonusGame.durationMs + 1000,
+          endsAt: bonusGame.endsAt + 1000,
+        }
+      : bonusGame;
+    const initialEffects: ActiveEffects = {
+      ...EMPTY_EFFECTS,
+      speedBoostUntil: themeId === "rainbow" ? now + 3000 : 0,
+    };
+    return {
+      status: "ready",
+      level,
+      lives,
+      score,
+      catches: 0,
+      totalPellets,
+      pelletsRemaining: totalPellets,
+      maze,
+      ghosts: createInitialGhosts(ghostSpawns, themeId, eliminatedGhostIds),
+      pelletGuy: createInitialPelletGuy(pelletGuySpawn),
+      lastComboTime: 0,
+      comboCount: 0,
+      message: bonusActive
+        ? `🎮 BONUS STAGE! 🎮\n${BONUS_CONFIG[getBonusGameType(level)].label}`
+        : `LEVEL ${level}`,
+      selectedGhostId: ([0, 1, 2, 3] as GhostId[]).find((id) => !eliminatedGhostIds.includes(id)) ?? 0,
+      barricades: [],
+      ghostDeathsThisLevel: 0,
+      effects: initialEffects,
+      bonusGame: adjustedBonusGame,
+    };
+  }, {
+    details: {
+      level,
+      lives,
+      score,
+      themeId,
+      dailySeed: daily?.seed,
+      dailySeedDate: daily?.seedDate,
+      eliminatedGhostIds,
+    },
+  });
 }
 
 function computeRespawnDelay(priorDeaths: number, fastRespawn = false): number {
@@ -263,6 +289,7 @@ export function useGhostMaze(opts?: {
   practiceMode?: boolean;
   onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
+  logStartupStart("useGhostMaze.render", { once: true });
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
   const modeRef = useRef<"classic" | "daily" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");
@@ -288,29 +315,35 @@ export function useGhostMaze(opts?: {
   const initialLevel = Math.max(1, opts?.startingLevel ?? 1);
 
   const [state, setState] = useState<GameState>(() =>
-    buildInitialState(initialLevel, STARTING_LIVES, 0, "classic", dailyRef.current),
+    withStartupLogging("useGhostMaze.useState.initialState", () =>
+      buildInitialState(initialLevel, STARTING_LIVES, 0, "classic", dailyRef.current), {
+      details: { initialLevel },
+    }),
   );
 
   // Load saved progress (theme + stats) on mount
-  useEffect(() => {
-    loadProgress().then((p) => {
-      progressRef.current = p;
-      void submitTotalGoldStarsLifetime(getTotalGoldStars(p));
-      themeIdRef.current = p.selectedThemeId;
-      oathShieldAvailableRef.current = p.selectedThemeId === "dark-knights";
-      setState((cur) => {
-        if (cur.status !== "ready" || cur.level !== initialLevel || cur.score !== 0) return cur;
-        return buildInitialState(
-          initialLevel,
-          STARTING_LIVES,
-          0,
-          p.selectedThemeId,
-          dailyRef.current,
-          [],
-        );
+  useEffect(
+    createLoggedEffect("useGhostMaze.useEffect.loadProgress", () => {
+      void loadProgress().then((p) => {
+        progressRef.current = p;
+        void submitTotalGoldStarsLifetime(getTotalGoldStars(p));
+        themeIdRef.current = p.selectedThemeId;
+        oathShieldAvailableRef.current = p.selectedThemeId === "dark-knights";
+        setState((cur) => {
+          if (cur.status !== "ready" || cur.level !== initialLevel || cur.score !== 0) return cur;
+          return buildInitialState(
+            initialLevel,
+            STARTING_LIVES,
+            0,
+            p.selectedThemeId,
+            dailyRef.current,
+            [],
+          );
+        });
       });
-    });
-  }, [initialLevel]);
+    }, { once: true, details: { initialLevel } }),
+    [initialLevel],
+  );
 
   // entity tick timers stored in refs (don't trigger rerenders)
   const lastGhostMoveRef = useRef<number[]>([0, 0, 0, 0]);
@@ -364,22 +397,26 @@ export function useGhostMaze(opts?: {
     setState(fresh);
   }, []);
 
-  useEffect(() => {
-    loadSettings().then((s) => {
-      getSoundEngine().setEnabled(!!s.soundOn);
-      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
-      musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
-    });
-  }, []);
+  useEffect(
+    createLoggedEffect("useGhostMaze.useEffect.loadSettings", () => {
+      void loadSettings().then((s) => {
+        getSoundEngine().setEnabled(!!s.soundOn);
+        getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
+        musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
+      });
+    }, { once: true }),
+    [],
+  );
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    createLoggedEffect("useGhostMaze.useEffect.pauseMusicCleanup", () => () => {
       if (pauseMusicStopTimerRef.current) {
         clearTimeout(pauseMusicStopTimerRef.current);
         pauseMusicStopTimerRef.current = null;
       }
-    };
-  }, []);
+    }, { once: true }),
+    [],
+  );
 
   const startNewGame = useCallback(() => {
     hardcoreEliminatedRef.current = [];
@@ -1352,20 +1389,24 @@ export function useGhostMaze(opts?: {
     }
   }, [startLevel]);
  // --- Main Game Animation Loop ---
- useEffect(() => {
-   const loop = (now: number) => {
-     tick(now);
+  useEffect(
+   createLoggedEffect("useGhostMaze.useEffect.mainLoop", () => {
+     const loop = (now: number) => {
+       tick(now);
+       rafRef.current = requestAnimationFrame(loop);
+     };
+
      rafRef.current = requestAnimationFrame(loop);
-   };
 
-    rafRef.current = requestAnimationFrame(loop);
-
-    return () => {
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [tick]);
+     return () => {
+       if (rafRef.current != null) {
+         cancelAnimationFrame(rafRef.current);
+       }
+     };
+   }, { once: true }),
+   [tick],
+  );
+  logStartupSuccess("useGhostMaze.render", { once: true });
 
   const advanceLevel = useCallback(() => {
     if (modeRef.current !== "endless" && state.level >= MAX_LEVELS) {

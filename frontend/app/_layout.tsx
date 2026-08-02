@@ -4,31 +4,40 @@ import { useEffect, useState } from "react";
 import { Platform, View, Image, StyleSheet } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { createLoggedEffect, logStartupStart, logStartupSuccess } from "@/src/game/startupLogging";
 import { useFullscreen } from "@/src/utils/useFullscreen";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  logStartupStart("RootLayout.render", { once: true });
   const [webMounted, setWebMounted] = useState(false);
   const [loaded, error] = useIconFonts();
 
   useFullscreen({ autoEnter: Platform.OS !== "web" });
 
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    setWebMounted(true);
-  }, []);
+  useEffect(
+    createLoggedEffect("RootLayout.useEffect.webMount", () => {
+      if (Platform.OS !== "web") return;
+      setWebMounted(true);
+    }, { once: true }),
+    [],
+  );
 
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
+  useEffect(
+    createLoggedEffect("RootLayout.useEffect.hideSplash", () => {
+      if (Platform.OS === "web") return;
+      if (loaded || error) {
+        void SplashScreen.hideAsync();
+      }
+    }, { once: true }),
+    [loaded, error],
+  );
 
+  let content;
   if (Platform.OS === "web") {
     if (!webMounted) {
-      return (
+      content = (
         <View style={styles.splash}>
           <Image
             source={require("../assets/images/app-image.png")}
@@ -37,14 +46,13 @@ export default function RootLayout() {
           />
         </View>
       );
+    } else {
+      content = <Stack screenOptions={{ headerShown: false }} />;
     }
-    return <Stack screenOptions={{ headerShown: false }} />;
-  }
-
-  // Show Charware logo on black while fonts load — overrides whatever the
-  // native splash shows, works on every Android version without build config.
-  if (!loaded && !error) {
-    return (
+  } else if (!loaded && !error) {
+    // Show Charware logo on black while fonts load — overrides whatever the
+    // native splash shows, works on every Android version without build config.
+    content = (
       <View style={styles.splash}>
         <Image
           source={require("../assets/images/app-image.png")}
@@ -53,9 +61,12 @@ export default function RootLayout() {
         />
       </View>
     );
+  } else {
+    content = <Stack screenOptions={{ headerShown: false }} />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  logStartupSuccess("RootLayout.render", { once: true });
+  return content;
 }
 
 const styles = StyleSheet.create({

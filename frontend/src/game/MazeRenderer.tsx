@@ -4,6 +4,11 @@ import type { CellType, Ghost, PelletGuy } from "@/src/game/types";
 import type { BonusGameState } from "@/src/game/bonusGame";
 import { BONUS_CONFIG } from "@/src/game/bonusGame";
 import { COLORS, SPEED, getLevelSpeedScale } from "@/src/game/constants";
+import {
+  createLoggedEffect,
+  mapWithStartupLogging,
+  withStartupLogging,
+} from "@/src/game/startupLogging";
 
 interface Props {
   maze: CellType[][];
@@ -47,35 +52,38 @@ function useSmoothPosition(
   const prevY = useRef(y);
   const prevCellSize = useRef(cellSize);
 
-  useEffect(() => {
-    const dx = x - prevX.current;
-    const dy = y - prevY.current;
-    const sizeChanged = prevCellSize.current !== cellSize;
-    const isAdjacent = Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0);
+  useEffect(
+    createLoggedEffect("MazeRenderer.useSmoothPosition.useEffect", () => {
+      const dx = x - prevX.current;
+      const dy = y - prevY.current;
+      const sizeChanged = prevCellSize.current !== cellSize;
+      const isAdjacent = Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0);
 
-    if (sizeChanged || !isAdjacent) {
-      animX.setValue(x * cellSize);
-      animY.setValue(y * cellSize);
-    } else {
-      Animated.parallel([
-        Animated.timing(animX, {
-          toValue: x * cellSize,
-          duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animY, {
-          toValue: y * cellSize,
-          duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-    prevX.current = x;
-    prevY.current = y;
-    prevCellSize.current = cellSize;
-  }, [x, y, cellSize, duration, animX, animY]);
+      if (sizeChanged || !isAdjacent) {
+        animX.setValue(x * cellSize);
+        animY.setValue(y * cellSize);
+      } else {
+        Animated.parallel([
+          Animated.timing(animX, {
+            toValue: x * cellSize,
+            duration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animY, {
+            toValue: y * cellSize,
+            duration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+      prevX.current = x;
+      prevY.current = y;
+      prevCellSize.current = cellSize;
+    }, { once: true }),
+    [x, y, cellSize, duration, animX, animY],
+  );
 
   return { animX, animY };
 }
@@ -83,16 +91,19 @@ function useSmoothPosition(
 function useChompAnimation(duration = 120) {
   const chompAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(chompAnim, { toValue: 0, duration, useNativeDriver: true }),
-        Animated.timing(chompAnim, { toValue: 1, duration, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [chompAnim, duration]);
+  useEffect(
+    createLoggedEffect("MazeRenderer.useChompAnimation.useEffect", () => {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(chompAnim, { toValue: 0, duration, useNativeDriver: true }),
+          Animated.timing(chompAnim, { toValue: 1, duration, useNativeDriver: true }),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    }, { once: true }),
+    [chompAnim, duration],
+  );
 
   return chompAnim;
 }
@@ -633,123 +644,135 @@ export default function MazeRenderer({
   bonusGame,
   highContrast = false,
 }: Props) {
-  if (!maze || !maze.length || !maze[0]) return null;
-  const width = maze[0].length * cellSize;
-  const height = maze.length * cellSize;
-  const scale = getLevelSpeedScale(level);
-  const pgDuration = SPEED.pelletGuy * scale;
-  const ghostNormalDuration = SPEED.ghost * scale;
-  const ghostVulnDuration = SPEED.ghostVulnerable * scale;
-  const wallPalette = getWallPalette(level);
+  return withStartupLogging("MazeRenderer.render", () => {
+    if (!maze || !maze.length || !maze[0]) return null;
+    const width = maze[0].length * cellSize;
+    const height = maze.length * cellSize;
+    const scale = getLevelSpeedScale(level);
+    const pgDuration = SPEED.pelletGuy * scale;
+    const ghostNormalDuration = SPEED.ghost * scale;
+    const ghostVulnDuration = SPEED.ghostVulnerable * scale;
+    const wallPalette = getWallPalette(level);
+    const visibleGhosts = ghosts.filter((g) => !bonusGame || g.id === selectedGhostId);
 
-  return (
-    <View
-      style={[
-        styles.maze,
-        {
-          width,
-          height,
-        },
-      ]}
-      testID="maze-board"
-    >
-      {/* Grid of cells - rendered row-by-row with flexbox */}
-      {maze.map((row, y) => (
-        <View key={y} style={{ flexDirection: "row" }}>
-          {row.map((cell, x) => (
-            <Cell
-              key={x}
-              type={cell}
-              size={cellSize}
-              wallColor={wallPalette.wall}
-              wallInnerColor={wallPalette.wallInner}
-            />
-          ))}
-        </View>
-      ))}
-
-      {/* Entities layer */}
+    return (
       <View
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width,
-          height,
-          pointerEvents: "none",
-        }}
+        style={[
+          styles.maze,
+          {
+            width,
+            height,
+          },
+        ]}
+        testID="maze-board"
       >
-        {/* Bonus game items */}
-        {bonusGame &&
-          bonusGame.items
-            .filter((item) => !item.collected)
-            .map((item, idx) =>
-              bonusGame.type === "powerHunt" ? (
-                <PelletGuySprite
-                  key={idx}
-                  pg={{
-                    x: item.x,
-                    y: item.y,
-                    spawnX: item.x,
-                    spawnY: item.y,
-                    direction: "left",
-                    alive: true,
-                    respawnAt: 0,
-                  }}
-                  size={cellSize}
-                  moveDuration={0}
-                  visualScale={0.92}
-                  vulnerable
-                  highContrast={highContrast}
-                />
-              ) : (
-                <BonusItemSprite
-                  key={idx}
-                  x={item.x}
-                  y={item.y}
-                  size={cellSize}
-                  emoji={BONUS_CONFIG[bonusGame.type].emoji}
-                  moveDuration={pgDuration}
-                  moving={false}
-                />
-              ),
+        {/* Grid of cells - rendered row-by-row with flexbox */}
+        {mapWithStartupLogging("MazeRenderer.render.rows", maze, (row, y) => (
+          <View key={y} style={{ flexDirection: "row" }}>
+            {mapWithStartupLogging("MazeRenderer.render.cells", row, (cell, x) => (
+              <Cell
+                key={x}
+                type={cell}
+                size={cellSize}
+                wallColor={wallPalette.wall}
+                wallInnerColor={wallPalette.wallInner}
+              />
+            ), { once: true, details: { row: y } })}
+          </View>
+        ), { once: true })}
+
+        {/* Entities layer */}
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width,
+            height,
+            pointerEvents: "none",
+          }}
+        >
+          {/* Bonus game items */}
+          {bonusGame &&
+            mapWithStartupLogging(
+              "MazeRenderer.render.bonusItems",
+              bonusGame.items.filter((item) => !item.collected),
+              (item, idx) =>
+                bonusGame.type === "powerHunt" ? (
+                  <PelletGuySprite
+                    key={idx}
+                    pg={{
+                      x: item.x,
+                      y: item.y,
+                      spawnX: item.x,
+                      spawnY: item.y,
+                      direction: "left",
+                      alive: true,
+                      respawnAt: 0,
+                    }}
+                    size={cellSize}
+                    moveDuration={0}
+                    visualScale={0.92}
+                    vulnerable
+                    highContrast={highContrast}
+                  />
+                ) : (
+                  <BonusItemSprite
+                    key={idx}
+                    x={item.x}
+                    y={item.y}
+                    size={cellSize}
+                    emoji={BONUS_CONFIG[bonusGame.type].emoji}
+                    moveDuration={pgDuration}
+                    moving={false}
+                  />
+                ),
+              { once: true },
             )}
-        {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
-          <BonusItemSprite
-            x={bonusGame.huntPellet.x}
-            y={bonusGame.huntPellet.y}
-            size={cellSize}
-            emoji="🟡"
-            moveDuration={0}
-            moving={false}
-          />
-        )}
-        {/* Pellet Guy — hidden during bonus rounds */}
-        {!bonusGame && (
-          <PelletGuySprite
-            pg={pelletGuy}
-            size={cellSize}
-            moveDuration={pgDuration}
-            visualScale={1}
-            highContrast={highContrast}
-          />
-        )}
-        {ghosts
-          .filter((g) => !bonusGame || g.id === selectedGhostId)
-          .map((g) => (
-          <GhostSprite
-            key={g.id}
-            ghost={g}
-            size={cellSize}
-            selected={g.id === selectedGhostId}
-            ready={ready}
-            moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
-            highContrast={highContrast}
-          />
-        ))}
+          {bonusGame?.type === "powerHunt" && bonusGame.huntPellet?.active && (
+            <BonusItemSprite
+              x={bonusGame.huntPellet.x}
+              y={bonusGame.huntPellet.y}
+              size={cellSize}
+              emoji="🟡"
+              moveDuration={0}
+              moving={false}
+            />
+          )}
+          {/* Pellet Guy — hidden during bonus rounds */}
+          {!bonusGame && (
+            <PelletGuySprite
+              pg={pelletGuy}
+              size={cellSize}
+              moveDuration={pgDuration}
+              visualScale={1}
+              highContrast={highContrast}
+            />
+          )}
+          {mapWithStartupLogging("MazeRenderer.render.ghosts", visibleGhosts, (g) => (
+            <GhostSprite
+              key={g.id}
+              ghost={g}
+              size={cellSize}
+              selected={g.id === selectedGhostId}
+              ready={ready}
+              moveDuration={g.vulnerable ? ghostVulnDuration : ghostNormalDuration}
+              highContrast={highContrast}
+            />
+          ), { once: true })}
+        </View>
       </View>
-    </View>
-  );
+    );
+  }, {
+    details: {
+      level,
+      rows: maze?.length ?? 0,
+      cols: maze?.[0]?.length ?? 0,
+      ghostCount: ghosts.length,
+      hasBonusGame: !!bonusGame,
+    },
+    once: true,
+  });
 }
 
 // ---------------------------------------------------------------------------

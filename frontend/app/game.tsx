@@ -38,6 +38,14 @@ import {
   syncPlayGames,
 } from "@/src/game/playGames";
 import { isItchWebRuntime } from "@/src/game/runtime";
+import {
+  createLoggedEffect,
+  createLoggedMemo,
+  logStartupStart,
+  logStartupSuccess,
+  mapWithStartupLogging,
+  withStartupLogging,
+} from "@/src/game/startupLogging";
 
 
 function fmtMs(ms: number): string {
@@ -168,20 +176,29 @@ class GameplayErrorBoundary extends React.Component<
 }
 
 export default function GameScreen() {
+  logStartupStart("GameScreen.render", { once: true });
   const [webMounted, setWebMounted] = useState(false);
 
-  useEffect(() => {
-    setWebMounted(true);
-  }, []);
+  useEffect(
+    createLoggedEffect("GameScreen.useEffect.webMount", () => {
+      setWebMounted(true);
+    }, { once: true }),
+    [],
+  );
 
+  let content;
   if (typeof window === "undefined" || !webMounted) {
-    return <View style={styles.webBootPlaceholder} />;
+    content = <View style={styles.webBootPlaceholder} />;
+  } else {
+    content = isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
   }
 
-  return isItchWebRuntime() ? <ItchGameScreen /> : <FullGameScreen />;
+  logStartupSuccess("GameScreen.render", { once: true });
+  return content;
 }
 
 function ItchGameScreen() {
+  logStartupStart("ItchGameScreen.render", { once: true });
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -220,57 +237,75 @@ function ItchGameScreen() {
   const [endlessContinueCount, setEndlessContinueCount] = useState(0);
   const masterControlMode = !!runtimeSettings.masterControlMode;
 
-  useEffect(() => {
-    loadSettings().then((s) => {
-      setRuntimeSettings(s);
-    });
-  }, []);
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.loadSettings", () => {
+      void loadSettings().then((s) => {
+        setRuntimeSettings(s);
+      });
+    }, { once: true }),
+    [],
+  );
 
-  useEffect(() => {
-    if (mode !== "speedrun" && mode !== "timeattack") return;
-    if (state.status === "playing" && timerRunningFromRef.current == null) {
-      timerRunningFromRef.current = performance.now();
-    }
-    if (state.status !== "playing" && timerRunningFromRef.current != null) {
-      timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
-      timerRunningFromRef.current = null;
-    }
-  }, [mode, state.status]);
-
-  useEffect(() => {
-    if (state.status === "ready" && state.score === 0) {
-      timerAccumulatedRef.current = 0;
-      timerRunningFromRef.current = null;
-      setElapsedMs(0);
-      setEndlessContinueCount(0);
-    }
-  }, [state.score, state.status]);
-
-  useEffect(() => {
-    if (mode !== "speedrun" && mode !== "timeattack") return;
-    let raf = 0;
-    const frame = () => {
-      if (timerRunningFromRef.current != null) {
-        setElapsedMs(timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current));
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.timerState", () => {
+      if (mode !== "speedrun" && mode !== "timeattack") return;
+      if (state.status === "playing" && timerRunningFromRef.current == null) {
+        timerRunningFromRef.current = performance.now();
       }
+      if (state.status !== "playing" && timerRunningFromRef.current != null) {
+        timerAccumulatedRef.current += performance.now() - timerRunningFromRef.current;
+        timerRunningFromRef.current = null;
+      }
+    }, { once: true }),
+    [mode, state.status],
+  );
+
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.resetTimer", () => {
+      if (state.status === "ready" && state.score === 0) {
+        timerAccumulatedRef.current = 0;
+        timerRunningFromRef.current = null;
+        setElapsedMs(0);
+        setEndlessContinueCount(0);
+      }
+    }, { once: true }),
+    [state.score, state.status],
+  );
+
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.timerLoop", () => {
+      if (mode !== "speedrun" && mode !== "timeattack") return;
+      let raf = 0;
+      const frame = () => {
+        if (timerRunningFromRef.current != null) {
+          setElapsedMs(timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current));
+        }
+        raf = requestAnimationFrame(frame);
+      };
       raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [mode]);
+      return () => cancelAnimationFrame(raf);
+    }, { once: true }),
+    [mode],
+  );
 
-  useEffect(() => {
-    if (mode !== "timeattack") return;
-    if (state.status !== "playing") return;
-    if (elapsedMs < TIME_ATTACK_DURATION_MS) return;
-    endRun(`TIME ATTACK OVER\nFINAL SCORE: ${state.score}`);
-  }, [elapsedMs, endRun, mode, state.score, state.status]);
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.timeAttackTimeout", () => {
+      if (mode !== "timeattack") return;
+      if (state.status !== "playing") return;
+      if (elapsedMs < TIME_ATTACK_DURATION_MS) return;
+      endRun(`TIME ATTACK OVER\nFINAL SCORE: ${state.score}`);
+    }, { once: true }),
+    [elapsedMs, endRun, mode, state.score, state.status],
+  );
 
-  const endlessContinueCost = useMemo(() => {
-    const tier = endlessContinueCount + 1;
-    const base = tier <= 4 ? tier * 25 : 100 + (tier - 4) * 100;
-    return endlessBlessings.continueDiscount ? Math.max(1, Math.floor(base * 0.5)) : base;
-  }, [endlessBlessings.continueDiscount, endlessContinueCount]);
+  const endlessContinueCost = useMemo(
+    createLoggedMemo("ItchGameScreen.useMemo.endlessContinueCost", () => {
+      const tier = endlessContinueCount + 1;
+      const base = tier <= 4 ? tier * 25 : 100 + (tier - 4) * 100;
+      return endlessBlessings.continueDiscount ? Math.max(1, Math.floor(base * 0.5)) : base;
+    }, { once: true }),
+    [endlessBlessings.continueDiscount, endlessContinueCount],
+  );
 
   const handleEndlessContinue = useCallback(() => {
     if (coins < endlessContinueCost) return;
@@ -286,15 +321,16 @@ function ItchGameScreen() {
   const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
   const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
+  useEffect(
+    createLoggedEffect("ItchGameScreen.useEffect.overlay", () => {
+      if (typeof document === "undefined") return;
 
-    let host = document.getElementById("ghost-maze-itch-overlay");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "ghost-maze-itch-overlay";
-      document.body.appendChild(host);
-    }
+      let host = document.getElementById("ghost-maze-itch-overlay");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "ghost-maze-itch-overlay";
+        document.body.appendChild(host);
+      }
 
     const overlay = host;
     const cellSize = Math.max(
@@ -491,45 +527,48 @@ function ItchGameScreen() {
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
 
-    return () => {
-      holdTimers.forEach((timer) => clearTimeout(timer));
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      if (overlay.parentNode) {
-        overlay.parentNode.removeChild(overlay);
-      }
-    };
-  }, [
-    advanceLevel,
-    coins,
-    endlessBlessings.quickClear,
-    endlessContinueCost,
-    ghostLivesRemaining,
-    handleEndlessContinue,
-    masterControlMode,
-    mode,
-    pelletGuyLivesRemaining,
-    retryLevel,
-    router,
-    cycleGhostAiRole,
-    selectGhost,
-    setGhostDirection,
-    startNewGame,
-    state.bonusGame,
-    state.catches,
-    state.ghostDeathsThisLevel,
-    state.ghosts,
-    state.level,
-    state.maze,
-    state.message,
-    state.pelletGuy,
-    state.score,
-    state.selectedGhostId,
-    state.status,
-    timeAttackRemainingMs,
-    togglePause,
-  ]);
+      return () => {
+        holdTimers.forEach((timer) => clearTimeout(timer));
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup", handleKeyUp);
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+      };
+    }, { once: true }),
+    [
+      advanceLevel,
+      coins,
+      endlessBlessings.quickClear,
+      endlessContinueCost,
+      ghostLivesRemaining,
+      handleEndlessContinue,
+      masterControlMode,
+      mode,
+      pelletGuyLivesRemaining,
+      retryLevel,
+      router,
+      cycleGhostAiRole,
+      selectGhost,
+      setGhostDirection,
+      startNewGame,
+      state.bonusGame,
+      state.catches,
+      state.ghostDeathsThisLevel,
+      state.ghosts,
+      state.level,
+      state.maze,
+      state.message,
+      state.pelletGuy,
+      state.score,
+      state.selectedGhostId,
+      state.status,
+      timeAttackRemainingMs,
+      togglePause,
+    ],
+  );
 
+  logStartupSuccess("ItchGameScreen.render", { once: true });
   return (
     <SafeAreaView style={styles.container} />
   );
@@ -588,6 +627,7 @@ const RUN_MEDAL_THRESHOLDS = {
 } as const;
 
 function FullGameScreen() {
+  logStartupStart("FullGameScreen.render", { once: true });
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -701,70 +741,82 @@ function FullGameScreen() {
   const runSessionStartAtRef = useRef<number | null>(null);
   const runSessionRecordedRef = useRef(false);
 
-  useEffect(() => {
-    loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
-    loadProgress().then((p) => {
-      const normalized = withUnlockedThemes(p);
-      previousUnlockedThemesRef.current = normalized.unlockedThemes;
-      setThemeId(normalized.selectedThemeId);
-      setBestHardcoreSurvivalMs(normalized.bestHardcoreSurvivalMs ?? 0);
-      void saveProgress(normalized);
-    });
-    loadSettings().then((s) => {
-      setRuntimeSettings(s);
-      setGamepadDeadzone(s.gamepadDeadzone);
-      setGamepadInvertY(s.gamepadInvertY);
-      setHighContrast(!!s.highContrast);
-      setLargeHud(!!s.largeHud);
-      setReducedMotion(!!s.reducedMotion);
-      setControlMode(s.controlMode ?? DEFAULT_SETTINGS.controlMode);
-    });
-    if (platformServicesEnabled) {
-      void syncPlayGames();
-    }
-  }, [platformServicesEnabled]);
-
-  useEffect(() => {
-    loadSettings().then((s) => {
-      setRuntimeSettings(s);
-      const audioEnabled = !isItchWeb && !!s.soundOn;
-      getSoundEngine().setEnabled(audioEnabled);
-      getSoundEngine().setVolumes({
-        sfx: audioEnabled ? s.sfxVolume : 0,
-        music: audioEnabled ? s.musicVolume : 0,
+  useEffect(
+    createLoggedEffect("FullGameScreen.useEffect.bootstrap", () => {
+      void loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
+      void loadProgress().then((p) => {
+        const normalized = withUnlockedThemes(p);
+        previousUnlockedThemesRef.current = normalized.unlockedThemes;
+        setThemeId(normalized.selectedThemeId);
+        setBestHardcoreSurvivalMs(normalized.bestHardcoreSurvivalMs ?? 0);
+        void saveProgress(normalized);
       });
-    });
-  }, [isItchWeb]);
-
-  useEffect(() => {
-    setControlledGhosts(armedGhosts);
-  }, [armedGhosts, setControlledGhosts]);
-
-  useEffect(() => {
-    if (state.status === "paused") {
-      getSoundEngine().fadeMusicTo(0.08, 180);
-      return;
-    }
-    if (state.status === "gameOver") {
-      getSoundEngine().fadeMusicTo(0.05, 240);
-      return;
-    }
-    if (state.status === "playing" || state.status === "ready") {
-      loadSettings().then((s) => {
+      void loadSettings().then((s) => {
         setRuntimeSettings(s);
-        if (!isItchWeb && !!s.soundOn) {
-          getSoundEngine().fadeMusicTo(s.musicVolume, 180);
-        }
+        setGamepadDeadzone(s.gamepadDeadzone);
+        setGamepadInvertY(s.gamepadInvertY);
+        setHighContrast(!!s.highContrast);
+        setLargeHud(!!s.largeHud);
+        setReducedMotion(!!s.reducedMotion);
+        setControlMode(s.controlMode ?? DEFAULT_SETTINGS.controlMode);
       });
-    }
-  }, [isItchWeb, state.status]);
+      if (platformServicesEnabled) {
+        void syncPlayGames();
+      }
+    }, { once: true }),
+    [platformServicesEnabled],
+  );
+
+  useEffect(
+    createLoggedEffect("FullGameScreen.useEffect.audioSettings", () => {
+      void loadSettings().then((s) => {
+        setRuntimeSettings(s);
+        const audioEnabled = !isItchWeb && !!s.soundOn;
+        getSoundEngine().setEnabled(audioEnabled);
+        getSoundEngine().setVolumes({
+          sfx: audioEnabled ? s.sfxVolume : 0,
+          music: audioEnabled ? s.musicVolume : 0,
+        });
+      });
+    }, { once: true }),
+    [isItchWeb],
+  );
+
+  useEffect(
+    createLoggedEffect("FullGameScreen.useEffect.controlledGhosts", () => {
+      setControlledGhosts(armedGhosts);
+    }, { once: true }),
+    [armedGhosts, setControlledGhosts],
+  );
+
+  useEffect(
+    createLoggedEffect("FullGameScreen.useEffect.musicFade", () => {
+      if (state.status === "paused") {
+        getSoundEngine().fadeMusicTo(0.08, 180);
+        return;
+      }
+      if (state.status === "gameOver") {
+        getSoundEngine().fadeMusicTo(0.05, 240);
+        return;
+      }
+      if (state.status === "playing" || state.status === "ready") {
+        void loadSettings().then((s) => {
+          setRuntimeSettings(s);
+          if (!isItchWeb && !!s.soundOn) {
+            getSoundEngine().fadeMusicTo(s.musicVolume, 180);
+          }
+        });
+      }
+    }, { once: true }),
+    [isItchWeb, state.status],
+  );
 
   const computeTimerMs = useCallback(() => {
     if (timerRunningFromRef.current == null) return timerAccumulatedRef.current;
     return timerAccumulatedRef.current + (performance.now() - timerRunningFromRef.current);
   }, []);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.runTimerStatus", () => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     if (state.status === "playing" && timerRunningFromRef.current == null) {
       timerRunningFromRef.current = performance.now();
@@ -794,9 +846,9 @@ function FullGameScreen() {
       setElapsedMs(finalMs);
       submitFinalScore("TIME ATTACK").catch(() => {});
     }
-  }, [computeTimerMs, mode, platformServicesEnabled, state.level, state.status, submitFinalScore]);
+  }, { once: true }), [computeTimerMs, mode, platformServicesEnabled, state.level, state.status, submitFinalScore]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.runTimerLoop", () => {
     if (mode !== "speedrun" && mode !== "timeattack") return;
     let raf = 0;
     const frame = () => {
@@ -807,16 +859,16 @@ function FullGameScreen() {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [mode, computeTimerMs]);
+  }, { once: true }), [mode, computeTimerMs]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.timeAttackTimeout", () => {
     if (mode !== "timeattack") return;
     if (state.status !== "playing") return;
     if (elapsedMs < TIME_ATTACK_DURATION_MS) return;
     endRun(`TIME ATTACK OVER\nFINAL SCORE: ${state.score}`);
-  }, [elapsedMs, endRun, mode, state.score, state.status]);
+  }, { once: true }), [elapsedMs, endRun, mode, state.score, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.resetRunState", () => {
     if (state.status === "ready" && state.score === 0) {
       timerAccumulatedRef.current = 0;
       timerRunningFromRef.current = null;
@@ -856,9 +908,9 @@ function FullGameScreen() {
       runSessionStartAtRef.current = null;
       runSessionRecordedRef.current = false;
     }
-  }, [state.status, state.level, state.score, state.ghosts]);
+  }, { once: true }), [state.status, state.level, state.score, state.ghosts]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.runStatistics", () => {
     const activeRun = state.status === "ready" || state.status === "playing" || state.status === "paused";
     if (activeRun && !runSessionStartedRef.current) {
       runSessionStartedRef.current = true;
@@ -897,7 +949,7 @@ function FullGameScreen() {
         }
       })();
     }
-  }, [
+  }, { once: true }), [
     endlessContinueCount,
     getRunHazardStats,
     mode,
@@ -912,7 +964,7 @@ function FullGameScreen() {
     state.status,
   ]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.hardcoreTimer", () => {
     if (mode !== "hardcore") return;
     if (state.status === "playing") {
       if (hardcoreStartAtRef.current == null) {
@@ -942,9 +994,9 @@ function FullGameScreen() {
         });
       }
     }
-  }, [bestHardcoreSurvivalMs, mode, state.status]);
+  }, { once: true }), [bestHardcoreSurvivalMs, mode, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.statusToast", () => {
     if (!state.message) {
       setStatusToast(null);
       return;
@@ -957,9 +1009,9 @@ function FullGameScreen() {
       return () => clearTimeout(timer);
     }
     setStatusToast(state.message);
-  }, [state.message, state.status]);
+  }, { once: true }), [state.message, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.bonusTutorial", () => {
     const type = state.bonusGame?.type;
     if (!type || seenBonusTutorialsRef.current.has(type)) return;
     seenBonusTutorialsRef.current.add(type);
@@ -972,9 +1024,9 @@ function FullGameScreen() {
     setBonusTutorialText(hintByType[type] ?? "TIP: Collect bonus items before time runs out.");
     const timer = setTimeout(() => setBonusTutorialText(null), 2600);
     return () => clearTimeout(timer);
-  }, [state.bonusGame?.type]);
+  }, { once: true }), [state.bonusGame?.type]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.endlessChoices", () => {
     if (mode !== "endless") return;
     const shouldOffer = state.status === "levelWon" && state.level > 0 && state.level % 5 === 0;
     if (!shouldOffer || endlessBlessingChoices.length > 0) return;
@@ -1005,9 +1057,9 @@ function FullGameScreen() {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     setEndlessBlessingChoices(shuffled.slice(0, 3));
-  }, [endlessBlessingChoices.length, mode, state.level, state.status]);
+  }, { once: true }), [endlessBlessingChoices.length, mode, state.level, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.criticalPellets", () => {
     if (state.status !== "playing" || state.bonusGame) {
       previousPelletsRef.current = state.pelletsRemaining;
       return;
@@ -1027,9 +1079,9 @@ function FullGameScreen() {
       }, 1800);
     }
     previousPelletsRef.current = state.pelletsRemaining;
-  }, [state.bonusGame, state.level, state.pelletsRemaining, state.status]);
+  }, { once: true }), [state.bonusGame, state.level, state.pelletsRemaining, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.endlessSummary", () => {
     if (mode !== "endless") return;
     const buffs = getEndlessBlessings();
     const parts: string[] = [];
@@ -1040,9 +1092,9 @@ function FullGameScreen() {
     if (buffs.continueDiscount) parts.push("HALF CONTINUE");
     if (buffs.quickClear) parts.push("2 CATCH CLEAR");
     setEndlessBlessingSummary(parts.join(" · "));
-  }, [getEndlessBlessings, mode, state.level, state.status]);
+  }, { once: true }), [getEndlessBlessings, mode, state.level, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.speedrunLevelSplit", () => {
     if (mode !== "speedrun") return;
     const previousLevel = previousLevelRef.current;
     if (state.level > previousLevel) {
@@ -1056,9 +1108,9 @@ function FullGameScreen() {
       levelStartElapsedRef.current = elapsed;
     }
     previousLevelRef.current = state.level;
-  }, [computeTimerMs, mode, platformServicesEnabled, state.level]);
+  }, { once: true }), [computeTimerMs, mode, platformServicesEnabled, state.level]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.modeLeaderboard", () => {
     if (state.status !== "gameOver" || submittedModeLeaderboardRef.current) return;
     if (mode === "hardcore") {
       submittedModeLeaderboardRef.current = true;
@@ -1074,34 +1126,34 @@ function FullGameScreen() {
       submittedModeLeaderboardRef.current = true;
       if (platformServicesEnabled) void submitTimeAttackRun(state.score);
     }
-  }, [mode, platformServicesEnabled, state.level, state.score, state.status]);
+  }, { once: true }), [mode, platformServicesEnabled, state.level, state.score, state.status]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.armAllAchievement", () => {
     if (armedGhosts.length === 4) {
       void queueAchievementUnlock("friends");
       void recordDailyMissionProgress({ armAllEvents: 1 });
     }
-  }, [armedGhosts, platformServicesEnabled]);
+  }, { once: true }), [armedGhosts, platformServicesEnabled]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.syncArmedGhosts", () => {
     const livingGhosts = state.ghosts.filter((ghost) => ghost.alive).map((ghost) => ghost.id);
     setArmedGhosts((prev) => {
       const filtered = prev.filter((id) => livingGhosts.includes(id));
       if (filtered.length > 0) return filtered;
       return livingGhosts.length > 0 ? [livingGhosts[0]] : prev;
     });
-  }, [state.ghosts]);
+  }, { once: true }), [state.ghosts]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.catchStats", () => {
     const previousCatches = previousCatchesRef.current;
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
       setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
     }
     previousCatchesRef.current = state.catches;
-  }, [state.catches]);
+  }, { once: true }), [state.catches]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.comboStats", () => {
     if (state.comboCount > previousComboRef.current) {
       setRunStats((stats) => ({
         ...stats,
@@ -1109,18 +1161,18 @@ function FullGameScreen() {
       }));
     }
     previousComboRef.current = state.comboCount;
-  }, [state.comboCount]);
+  }, { once: true }), [state.comboCount]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.ghostLossStats", () => {
     const alive = state.ghosts.filter((ghost) => ghost.alive).length;
     const prevAlive = previousAliveCountRef.current;
     if (alive < prevAlive) {
       setRunStats((stats) => ({ ...stats, ghostLosses: stats.ghostLosses + (prevAlive - alive) }));
     }
     previousAliveCountRef.current = alive;
-  }, [state.ghosts]);
+  }, { once: true }), [state.ghosts]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.gameOverAnimations", () => {
     if (state.status !== "gameOver") return;
     if (reducedMotion) {
       runStatsAnim.setValue(1);
@@ -1145,9 +1197,9 @@ function FullGameScreen() {
     ]).start(() => {
       getSoundEngine().uiClick();
     });
-  }, [state.status, reducedMotion, runStatsAnim, runMedalAnim]);
+  }, { once: true }), [state.status, reducedMotion, runStatsAnim, runMedalAnim]);
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.levelCompletion", () => {
     const previousStatus = previousStatusRef.current;
     if (state.status === "levelWon" && previousStatus !== "levelWon") {
       const clearMs = Math.max(0, performance.now() - levelStartAtRef.current);
@@ -1190,7 +1242,7 @@ function FullGameScreen() {
       levelStartAtRef.current = performance.now();
     }
     previousStatusRef.current = state.status;
-  }, [state.bonusGame, state.status]);
+  }, { once: true }), [state.bonusGame, state.status]);
 
   const syncSelection = useCallback((next: GhostId[]) => {
     if (next.length > 0) selectGhost(next[0]);
@@ -1241,11 +1293,12 @@ function FullGameScreen() {
   applyDirectionToArmedRef.current = applyDirectionToArmed;
 
   const inventoryItems = useMemo(
-    () => POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
-      id,
-      def: POWER_UPS[id],
-      count: inventory[id] ?? 0,
-    })),
+    createLoggedMemo("FullGameScreen.useMemo.inventoryItems", () =>
+      POWER_UP_ORDER.filter((id) => id !== "hardcoreRevive").slice(0, 8).map((id) => ({
+        id,
+        def: POWER_UPS[id],
+        count: inventory[id] ?? 0,
+      })), { once: true }),
     [inventory],
   );
   const activatePowerUp = useCallback((id: PowerUpId) => {
@@ -1260,7 +1313,7 @@ function FullGameScreen() {
     consumeInventory(id);
   }, [applyPowerUp, consumeInventory, themeId]);
   const powerUpIdsForHotkeys = useMemo(
-    () => inventoryItems.map((item) => item.id),
+    createLoggedMemo("FullGameScreen.useMemo.powerUpIdsForHotkeys", () => inventoryItems.map((item) => item.id), { once: true }),
     [inventoryItems],
   );
 
@@ -1293,7 +1346,7 @@ function FullGameScreen() {
     enabled: !isItchWeb,
   });
 
-  useEffect(() => {
+  useEffect(createLoggedEffect("FullGameScreen.useEffect.keyboardControls", () => {
     if (typeof window === "undefined") return;
 
     const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
@@ -1383,7 +1436,7 @@ function FullGameScreen() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [
+  }, { once: true }), [
     activatePowerUp,
     cycleGhostAiRole,
     powerUpIdsForHotkeys,
@@ -1399,7 +1452,7 @@ function FullGameScreen() {
   const isSwipeEnabled = controlMode === "swipe" || controlMode === "both";
   const isTapEnabled = controlMode === "tap" || controlMode === "both";
   const panResponder = useMemo(
-    () =>
+    createLoggedMemo("FullGameScreen.useMemo.panResponder", () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, g) =>
@@ -1418,7 +1471,7 @@ function FullGameScreen() {
           } catch {}
           applyDirectionToArmedRef.current(dir);
         },
-      }),
+      }), { once: true }),
     [isSwipeEnabled],
   );
 
@@ -1440,7 +1493,7 @@ function FullGameScreen() {
     moveArmedGhostsTowardCell(targetX, targetY);
   }, [cellSize, isTapEnabled, mazeAreaSize.height, mazeAreaSize.width, moveArmedGhostsTowardCell]);
 
-  const activeEffects = useMemo(() => {
+  const activeEffects = useMemo(createLoggedMemo("FullGameScreen.useMemo.activeEffects", () => {
     const now = performance.now();
     const list: { key: string; label: string; color: string }[] = [];
     if (state.effects.speedBoostUntil > now) {
@@ -1500,13 +1553,13 @@ function FullGameScreen() {
       });
     }
     return list;
-  }, [state.effects, themeId]);
+  }, { once: true }), [state.effects, themeId]);
   const ghostToggleItems = useMemo(
-    () => state.ghosts.map((ghost) => ({
+    createLoggedMemo("FullGameScreen.useMemo.ghostToggleItems", () => state.ghosts.map((ghost) => ({
       ghost,
       armed: armedGhosts.includes(ghost.id),
       selected: state.selectedGhostId === ghost.id,
-    })),
+    })), { once: true }),
     [armedGhosts, state.ghosts, state.selectedGhostId],
   );
 
@@ -1518,11 +1571,11 @@ function FullGameScreen() {
     reviveTokenCount > 0 &&
     state.ghosts.some((ghost) => ghost.permaDead);
   const endlessBlessings = getEndlessBlessings();
-  const endlessContinueCost = useMemo(() => {
+  const endlessContinueCost = useMemo(createLoggedMemo("FullGameScreen.useMemo.endlessContinueCost", () => {
     const tier = endlessContinueCount + 1;
     const base = tier <= 4 ? tier * 25 : 100 + (tier - 4) * 100;
     return endlessBlessings.continueDiscount ? Math.max(1, Math.floor(base * 0.5)) : base;
-  }, [endlessBlessings.continueDiscount, endlessContinueCount]);
+  }, { once: true }), [endlessBlessings.continueDiscount, endlessContinueCount]);
   const canAffordEndlessContinue = coins >= endlessContinueCost;
 
   const bonusTimeLeft = state.bonusGame ? bonusTimeRemainingMs(state.bonusGame, performance.now()) : 0;
@@ -1535,7 +1588,7 @@ function FullGameScreen() {
   const modeLabel = mode === "timeattack" ? "TIME ATTACK" : mode.toUpperCase();
   const ghostDeathCap = endlessBlessings.secondWind ? 25 : 20;
   const ghostLivesRemaining = Math.max(0, ghostDeathCap - state.ghostDeathsThisLevel);
-  const runTitle: RunTitle = useMemo(() => {
+  const runTitle: RunTitle = useMemo(createLoggedMemo("FullGameScreen.useMemo.runTitle", () => {
     const perfectRun =
       state.status === "gameOver" &&
       state.message?.includes("YOU BEAT ALL") &&
@@ -1544,8 +1597,8 @@ function FullGameScreen() {
     if (state.score >= RUN_MEDAL_THRESHOLDS.gold) return { emoji: "🥇", label: "Nightmare Incarnate" };
     if (state.score >= RUN_MEDAL_THRESHOLDS.silver) return { emoji: "🥈", label: "Master Haunter" };
     return { emoji: "🥉", label: "Restless Spirit" };
-  }, [runStats.ghostLosses, state.message, state.score, state.status]);
-  const hiddenMedals: HiddenMedal[] = useMemo(() => {
+  }, { once: true }), [runStats.ghostLosses, state.message, state.score, state.status]);
+  const hiddenMedals: HiddenMedal[] = useMemo(createLoggedMemo("FullGameScreen.useMemo.hiddenMedals", () => {
     if (state.status !== "gameOver") return [];
     const medals: HiddenMedal[] = [];
     if (getRunHazardStats().spikeTriggers === 0) medals.push({ emoji: "🧨", label: "Mine Sweeper" });
@@ -1556,8 +1609,8 @@ function FullGameScreen() {
     if (runStats.catches > 0 && runStats.powerUpsUsed === 0) medals.push({ emoji: "🎯", label: "Efficient Evil" });
     if (state.lives === 1 && state.message?.includes("YOU BEAT ALL")) medals.push({ emoji: "💀", label: "Last Stand" });
     return medals;
-  }, [getRunHazardStats, runStats.catches, runStats.ghostLosses, runStats.powerUpsUsed, state.lives, state.message, state.status]);
-  const classicStarSummary = useMemo(() => {
+  }, { once: true }), [getRunHazardStats, runStats.catches, runStats.ghostLosses, runStats.powerUpsUsed, state.lives, state.message, state.status]);
+  const classicStarSummary = useMemo(createLoggedMemo("FullGameScreen.useMemo.classicStarSummary", () => {
     if (mode !== "classic" || state.status !== "levelWon" || state.bonusGame) return null;
     const noGhostLoss = state.ghostDeathsThisLevel === 0;
     const highPellets = state.pelletsRemaining / Math.max(1, state.totalPellets) >= 0.75;
@@ -1569,8 +1622,9 @@ function FullGameScreen() {
         { label: "75%+ pellets left", earned: highPellets },
       ],
     };
-  }, [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
+  }, { once: true }), [mode, state.bonusGame, state.ghostDeathsThisLevel, state.pelletsRemaining, state.status, state.totalPellets]);
 
+  logStartupSuccess("FullGameScreen.render", { once: true });
   return (
     <SafeAreaView style={styles.container}>
       <GameplayErrorBoundary label={isItchWeb ? "itch gameplay route" : "gameplay route"}>
@@ -1580,10 +1634,11 @@ function FullGameScreen() {
           onStartShouldSetResponder={() => isTapEnabled}
           onResponderRelease={handleMazeTap}
           onLayout={(e) =>
-            setMazeAreaSize({
-              width: e.nativeEvent.layout.width,
-              height: e.nativeEvent.layout.height,
-            })
+            withStartupLogging("FullGameScreen.render.onLayout", () =>
+              setMazeAreaSize({
+                width: e.nativeEvent.layout.width,
+                height: e.nativeEvent.layout.height,
+              }), { once: true })
           }
         >
           <MazeRenderer
@@ -1643,11 +1698,11 @@ function FullGameScreen() {
                 </Text>
               </View>
             )}
-            {activeEffects.map((effect) => (
+            {mapWithStartupLogging("FullGameScreen.render.activeEffects", activeEffects, (effect) => (
               <View key={effect.key} style={[styles.miniChip, { borderColor: effect.color }]}>
                 <Text style={[styles.miniChipText, { color: effect.color }]}>{effect.label}</Text>
               </View>
-            ))}
+            ), { once: true })}
           </View>
           <View style={styles.ghostTogglePanel} testID="ghost-toggles">
             <View style={styles.panelHeader}>
@@ -1695,7 +1750,7 @@ function FullGameScreen() {
               </View>
             </View>
             <View style={styles.ghostToggleRow}>
-              {ghostToggleItems.map(({ ghost, armed, selected }) => (
+              {mapWithStartupLogging("FullGameScreen.render.ghostToggleItems", ghostToggleItems, ({ ghost, armed, selected }) => (
                 <TouchableOpacity
                   key={ghost.id}
                   onPress={() => toggleGhostArm(ghost.id)}
@@ -1718,11 +1773,11 @@ function FullGameScreen() {
                     {GHOST_ROLE_LABELS[ghost.aiRole]}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              ), { once: true })}
             </View>
           </View>
           <View style={[styles.slotRow, isCompactHud && styles.slotRowCompact]} testID="hud-items">
-            {inventoryItems.map(({ id, def, count }) => {
+            {mapWithStartupLogging("FullGameScreen.render.inventoryItems", inventoryItems, ({ id, def, count }) => {
               const playable = state.status === "playing" && count > 0;
               return (
                 <TouchableOpacity
@@ -1742,7 +1797,7 @@ function FullGameScreen() {
                   </Text>
                 </TouchableOpacity>
               );
-            })}
+            }, { once: true })}
           </View>
           <View style={[styles.controlRow, isCompactHud && styles.controlRowCompact]} testID="hud-controls">
             <View style={[styles.scorePill, isCompactHud && styles.scorePillCompact]} testID="hud-score">
@@ -1774,11 +1829,11 @@ function FullGameScreen() {
                   <Text style={styles.starSummaryTitle}>
                     {classicStarSummary.gold ? "GOLD STAR RUN" : "LEVEL STARS"}
                   </Text>
-                  {classicStarSummary.criteria.map((criterion) => (
+                  {mapWithStartupLogging("FullGameScreen.render.classicStarCriteria", classicStarSummary.criteria, (criterion) => (
                     <Text key={criterion.label} style={styles.starSummaryText}>
                       {criterion.earned ? "★" : "☆"} {criterion.label}
                     </Text>
-                  ))}
+                  ), { once: true })}
                 </View>
               )}
               {state.status === "levelWon" && (
@@ -1841,7 +1896,7 @@ function FullGameScreen() {
           {mode === "endless" && state.status === "levelWon" && endlessBlessingChoices.length > 0 && (
             <View style={styles.blessingPanel}>
               <Text style={styles.blessingTitle}>MILESTONE BLESSING — PICK ONE</Text>
-              {endlessBlessingChoices.map((choice) => (
+              {mapWithStartupLogging("FullGameScreen.render.endlessBlessings", endlessBlessingChoices, (choice) => (
                 <TouchableOpacity
                   key={choice.id}
                   style={styles.blessingBtn}
@@ -1856,7 +1911,7 @@ function FullGameScreen() {
                   <Text style={styles.blessingBtnLabel}>{choice.label}</Text>
                   <Text style={styles.blessingBtnSub}>{choice.description}</Text>
                 </TouchableOpacity>
-              ))}
+              ), { once: true })}
             </View>
           )}
           {state.status === "gameOver" && (state.pelletsRemaining <= 12 || state.catches >= 2) && (
@@ -1979,7 +2034,12 @@ function FullGameScreen() {
               <>
                 <Text style={styles.hiddenMedalTitle}>HIDDEN MEDALS</Text>
                 <Text style={styles.hiddenMedalText}>
-                  {hiddenMedals.map((medal) => `${medal.emoji} ${medal.label}`).join("  ·  ")}
+                  {mapWithStartupLogging(
+                    "FullGameScreen.render.hiddenMedals",
+                    hiddenMedals,
+                    (medal) => `${medal.emoji} ${medal.label}`,
+                    { once: true },
+                  ).join("  ·  ")}
                 </Text>
               </>
             )}
