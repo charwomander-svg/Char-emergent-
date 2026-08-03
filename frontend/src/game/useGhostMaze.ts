@@ -114,6 +114,7 @@ function createInitialGhosts(
   themeId: string,
   eliminatedGhostIds: GhostId[] = [],
 ): Ghost[] {
+  console.log('[STARTUP] createInitialGhosts: typeof getTheme =', typeof getTheme);
   const theme = getTheme(themeId);
   const defaultRoles: GhostAiRole[] = ["hunter", "ambusher", "patrol", "cautious"];
   return [0, 1, 2, 3].map((id) => {
@@ -159,6 +160,15 @@ function buildInitialState(
   seed?: number,
   eliminatedGhostIds: GhostId[] = [],
 ): GameState {
+  console.log(
+    '[STARTUP] buildInitialState: typeof generateMaze =', typeof generateMaze,
+    '| typeof isBonusLevel =', typeof isBonusLevel,
+    '| typeof getBonusGameType =', typeof getBonusGameType,
+    '| typeof createBonusGame =', typeof createBonusGame,
+    '| typeof createInitialGhosts =', typeof createInitialGhosts,
+    '| typeof createInitialPelletGuy =', typeof createInitialPelletGuy,
+    '| typeof nowMs =', typeof nowMs,
+  );
   let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
     level,
     seed,
@@ -269,6 +279,21 @@ export function useGhostMaze(opts?: {
   practiceMode?: boolean;
   onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
+  console.log(
+    '[STARTUP] useGhostMaze: typeof buildInitialState =', typeof buildInitialState,
+    '| typeof loadProgress =', typeof loadProgress,
+    '| typeof loadSettings =', typeof loadSettings,
+    '| typeof getSoundEngine =', typeof getSoundEngine,
+    '| typeof getMusicTrackForLevel =', typeof getMusicTrackForLevel,
+    '| typeof generateMaze =', typeof generateMaze,
+    '| typeof applyDirection =', typeof applyDirection,
+    '| typeof chooseGhostHuntDirection =', typeof chooseGhostHuntDirection,
+    '| typeof choosePelletGuyDirection =', typeof choosePelletGuyDirection,
+    '| typeof queueAchievementUnlock =', typeof queueAchievementUnlock,
+    '| typeof submitTotalGoldStarsLifetime =', typeof submitTotalGoldStarsLifetime,
+    '| typeof syncProgressAchievements =', typeof syncProgressAchievements,
+    '| typeof updateStatistics =', typeof updateStatistics,
+  );
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
   const modeRef = useRef<"classic" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");
@@ -368,8 +393,16 @@ export function useGhostMaze(opts?: {
 
   useEffect(() => {
     loadSettings().then((s) => {
-      getSoundEngine().setEnabled(!!s.soundOn);
-      getSoundEngine().setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
+      const engine = getSoundEngine();
+      console.log(
+        '[STARTUP] settings useEffect: typeof loadSettings =', typeof loadSettings,
+        '| typeof getSoundEngine =', typeof getSoundEngine,
+        '| typeof engine =', typeof engine,
+        '| typeof engine.setEnabled =', typeof engine?.setEnabled,
+        '| typeof engine.setVolumes =', typeof engine?.setVolumes,
+      );
+      engine.setEnabled(!!s.soundOn);
+      engine.setVolumes({ sfx: s.sfxVolume, music: s.musicVolume });
       musicEnabledRef.current = !!s.musicOn && !!s.soundOn;
     });
   }, []);
@@ -476,7 +509,14 @@ export function useGhostMaze(opts?: {
         // Stagger ghost releases: 0, 500, 1000, 1500ms
         ghostReleaseAtRef.current = [now, now + 500, now + 1000, now + 1500];
         if (musicEnabledRef.current) {
-          getSoundEngine().startMusic(getMusicTrackForLevel(prev.level, prev.bonusGame?.type));
+          const engine = getSoundEngine();
+          console.log(
+            '[STARTUP] tick ready→playing: typeof getSoundEngine =', typeof getSoundEngine,
+            '| typeof engine =', typeof engine,
+            '| typeof engine.startMusic =', typeof engine?.startMusic,
+            '| typeof getMusicTrackForLevel =', typeof getMusicTrackForLevel,
+          );
+          engine.startMusic(getMusicTrackForLevel(prev.level, prev.bonusGame?.type));
         }
       }
       return;

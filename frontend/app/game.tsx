@@ -236,6 +236,20 @@ function FullGameScreen() {
     ispracticemode?: string;
     isPracticeMode?: string;
   }>();
+  console.log(
+    '[STARTUP] FullGameScreen render: typeof useEconomy =', typeof useEconomy,
+    '| typeof useGhostMaze =', typeof useGhostMaze,
+    '| typeof loadSettings =', typeof loadSettings,
+    '| typeof loadProgress =', typeof loadProgress,
+    '| typeof loadSpeedrunData =', typeof loadSpeedrunData,
+    '| typeof getSoundEngine =', typeof getSoundEngine,
+    '| typeof withUnlockedThemes =', typeof withUnlockedThemes,
+    '| typeof saveProgress =', typeof saveProgress,
+    '| typeof syncPlayGames =', typeof syncPlayGames,
+    '| typeof updateStatistics =', typeof updateStatistics,
+    '| typeof useGamepad =', typeof useGamepad,
+    '| typeof recordDailyMissionProgress =', typeof recordDailyMissionProgress,
+  );
   const mode = getGameMode(params.mode);
   const platformServicesEnabled = true;
   const isPracticeMode =
@@ -342,6 +356,14 @@ function FullGameScreen() {
   const practiceInitRef = useRef(false);
 
   useEffect(() => {
+    console.log(
+      '[STARTUP] first useEffect: typeof loadSpeedrunData =', typeof loadSpeedrunData,
+      '| typeof loadProgress =', typeof loadProgress,
+      '| typeof withUnlockedThemes =', typeof withUnlockedThemes,
+      '| typeof saveProgress =', typeof saveProgress,
+      '| typeof loadSettings =', typeof loadSettings,
+      '| typeof syncPlayGames =', typeof syncPlayGames,
+    );
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
     loadProgress().then((p) => {
       const normalized = withUnlockedThemes(p);
@@ -368,8 +390,15 @@ function FullGameScreen() {
     loadSettings().then((s) => {
       setRuntimeSettings(s);
       const audioEnabled = !!s.soundOn;
-      getSoundEngine().setEnabled(audioEnabled);
-      getSoundEngine().setVolumes({
+      const engine = getSoundEngine();
+      console.log(
+        '[STARTUP] audio useEffect: typeof getSoundEngine =', typeof getSoundEngine,
+        '| typeof engine =', typeof engine,
+        '| typeof engine.setEnabled =', typeof engine?.setEnabled,
+        '| typeof engine.setVolumes =', typeof engine?.setVolumes,
+      );
+      engine.setEnabled(audioEnabled);
+      engine.setVolumes({
         sfx: audioEnabled ? s.sfxVolume : 0,
         music: audioEnabled ? s.musicVolume : 0,
       });
