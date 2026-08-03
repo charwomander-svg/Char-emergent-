@@ -136,8 +136,10 @@ class GameplayErrorBoundary extends React.Component<
     return { error };
   }
 
-  componentDidCatch(error: Error) {
-    console.error("[GhostMaze] Gameplay boundary caught:", error);
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[GhostMaze] Gameplay boundary caught:", error.message);
+    console.error("[GhostMaze] Stack:", error.stack);
+    console.error("[GhostMaze] Component stack:", info.componentStack);
   }
 
   render() {
@@ -147,8 +149,13 @@ class GameplayErrorBoundary extends React.Component<
           <Text style={styles.errorTitle}>GAMEPLAY CRASH</Text>
           {this.props.label ? <Text style={styles.errorSubtitle}>{this.props.label}</Text> : null}
           <Text style={styles.errorBody} selectable>
-            {String(this.state.error.message || this.state.error)}
+            {this.state.error.message}
           </Text>
+          {this.state.error.stack ? (
+            <Text style={styles.errorBody} selectable>
+              {this.state.error.stack}
+            </Text>
+          ) : null}
         </View>
       );
     }
