@@ -65,7 +65,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           echo "Building versionName=$VERSION_NAME versionCode=$VERSION_CODE"
-          ./gradlew bundleRelease --no-daemon
+          ./gradlew bundleRelease
 
       - name: Verify artifact signing certificate
         working-directory: frontend/android
