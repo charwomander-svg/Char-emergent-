@@ -1316,7 +1316,6 @@ function FullGameScreen() {
   }, [mode, state.status, submissionState]);
 
   console.log("[diag] FullGameScreen render:end");
-  console.log("[diag] FullGameScreen render:end");
   return (
     <SafeAreaView style={styles.container}>
       <GameplayErrorBoundary label="gameplay route">
