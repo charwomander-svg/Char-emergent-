@@ -60,7 +60,12 @@ export function useGamepad(cb: Callbacks) {
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
-    if (typeof window === "undefined" || !navigator.getGamepads) return;
+    if (
+      typeof window === "undefined" ||
+      typeof window.addEventListener !== "function" ||
+      typeof window.removeEventListener !== "function" ||
+      !navigator.getGamepads
+    ) return;
 
     let rafId: number | null = null;
 
