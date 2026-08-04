@@ -601,14 +601,14 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
         >
           <View
             style={{
-              position: "absolute",
-              left: size * 0.425,
-              top: 0,
-              width: size * 0.5,
-              height: size * 0.425,
-              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
-              transform: [{ skewY: "-25deg" }],
-              transformOrigin: "left bottom",
+             <View
+  style={{
+    width: size * .4,
+    height: size * .4,
+    backgroundColor: COLORS.background,
+  }}
+/
+           
             } as any}
           />
           <View
@@ -618,9 +618,7 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
               top: size * 0.425,
               width: size * 0.5,
               height: size * 0.425,
-              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background,
-              transform: [{ skewY: "25deg" }],
-              transformOrigin: "left top",
+              backgroundColor: vulnerable ? "#FFFFFF" : COLORS.background
             } as any}
           />
         </Animated.View>
