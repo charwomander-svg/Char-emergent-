@@ -1035,7 +1035,12 @@ function FullGameScreen() {
   });
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (
+      typeof window === "undefined" ||
+      typeof window.addEventListener !== "function" ||
+      typeof window.removeEventListener !== "function" ||
+      typeof window.confirm !== "function"
+    ) return;
 
     const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
     const holdTriggered = new Set<GhostId>();
