@@ -1035,6 +1035,7 @@ function FullGameScreen() {
   });
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
     if (
       typeof window === "undefined" ||
       typeof window.addEventListener !== "function" ||
