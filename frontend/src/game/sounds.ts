@@ -8,7 +8,6 @@ type SfxKey =
   | "pellet"
   | "super"
   | "catch"
-  | "combo"
   | "ghostEaten"
   | "death"
   | "win"
@@ -38,9 +37,9 @@ const SFX_SOURCES: Record<SfxKey, number> = {
 
 const MUSIC_SOURCES: Record<MusicTrack, number> = {
   main: require("@/assets/sounds/blinky_revenge.mp3"),
-  tier2: require("@/assets/sounds/blinkys_revenge.mp3"),
-  tier3: require("@/assets/sounds/blinky_revenge.mp3"),
-  tier4: require("@/assets/sounds/panic_protocol_ghost_king.mp3"),
+  tier2: require("@/assets/sounds/song2.mp3"),
+  tier3: require("@/assets/sounds/neon.mp3"),
+  tier4: require("@/assets/sounds/ghost_king.mp3"),
   bonus: require("@/assets/sounds/ghost_king.mp3"),
   bonusHunt: require("@/assets/sounds/Slap Bass Ghost Skank.mp3"),
 };
