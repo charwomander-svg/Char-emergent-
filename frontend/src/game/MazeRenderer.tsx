@@ -638,7 +638,16 @@ export default function MazeRenderer({
   bonusGame,
   highContrast = false,
 }: Props) {
-  if (!maze || !maze.length || !maze[0]) return null;
+  console.log("[diag] MazeRenderer render:start", {
+    hasMaze: !!maze,
+    rows: maze?.length,
+    cols: maze?.[0]?.length,
+    level,
+  });
+  if (!maze || !maze.length || !maze[0]) {
+    console.log("[diag] MazeRenderer render:end", { rendered: false });
+    return null;
+  }
   const width = maze[0].length * cellSize;
   const height = maze.length * cellSize;
   const scale = getLevelSpeedScale(level);
@@ -646,6 +655,7 @@ export default function MazeRenderer({
   const ghostNormalDuration = SPEED.ghost * scale;
   const ghostVulnDuration = SPEED.ghostVulnerable * scale;
   const wallPalette = getWallPalette(level);
+  console.log("[diag] MazeRenderer render:end", { rendered: true, width, height, level });
 
   return (
     <View

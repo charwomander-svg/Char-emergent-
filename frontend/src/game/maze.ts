@@ -406,14 +406,23 @@ export function generateMaze(
   pelletGuySpawn: { x: number; y: number };
   totalPellets: number;
 } {
-  const rand =
-    seed !== undefined ? makeRng((seed ^ (level * 0x9e3779b1)) >>> 0) : Math.random;
+  console.log("[diag] generateMaze entry", { level, seed });
+  try {
+    const rand =
+      seed !== undefined ? makeRng((seed ^ (level * 0x9e3779b1)) >>> 0) : Math.random;
 
-  if (level % 5 !== 0) {
-    return decorateMaze(makeStaticBase(level, rand), level, rand);
-  }
+    if (level % 5 !== 0) {
+      const result = decorateMaze(makeStaticBase(level, rand), level, rand);
+      console.log("[diag] generateMaze exit", {
+        level,
+        totalPellets: result.totalPellets,
+        rows: result.maze.length,
+        cols: result.maze[0]?.length,
+      });
+      return result;
+    }
 
-  const cols = MAZE_COLS;
+    const cols = MAZE_COLS;
   const rows = MAZE_ROWS;
 
   // initialize with walls
@@ -613,7 +622,19 @@ export function generateMaze(
   };
   pelletGuySpawn = findWalkable(pelletGuySpawn.x, pelletGuySpawn.y);
   // Mark spawn cell - keep as pellet so player gets it
-  return { maze: grid, ghostSpawns, pelletGuySpawn, totalPellets };
+    const result = { maze: grid, ghostSpawns, pelletGuySpawn, totalPellets };
+    console.log("[diag] generateMaze exit", {
+      level,
+      totalPellets: result.totalPellets,
+      rows: result.maze.length,
+      cols: result.maze[0]?.length,
+    });
+    return result;
+  } catch (error) {
+    console.error("[diag] generateMaze error", error);
+    console.error("[diag] generateMaze stack", error instanceof Error ? error.stack : undefined);
+    throw error;
+  }
 }
 
 export function isWalkable(

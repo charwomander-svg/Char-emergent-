@@ -159,10 +159,21 @@ function buildInitialState(
   seed?: number,
   eliminatedGhostIds: GhostId[] = [],
 ): GameState {
-  let { maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
-    level,
-    seed,
-  );
+  console.log("[diag] buildInitialState entry", { level, lives, score, themeId, seed, eliminatedGhostIds });
+  let maze: CellType[][];
+  let ghostSpawns: { x: number; y: number }[];
+  let pelletGuySpawn: { x: number; y: number };
+  let totalPellets: number;
+  try {
+    ({ maze, ghostSpawns, pelletGuySpawn, totalPellets } = generateMaze(
+      level,
+      seed,
+    ));
+  } catch (error) {
+    console.error("[diag] buildInitialState error", error);
+    console.error("[diag] buildInitialState stack", error instanceof Error ? error.stack : undefined);
+    throw error;
+  }
   const bonusActive = isBonusLevel(level);
   if (bonusActive) {
     let convertedSuperPellets = 0;
@@ -192,7 +203,7 @@ function buildInitialState(
     ...EMPTY_EFFECTS,
     speedBoostUntil: themeId === "rainbow" ? now + 3000 : 0,
   };
-  return {
+  const initialState = {
     status: "ready",
     level,
     lives,
@@ -214,6 +225,12 @@ function buildInitialState(
     effects: initialEffects,
     bonusGame: adjustedBonusGame,
   };
+  console.log("[diag] buildInitialState exit", {
+    level: initialState.level,
+    totalPellets: initialState.totalPellets,
+    ghosts: initialState.ghosts.length,
+  });
+  return initialState;
 }
 
 function computeRespawnDelay(priorDeaths: number, fastRespawn = false): number {
@@ -269,6 +286,7 @@ export function useGhostMaze(opts?: {
   practiceMode?: boolean;
   onCoinsEarned?: (n: number, reason: "levelClear") => void;
 }) {
+  console.log("[diag] useGhostMaze entry", opts);
   const themeIdRef = useRef<string>("classic");
   const progressRef = useRef<ProgressData | null>(null);
   const modeRef = useRef<"classic" | "custom" | "speedrun" | "hardcore" | "endless" | "timeattack">(opts?.mode ?? "classic");

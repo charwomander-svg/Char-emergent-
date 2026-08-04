@@ -162,6 +162,7 @@ function ignorePlaybackRejection(result: unknown) {
 }
 
 export function createSoundEngine(): SoundEngine {
+  console.log("[diag] createSoundEngine");
   let enabled = true;
   const safePlay = (key: SfxKey) => {
     if (!enabled) return;
@@ -250,6 +251,7 @@ export function createSoundEngine(): SoundEngine {
 
 let _engine: SoundEngine | null = null;
 export function getSoundEngine(): SoundEngine {
+  console.log("[diag] getSoundEngine");
   if (!_engine) _engine = createSoundEngine();
   return _engine;
 }

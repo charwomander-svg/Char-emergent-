@@ -164,6 +164,7 @@ class GameplayErrorBoundary extends React.Component<
 }
 
 export default function GameScreen() {
+  console.log("[diag] GameScreen render:start");
   const [webMounted, setWebMounted] = useState(false);
 
   useEffect(() => {
@@ -171,9 +172,11 @@ export default function GameScreen() {
   }, []);
 
   if (typeof window === "undefined" || !webMounted) {
+    console.log("[diag] GameScreen render:end");
     return <View style={styles.container} />;
   }
 
+  console.log("[diag] GameScreen render:end");
   return (
     <GameplayErrorBoundary label="game route">
       <FullGameScreen />
@@ -234,6 +237,7 @@ const RUN_MEDAL_THRESHOLDS = {
 } as const;
 
 function FullGameScreen() {
+  console.log("[diag] FullGameScreen render:start");
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -1311,6 +1315,8 @@ function FullGameScreen() {
       : "LEADERBOARD: INELIGIBLE FOR THIS MODE";
   }, [mode, state.status, submissionState]);
 
+  console.log("[diag] FullGameScreen render:end");
+  console.log("[diag] FullGameScreen render:end");
   return (
     <SafeAreaView style={styles.container}>
       <GameplayErrorBoundary label="gameplay route">
