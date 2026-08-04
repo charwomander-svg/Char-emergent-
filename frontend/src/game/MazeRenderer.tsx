@@ -482,8 +482,8 @@ const GhostSprite = React.memo(function GhostSprite({
   );
 });
 
-// Pellet Guy sprite (classic Pac-Man yellow circle with mouth)
-const PelletGuySprite = React.memo(function PelletGuySprite({
+// Pellet Guy sprite (classic *Redacted-Man yellow circle with mouth)
+const  = React.memo(function ({
   pg,
   size,
   moveDuration,
@@ -690,7 +690,7 @@ export default function MazeRenderer({
             .filter((item) => !item.collected)
             .map((item, idx) =>
               bonusGame.type === "powerHunt" ? (
-                <PelletGuySprite
+                <
                   key={idx}
                   pg={{
                     x: item.x,
@@ -731,7 +731,7 @@ export default function MazeRenderer({
         )}
         {/* Pellet Guy — hidden during bonus rounds */}
         {!bonusGame && (
-          <PelletGuySprite
+          <
             pg={pelletGuy}
             size={cellSize}
             moveDuration={pgDuration}
