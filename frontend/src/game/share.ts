@@ -5,7 +5,7 @@ const APP_NAME = "Ghost Maze";
 
 export function buildChallengeUrl(seed: number, label?: string): string {
   const base =
-    (typeof window !== "undefined" && window.location?.origin) ||
+    (Platform.OS === "web" && typeof window !== "undefined" && window.location?.origin) ||
     process.env.EXPO_PUBLIC_BACKEND_URL ||
     "";
   const params = new URLSearchParams({

@@ -9,6 +9,7 @@ import {
   Animated,
   Alert,
   BackHandler,
+  Platform,
   type GestureResponderEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -89,15 +90,6 @@ interface HiddenMedal {
 type LeaderboardSubmissionState = "pending" | "submitted" | "offline" | "ineligible" | null;
 type PracticeStep = "arm" | "direction" | "catch" | "done";
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function getGameMode(rawMode?: string) {
   return rawMode === "custom" ||
     rawMode === "speedrun" ||
@@ -164,16 +156,6 @@ class GameplayErrorBoundary extends React.Component<
 }
 
 export default function GameScreen() {
-  const [webMounted, setWebMounted] = useState(false);
-
-  useEffect(() => {
-    setWebMounted(true);
-  }, []);
-
-  if (typeof window === "undefined" || !webMounted) {
-    return <View style={styles.container} />;
-  }
-
   return (
     <GameplayErrorBoundary label="game route">
       <FullGameScreen />
