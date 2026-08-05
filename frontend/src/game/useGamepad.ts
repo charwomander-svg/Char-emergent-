@@ -59,19 +59,30 @@ export function useGamepad(cb: Callbacks) {
   cbRef.current = cb;
 
   useEffect(() => {
+    // Web Gamepad API is browser-only; never touch DOM listeners on native.
     if (Platform.OS !== "web") return;
+
+    const domWindow = globalThis as typeof globalThis & {
+      addEventListener?: (type: string, listener: (event: Event) => void) => void;
+      removeEventListener?: (type: string, listener: (event: Event) => void) => void;
+      navigator?: Navigator;
+    };
+    const addListener = domWindow.addEventListener;
+    const removeListener = domWindow.removeEventListener;
+    const nav = domWindow.navigator ?? (typeof navigator !== "undefined" ? navigator : undefined);
     if (
-      typeof window === "undefined" ||
-      typeof window.addEventListener !== "function" ||
-      typeof window.removeEventListener !== "function" ||
-      !navigator.getGamepads
-    ) return;
+      typeof addListener !== "function" ||
+      typeof removeListener !== "function" ||
+      typeof nav?.getGamepads !== "function"
+    ) {
+      return;
+    }
 
     let rafId: number | null = null;
 
     const poll = () => {
       try {
-        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const pads = nav.getGamepads ? nav.getGamepads() : [];
         const gp = Array.from(pads).find((p) => p && p.connected);
         if (gp && enabledRef.current) {
           const isSelectable = (ghostId: GhostId) =>
@@ -163,13 +174,13 @@ export function useGamepad(cb: Callbacks) {
       console.log("[GhostMaze] Gamepad disconnected:", (e as any).gamepad?.id);
     };
 
-    window.addEventListener("gamepadconnected", onConnect);
-    window.addEventListener("gamepaddisconnected", onDisconnect);
+    addListener("gamepadconnected", onConnect);
+    addListener("gamepaddisconnected", onDisconnect);
 
     return () => {
       if (rafId != null) cancelAnimationFrame(rafId);
-      window.removeEventListener("gamepadconnected", onConnect);
-      window.removeEventListener("gamepaddisconnected", onDisconnect);
+      removeListener("gamepadconnected", onConnect);
+      removeListener("gamepaddisconnected", onDisconnect);
     };
   }, []);
 

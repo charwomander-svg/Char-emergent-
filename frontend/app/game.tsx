@@ -9,6 +9,7 @@ import {
   Animated,
   Alert,
   BackHandler,
+  Platform,
   type GestureResponderEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -164,13 +165,15 @@ class GameplayErrorBoundary extends React.Component<
 }
 
 export default function GameScreen() {
-  const [webMounted, setWebMounted] = useState(false);
+  // Web-only hydration delay. React Native defines a `window` global without
+  // DOM APIs, so never gate native mounts on `typeof window`.
+  const [webMounted, setWebMounted] = useState(Platform.OS !== "web");
 
   useEffect(() => {
-    setWebMounted(true);
+    if (Platform.OS === "web") setWebMounted(true);
   }, []);
 
-  if (typeof window === "undefined" || !webMounted) {
+  if (!webMounted) {
     return <View style={styles.container} />;
   }
 
@@ -1034,19 +1037,31 @@ function FullGameScreen() {
     enabled: true,
   });
 
+  // Keyboard hotkeys are browser-only. On native, swipe/tap + BackHandler cover input.
   useEffect(() => {
     if (Platform.OS !== "web") return;
+
+    // RN's `window` global is not a DOM Window — guard before any listener calls.
+    const domWindow = globalThis as typeof globalThis & {
+      addEventListener?: (type: string, listener: (event: KeyboardEvent) => void) => void;
+      removeEventListener?: (type: string, listener: (event: KeyboardEvent) => void) => void;
+      confirm?: (message?: string) => boolean;
+    };
+    const addListener = domWindow.addEventListener;
+    const removeListener = domWindow.removeEventListener;
+    const confirmFn = domWindow.confirm;
     if (
-      typeof window === "undefined" ||
-      typeof window.addEventListener !== "function" ||
-      typeof window.removeEventListener !== "function" ||
-      typeof window.confirm !== "function"
-    ) return;
+      typeof addListener !== "function" ||
+      typeof removeListener !== "function" ||
+      typeof confirmFn !== "function"
+    ) {
+      return;
+    }
 
     const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
     const holdTriggered = new Set<GhostId>();
 
-    const confirmExitToMenu = () => window.confirm("Leave this run and return to the main menu?");
+    const confirmExitToMenu = () => confirmFn("Leave this run and return to the main menu?");
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
@@ -1109,12 +1124,12 @@ function FullGameScreen() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    addListener("keydown", handleKeyDown);
+    addListener("keyup", handleKeyUp);
     return () => {
       holdTimers.forEach((timer) => clearTimeout(timer));
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
+      removeListener("keydown", handleKeyDown);
+      removeListener("keyup", handleKeyUp);
     };
   }, [
     abandonRunToMenu,
