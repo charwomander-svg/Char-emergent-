@@ -1035,15 +1035,13 @@ function FullGameScreen() {
   });
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
     if (
-      Platform.OS !== "web" ||
       typeof window === "undefined" ||
-      typeof document === "undefined" ||
       typeof window.addEventListener !== "function" ||
-      typeof window.removeEventListener !== "function"
-    ) {
-      return;
-    }
+      typeof window.removeEventListener !== "function" ||
+      typeof window.confirm !== "function"
+    ) return;
 
     const holdTimers = new Map<GhostId, ReturnType<typeof setTimeout>>();
     const holdTriggered = new Set<GhostId>();
