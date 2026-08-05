@@ -8,6 +8,7 @@ type SfxKey =
   | "pellet"
   | "super"
   | "catch"
+  | "combo"
   | "ghostEaten"
   | "death"
   | "win"
