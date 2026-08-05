@@ -1338,7 +1338,7 @@ function FullGameScreen() {
             highContrast={highContrast}
           />
         </View>
-        <View
+        <View  
           style={[styles.footerHud, isCompactHud && styles.footerHudCompact]}
           testID="hud-bottom"
         >
@@ -1350,7 +1350,7 @@ function FullGameScreen() {
               <Text style={styles.miniChipText}>{modeLabel}</Text>
             </View>
             <View style={styles.miniChip}>
-              <Text style={styles.miniChipText}>SPRITEFIX2</Text>
+              <Text style={styles.miniChipText}>Production 8/4</Text>
             </View>
             {bonusTutorialText && (
               <View style={[styles.miniChip, styles.miniChipHighlight]}>
