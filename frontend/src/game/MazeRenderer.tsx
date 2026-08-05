@@ -601,14 +601,9 @@ const PelletGuySprite = React.memo(function PelletGuySprite({
         >
           <View
             style={{
-             <View
-  style={{
-    width: size * .4,
-    height: size * .4,
-    backgroundColor: COLORS.background,
-  }}
-/
-           
+              width: size * 0.4,
+              height: size * 0.4,
+              backgroundColor: COLORS.background,
             } as any}
           />
           <View
