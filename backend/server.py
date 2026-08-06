@@ -1,4 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import Depends, FastAPI, APIRouter, Header, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -13,6 +15,7 @@ from typing import List, Optional, Literal, Any
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import unquote
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 mongo_url = os.getenv('MONGO_URL', '')
 db_name = os.getenv('DB_NAME', 'ghost_maze')
+ADMIN_API_KEY = (os.getenv('ADMIN_API_KEY') or '').strip()
 
 # Initialize DB connection at module load if env vars are present; if
 # MONGO_URL is absent the server will still import cleanly and the startup
@@ -39,7 +43,8 @@ else:
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
-BACKEND_BUILD_ID = "production-polish-2026-07-28-4"
+BACKEND_BUILD_ID = "companion-admin-2026-08-06-1"
+COMPANION_DIR = ROOT_DIR / "companion"
 
 
 @app.on_event("startup")
@@ -51,10 +56,25 @@ async def startup_db():
         await db.scores.create_index([("mode", ASCENDING), ("score", DESCENDING), ("timestamp", ASCENDING)])
         await db.scores.create_index([("mode", ASCENDING), ("run_time_ms", ASCENDING), ("score", DESCENDING)])
         await db.promo_redemptions.create_index([("code", ASCENDING)])
+        await db.promo_redemptions.create_index([("code", ASCENDING), ("player_id", ASCENDING)])
         await db.promo_code_counters.create_index([("redeemed_count", ASCENDING)])
+        await db.news_items.create_index([("date", DESCENDING), ("updated_at", DESCENDING)])
+        await db.promo_codes.create_index([("updated_at", DESCENDING)])
     except PyMongoError as exc:
         logger.exception("MongoDB startup check failed")
         raise RuntimeError("MongoDB is not reachable") from exc
+
+
+async def require_admin(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key")) -> None:
+    """Protect companion write/list admin routes with a shared secret."""
+    if not ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin API is not configured. Set ADMIN_API_KEY on the backend.",
+        )
+    provided = (x_admin_key or "").strip()
+    if not provided or not secrets.compare_digest(provided, ADMIN_API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid or missing admin key")
 
 
 # ============================================================
@@ -226,9 +246,75 @@ DEFAULT_NEWS_ITEMS: list[dict[str, str]] = [
 
 
 class NewsItem(BaseModel):
+    id: Optional[str] = None
     title: str = Field(min_length=1, max_length=120)
     date: str = Field(min_length=1, max_length=20)
     body: str = Field(min_length=1, max_length=1000)
+
+
+class NewsItemCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    date: str = Field(default="", max_length=20)
+    body: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("title", "body", mode="before")
+    @classmethod
+    def strip_text(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def strip_date(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+
+class NewsItemUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    date: Optional[str] = Field(default=None, max_length=20)
+    body: Optional[str] = Field(default=None, min_length=1, max_length=1000)
+
+    @field_validator("title", "body", "date", mode="before")
+    @classmethod
+    def strip_optional_text(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        return str(value).strip()
+
+
+class PromoAdminCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    reward: int = Field(ge=0, description="Coin reward granted on redeem")
+    max_uses_total: Optional[int] = Field(default=None, ge=1, description="Total redemptions allowed across all players")
+    max_uses_per_person: int = Field(default=1, ge=1, description="Redemptions allowed per player")
+    active: bool = True
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def sanitize_code(cls, value: Any) -> str:
+        cleaned = str(value or "").strip().upper()
+        cleaned = "".join(ch for ch in cleaned if ch.isalnum() or ch in ("-", "_"))
+        if not cleaned:
+            raise ValueError("code cannot be blank")
+        return cleaned[:64]
+
+
+class PromoAdminUpdate(BaseModel):
+    reward: Optional[int] = Field(default=None, ge=0)
+    max_uses_total: Optional[int] = Field(default=None, ge=1)
+    max_uses_per_person: Optional[int] = Field(default=None, ge=1)
+    active: Optional[bool] = None
+    clear_max_uses_total: bool = False
+
+
+class PromoAdminItem(BaseModel):
+    code: str
+    reward: int = 0
+    max_uses_total: Optional[int] = None
+    max_uses_per_person: int = 1
+    active: bool = True
+    redeemed_count: int = 0
+    source: Literal["database", "built_in", "env"] = "database"
+    editable: bool = True
 
 
 def _normalize_news_item(item: Any) -> Optional[dict[str, str]]:
@@ -243,21 +329,25 @@ def _normalize_news_item(item: Any) -> Optional[dict[str, str]]:
         normalized_date = date_raw[:20]
     else:
         normalized_date = datetime.now(timezone.utc).date().isoformat()
-    return {
+    news_id = str(item.get("id") or item.get("_id") or "").strip() or None
+    payload = {
         "title": title[:120],
         "date": normalized_date,
         "body": body[:1000],
     }
+    if news_id:
+        payload["id"] = news_id
+    return payload
 
 
-def _load_news_items() -> list[dict[str, str]]:
+def _load_env_news_items() -> list[dict[str, str]]:
     raw = (
         os.getenv("NEWS_ITEMS_JSON", "").strip()
         or os.getenv("NEWS_CHANGER_JSON", "").strip()
         or os.getenv("NEWSCHANGER_JSON", "").strip()
     )
     if not raw:
-        return DEFAULT_NEWS_ITEMS
+        return list(DEFAULT_NEWS_ITEMS)
 
     if raw.startswith("%5B") or raw.startswith("%7B"):
         raw = unquote(raw)
@@ -266,7 +356,7 @@ def _load_news_items() -> list[dict[str, str]]:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         logger.exception("Invalid NEWS_ITEMS_JSON")
-        return DEFAULT_NEWS_ITEMS
+        return list(DEFAULT_NEWS_ITEMS)
 
     # Some env managers store JSON as a quoted JSON string.
     if isinstance(parsed, str):
@@ -274,7 +364,7 @@ def _load_news_items() -> list[dict[str, str]]:
             parsed = json.loads(parsed)
         except json.JSONDecodeError:
             logger.exception("Invalid nested NEWS_ITEMS_JSON")
-            return DEFAULT_NEWS_ITEMS
+            return list(DEFAULT_NEWS_ITEMS)
 
     items: list[dict[str, str]] = []
     source = parsed
@@ -287,7 +377,84 @@ def _load_news_items() -> list[dict[str, str]]:
             if normalized:
                 items.append(normalized)
 
-    return items if items else DEFAULT_NEWS_ITEMS
+    return items if items else list(DEFAULT_NEWS_ITEMS)
+
+
+async def _load_news_items() -> list[dict[str, str]]:
+    """Prefer Mongo-backed news (editable via companion); fall back to env/defaults."""
+    try:
+        rows = await db.news_items.find({}).sort([("date", DESCENDING), ("updated_at", DESCENDING)]).to_list(200)
+    except PyMongoError:
+        logger.exception("Failed to load news from MongoDB")
+        rows = []
+
+    items: list[dict[str, str]] = []
+    for row in rows:
+        normalized = _normalize_news_item(
+            {
+                "id": row.get("_id"),
+                "title": row.get("title"),
+                "date": row.get("date"),
+                "body": row.get("body"),
+            }
+        )
+        if normalized:
+            items.append(normalized)
+    if items:
+        return items
+    return _load_env_news_items()
+
+
+def _promo_reward_coins(promo: dict[str, Any]) -> int:
+    rewards_raw = promo.get("rewards", {}) if isinstance(promo, dict) else {}
+    if not isinstance(rewards_raw, dict):
+        # Companion plain-text "reward" field may be stored at top level.
+        top_level = promo.get("reward")
+        if isinstance(top_level, (int, float)):
+            return max(0, int(top_level))
+        return 0
+    coins = rewards_raw.get("coins", 0)
+    if isinstance(coins, (int, float)):
+        return max(0, int(coins))
+    return 0
+
+
+def _promo_max_per_player(promo: dict[str, Any]) -> int:
+    raw = promo.get("max_per_player", promo.get("max_uses_per_person", 1))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 1
+    return max(1, value)
+
+
+def _promo_max_total(promo: dict[str, Any]) -> Optional[int]:
+    raw = promo.get("max_redemptions", promo.get("max_uses_total"))
+    if raw is None or raw == "":
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 1 else None
+
+
+def _serialize_promo_admin(code: str, promo: dict[str, Any], *, source: str, editable: bool) -> PromoAdminItem:
+    redeemed = promo.get("redeemed_count", 0)
+    try:
+        redeemed_count = max(0, int(redeemed))
+    except (TypeError, ValueError):
+        redeemed_count = 0
+    return PromoAdminItem(
+        code=code,
+        reward=_promo_reward_coins(promo),
+        max_uses_total=_promo_max_total(promo),
+        max_uses_per_person=_promo_max_per_player(promo),
+        active=bool(promo.get("active", True)),
+        redeemed_count=redeemed_count,
+        source=source,  # type: ignore[arg-type]
+        editable=editable,
+    )
 
 
 def _load_env_promo_codes() -> dict[str, dict[str, Any]]:
@@ -531,14 +698,26 @@ async def promo_redeem(body: PromoRedeemRequest):
             raise HTTPException(status_code=404, detail="Promo code not found")
         promo = stored_promo
     else:
-        stored_promo = await promo_codes.find_one({"_id": code}, {"_id": 1})
+        # Prefer DB override when companion edited a built-in/env code.
+        stored_promo = await promo_codes.find_one({"_id": code})
+        if stored_promo is not None:
+            promo = stored_promo
 
     redemption_period = promo.get("redemption_period")
     redemption_window = utc_today_str() if redemption_period == "daily" else None
-    redemption_id = f"{code}:{player_id}:{redemption_window}" if redemption_window else f"{code}:{player_id}"
-    already = await redemptions.find_one({"_id": redemption_id}, {"_id": 1})
-    if already:
-        message = "Code already redeemed for this player today" if redemption_window else "Code already redeemed for this player"
+    max_per_player = _promo_max_per_player(promo)
+
+    player_query: dict[str, Any] = {"code": code, "player_id": player_id}
+    if redemption_window:
+        player_query["redemption_window"] = redemption_window
+    player_redeem_count = await redemptions.count_documents(player_query)
+    if player_redeem_count >= max_per_player:
+        if redemption_window:
+            message = "Code already redeemed for this player today"
+        elif max_per_player <= 1:
+            message = "Code already redeemed for this player"
+        else:
+            message = "Player redemption limit reached for this code"
         raise HTTPException(status_code=409, detail=message)
 
     if promo.get("active", True) is False:
@@ -553,7 +732,7 @@ async def promo_redeem(body: PromoRedeemRequest):
     rewards_raw = promo.get("rewards", {}) if isinstance(promo, dict) else {}
     if not isinstance(rewards_raw, dict):
         rewards_raw = {}
-    coins = rewards_raw.get("coins", 0)
+    coins = rewards_raw.get("coins", promo.get("reward", 0))
     power_ups = rewards_raw.get("powerUps", {})
 
     safe_coins = max(0, int(coins)) if isinstance(coins, (int, float)) else 0
@@ -570,7 +749,7 @@ async def promo_redeem(body: PromoRedeemRequest):
     if safe_coins <= 0 and not safe_power_ups:
         raise HTTPException(status_code=400, detail="Promo code has no rewards configured")
 
-    max_redemptions = promo.get("max_redemptions")
+    max_redemptions = _promo_max_total(promo)
     counter_reserved = False
     now = datetime.now(timezone.utc)
     if isinstance(max_redemptions, int):
@@ -601,6 +780,18 @@ async def promo_redeem(body: PromoRedeemRequest):
                 raise HTTPException(status_code=400, detail="Promo code redemption limit reached")
             counter_reserved = True
 
+    # Unique id even when a player may redeem more than once.
+    redemption_id = (
+        f"{code}:{player_id}:{redemption_window}:{player_redeem_count}"
+        if redemption_window
+        else f"{code}:{player_id}:{player_redeem_count}"
+    )
+    # Keep single-use legacy id shape for max_per_player == 1 and no window.
+    if max_per_player == 1 and not redemption_window:
+        redemption_id = f"{code}:{player_id}"
+    elif max_per_player == 1 and redemption_window:
+        redemption_id = f"{code}:{player_id}:{redemption_window}"
+
     try:
         await redemptions.insert_one(
             {
@@ -628,10 +819,252 @@ async def promo_redeem(body: PromoRedeemRequest):
 
 @api_router.get("/news", response_model=List[NewsItem])
 async def news_feed():
-    return [NewsItem(**item) for item in _load_news_items()]
+    return [NewsItem(**item) for item in await _load_news_items()]
+
+
+# ============================================================
+# Companion admin API (plain-text UI at /companion/)
+# ============================================================
+
+@api_router.get("/admin/health")
+async def admin_health(_: None = Depends(require_admin)):
+    return {
+        "ok": True,
+        "build": BACKEND_BUILD_ID,
+        "admin_configured": bool(ADMIN_API_KEY),
+    }
+
+
+@api_router.get("/admin/news", response_model=List[NewsItem])
+async def admin_list_news(_: None = Depends(require_admin)):
+    rows = await db.news_items.find({}).sort([("date", DESCENDING), ("updated_at", DESCENDING)]).to_list(200)
+    items: list[NewsItem] = []
+    for row in rows:
+        normalized = _normalize_news_item(
+            {
+                "id": row.get("_id"),
+                "title": row.get("title"),
+                "date": row.get("date"),
+                "body": row.get("body"),
+            }
+        )
+        if normalized:
+            items.append(NewsItem(**normalized))
+    if items:
+        return items
+    # Surface env/default fallback so the companion is never empty on first open.
+    return [NewsItem(**item) for item in _load_env_news_items()]
+
+
+@api_router.post("/admin/news", response_model=NewsItem)
+async def admin_create_news(body: NewsItemCreate, _: None = Depends(require_admin)):
+    normalized = _normalize_news_item(body.model_dump())
+    if not normalized:
+        raise HTTPException(status_code=400, detail="News item requires title and body")
+    now = datetime.now(timezone.utc)
+    news_id = str(uuid.uuid4())
+    doc = {
+        "_id": news_id,
+        "title": normalized["title"],
+        "date": normalized["date"],
+        "body": normalized["body"],
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.news_items.insert_one(doc)
+    return NewsItem(id=news_id, title=doc["title"], date=doc["date"], body=doc["body"])
+
+
+@api_router.put("/admin/news/{news_id}", response_model=NewsItem)
+async def admin_update_news(news_id: str, body: NewsItemUpdate, _: None = Depends(require_admin)):
+    existing = await db.news_items.find_one({"_id": news_id})
+    if existing is None:
+        # Allow "editing" an env/default item by materializing it into Mongo.
+        if not any([body.title, body.date, body.body]):
+            raise HTTPException(status_code=404, detail="News item not found")
+        raise HTTPException(
+            status_code=404,
+            detail="News item not found in database. Create it as a new item instead.",
+        )
+
+    updates: dict[str, Any] = {}
+    if body.title is not None:
+        if not body.title:
+            raise HTTPException(status_code=400, detail="title cannot be blank")
+        updates["title"] = body.title[:120]
+    if body.body is not None:
+        if not body.body:
+            raise HTTPException(status_code=400, detail="body cannot be blank")
+        updates["body"] = body.body[:1000]
+    if body.date is not None:
+        updates["date"] = (body.date[:20] if body.date else datetime.now(timezone.utc).date().isoformat())
+
+    if not updates:
+        return NewsItem(
+            id=str(existing["_id"]),
+            title=str(existing.get("title", "")),
+            date=str(existing.get("date", "")),
+            body=str(existing.get("body", "")),
+        )
+
+    updates["updated_at"] = datetime.now(timezone.utc)
+    updated = await db.news_items.find_one_and_update(
+        {"_id": news_id},
+        {"$set": updates},
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="News item not found")
+    return NewsItem(
+        id=str(updated["_id"]),
+        title=str(updated.get("title", "")),
+        date=str(updated.get("date", "")),
+        body=str(updated.get("body", "")),
+    )
+
+
+@api_router.delete("/admin/news/{news_id}")
+async def admin_delete_news(news_id: str, _: None = Depends(require_admin)):
+    result = await db.news_items.delete_one({"_id": news_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="News item not found")
+    return {"ok": True, "deleted": news_id}
+
+
+@api_router.get("/admin/promos", response_model=List[PromoAdminItem])
+async def admin_list_promos(_: None = Depends(require_admin)):
+    items: dict[str, PromoAdminItem] = {}
+
+    # Built-in / env codes first (read-only unless overridden in DB).
+    for code, promo in _load_env_promo_codes().items():
+        source = "built_in" if code in BUILT_IN_PROMO_CODES and code == promo.get("code", code) else "env"
+        if code in BUILT_IN_PROMO_CODES:
+            source = "built_in"
+        items[code] = _serialize_promo_admin(code, promo, source=source, editable=False)
+
+    rows = await db.promo_codes.find({}).to_list(500)
+    for row in rows:
+        code = str(row.get("_id") or row.get("code") or "").strip().upper()
+        if not code:
+            continue
+        items[code] = _serialize_promo_admin(code, row, source="database", editable=True)
+
+    return sorted(items.values(), key=lambda item: item.code)
+
+
+@api_router.post("/admin/promos", response_model=PromoAdminItem)
+async def admin_create_promo(body: PromoAdminCreate, _: None = Depends(require_admin)):
+    code = body.code
+    existing = await db.promo_codes.find_one({"_id": code}, {"_id": 1})
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Promo code already exists")
+    if body.reward <= 0:
+        raise HTTPException(status_code=400, detail="reward must be greater than 0")
+
+    now = datetime.now(timezone.utc)
+    doc = {
+        "_id": code,
+        "code": code,
+        "active": body.active,
+        "max_redemptions": body.max_uses_total,
+        "max_per_player": body.max_uses_per_person,
+        "rewards": {"coins": body.reward},
+        "redeemed_count": 0,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.promo_codes.insert_one(doc)
+    return _serialize_promo_admin(code, doc, source="database", editable=True)
+
+
+@api_router.put("/admin/promos/{code}", response_model=PromoAdminItem)
+async def admin_update_promo(code: str, body: PromoAdminUpdate, _: None = Depends(require_admin)):
+    cleaned = str(code or "").strip().upper()
+    cleaned = "".join(ch for ch in cleaned if ch.isalnum() or ch in ("-", "_"))
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Invalid promo code")
+
+    existing = await db.promo_codes.find_one({"_id": cleaned})
+    now = datetime.now(timezone.utc)
+
+    # Materialize built-in/env codes into Mongo when first edited.
+    if existing is None:
+        base = _load_env_promo_codes().get(cleaned)
+        if base is None:
+            raise HTTPException(status_code=404, detail="Promo code not found")
+        existing = {
+            "_id": cleaned,
+            "code": cleaned,
+            "active": base.get("active", True),
+            "max_redemptions": _promo_max_total(base),
+            "max_per_player": _promo_max_per_player(base),
+            "rewards": {"coins": _promo_reward_coins(base), "powerUps": (base.get("rewards") or {}).get("powerUps", {})},
+            "redemption_period": base.get("redemption_period"),
+            "redeemed_count": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.promo_codes.insert_one(existing)
+
+    updates: dict[str, Any] = {"updated_at": now}
+    unset_fields: dict[str, str] = {}
+
+    if body.reward is not None:
+        updates["rewards.coins"] = body.reward
+    if body.max_uses_per_person is not None:
+        updates["max_per_player"] = body.max_uses_per_person
+    if body.active is not None:
+        updates["active"] = body.active
+    if body.clear_max_uses_total:
+        unset_fields["max_redemptions"] = ""
+    elif body.max_uses_total is not None:
+        updates["max_redemptions"] = body.max_uses_total
+
+    update_doc: dict[str, Any] = {"$set": updates}
+    if unset_fields:
+        update_doc["$unset"] = unset_fields
+
+    updated = await db.promo_codes.find_one_and_update(
+        {"_id": cleaned},
+        update_doc,
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    return _serialize_promo_admin(cleaned, updated, source="database", editable=True)
+
+
+@api_router.delete("/admin/promos/{code}")
+async def admin_delete_promo(code: str, _: None = Depends(require_admin)):
+    cleaned = str(code or "").strip().upper()
+    cleaned = "".join(ch for ch in cleaned if ch.isalnum() or ch in ("-", "_"))
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Invalid promo code")
+    result = await db.promo_codes.delete_one({"_id": cleaned})
+    if result.deleted_count == 0:
+        if cleaned in _load_env_promo_codes():
+            raise HTTPException(
+                status_code=400,
+                detail="Built-in/env promo codes cannot be deleted. Deactivate them instead.",
+            )
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    return {"ok": True, "deleted": cleaned}
 
 
 app.include_router(api_router)
+
+# Lightweight companion UI (plain HTML forms — not a store app).
+if COMPANION_DIR.is_dir():
+    app.mount("/companion", StaticFiles(directory=str(COMPANION_DIR), html=True), name="companion")
+
+
+@app.get("/admin")
+@app.get("/admin/")
+async def companion_redirect():
+    index = COMPANION_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=404, detail="Companion app not found")
+    return FileResponse(index)
 
 # CORS — accept comma-separated origins from env, default to "*" for the
 # casual game preview/deployment.

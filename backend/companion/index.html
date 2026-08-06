@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ghost Maze Companion</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171b2e;
+      --panel-2: #1f2540;
+      --line: #2c3358;
+      --text: #eef2ff;
+      --muted: #9aa6d1;
+      --accent: #7c8cff;
+      --accent-2: #39d98a;
+      --danger: #ff6b8a;
+      --warn: #ffd166;
+      --input: #0c1020;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+      --radius: 14px;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(124, 140, 255, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(57, 217, 138, 0.12), transparent 50%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: 0.04em;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      flex: 1 1 160px;
+      min-width: 140px;
+    }
+
+    label.grow { flex: 2 1 280px; }
+
+    input, textarea, select, button {
+      font: inherit;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--input);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124, 140, 255, 0.18);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: var(--accent);
+      color: #0b1020;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    button.danger {
+      background: rgba(255, 107, 138, 0.16);
+      color: #ffd0db;
+      border: 1px solid rgba(255, 107, 138, 0.45);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+
+    .tab.active {
+      background: rgba(124, 140, 255, 0.18);
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .status {
+      min-height: 1.25rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin: 8px 0 0;
+      white-space: pre-wrap;
+    }
+
+    .status.ok { color: var(--accent-2); }
+    .status.err { color: var(--danger); }
+
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 10, 20, 0.45);
+      padding: 14px;
+    }
+
+    .item-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .item-title {
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .badge.db { color: #b7ffd2; border-color: rgba(57, 217, 138, 0.4); }
+    .badge.ro { color: var(--warn); border-color: rgba(255, 209, 102, 0.4); }
+    .badge.off { color: var(--danger); border-color: rgba(255, 107, 138, 0.4); }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .hidden { display: none !important; }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+
+    .lock-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .lock-row label { flex: 1 1 260px; }
+    .api-url { flex: 1 1 220px; }
+
+    footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Ghost Maze Companion</h1>
+        <div class="sub">Plain-text editor for news and promo mail codes. No JSON required.</div>
+      </div>
+    </header>
+
+    <section class="card" id="auth-card">
+      <p class="hint">
+        Enter the backend admin key (the <code>ADMIN_API_KEY</code> value on the server).
+        It stays in this browser only.
+      </p>
+      <div class="lock-row">
+        <label class="api-url">
+          Backend URL
+          <input id="api-base" type="text" placeholder="https://ghost-maze-backend.onrender.com" autocomplete="off" />
+        </label>
+        <label>
+          Admin key
+          <input id="admin-key" type="password" placeholder="paste admin key" autocomplete="current-password" />
+        </label>
+        <button id="unlock-btn" type="button">Unlock</button>
+        <button id="lock-btn" class="secondary hidden" type="button">Lock</button>
+      </div>
+      <p class="status" id="auth-status"></p>
+    </section>
+
+    <div id="app" class="hidden">
+      <div class="tabs">
+        <button class="tab active" data-tab="news" type="button">News</button>
+        <button class="tab" data-tab="mail" type="button">Promo / Mail</button>
+      </div>
+
+      <section id="tab-news">
+        <div class="card">
+          <p class="hint">News needs only a date, title, and body. Players see these in the game news screen.</p>
+          <form id="news-form">
+            <input type="hidden" id="news-id" />
+            <div class="row">
+              <label style="flex: 0 1 180px">
+                Date
+                <input id="news-date" type="text" placeholder="2026-08-06" />
+              </label>
+              <label class="grow">
+                Title
+                <input id="news-title" type="text" placeholder="Update title" required maxlength="120" />
+              </label>
+            </div>
+            <div class="row" style="margin-top: 12px">
+              <label class="grow">
+                Body
+                <textarea id="news-body" placeholder="Write the news in plain text..." required maxlength="1000"></textarea>
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" id="news-save">Save news</button>
+              <button type="button" class="secondary" id="news-reset">Clear form</button>
+            </div>
+          </form>
+          <p class="status" id="news-status"></p>
+        </div>
+        <div class="card">
+          <div class="item-head">
+            <div class="item-title">Published news</div>
+            <button type="button" class="secondary" id="news-refresh">Refresh</button>
+          </div>
+          <div class="list" id="news-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-mail" class="hidden">
+        <div class="card">
+          <p class="hint">
+            Promo / mail codes: enter the code, coin reward, total uses, and uses per person.
+            Leave total uses blank for unlimited.
+          </p>
+          <form id="promo-form">
+            <input type="hidden" id="promo-editing" value="0" />
+            <div class="row">
+              <label>
+                Code
+                <input id="promo-code" type="text" placeholder="SUMMER100" required maxlength="64" />
+              </label>
+              <label>
+                Reward (coins)
+                <input id="promo-reward" type="number" min="1" step="1" placeholder="100" required />
+              </label>
+              <label>
+                Uses total
+                <input id="promo-max-total" type="number" min="1" step="1" placeholder="unlimited" />
+              </label>
+              <label>
+                Uses per person
+                <input id="promo-max-person" type="number" min="1" step="1" value="1" required />
+              </label>
+              <label style="flex: 0 1 140px">
+                Active
+                <select id="promo-active">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" id="promo-save">Save promo</button>
+              <button type="button" class="secondary" id="promo-reset">Clear form</button>
+            </div>
+          </form>
+          <p class="status" id="promo-status"></p>
+        </div>
+        <div class="card">
+          <div class="item-head">
+            <div class="item-title">Promo codes</div>
+            <button type="button" class="secondary" id="promo-refresh">Refresh</button>
+          </div>
+          <div class="list" id="promo-list"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      Companion is served from the backend at <code>/companion/</code>.
+      Set <code>ADMIN_API_KEY</code> on the API before unlocking.
+    </footer>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "ghostMaze.companion.v1";
+
+    const els = {
+      apiBase: document.getElementById("api-base"),
+      adminKey: document.getElementById("admin-key"),
+      unlockBtn: document.getElementById("unlock-btn"),
+      lockBtn: document.getElementById("lock-btn"),
+      authStatus: document.getElementById("auth-status"),
+      app: document.getElementById("app"),
+      newsForm: document.getElementById("news-form"),
+      newsId: document.getElementById("news-id"),
+      newsDate: document.getElementById("news-date"),
+      newsTitle: document.getElementById("news-title"),
+      newsBody: document.getElementById("news-body"),
+      newsStatus: document.getElementById("news-status"),
+      newsList: document.getElementById("news-list"),
+      newsReset: document.getElementById("news-reset"),
+      newsRefresh: document.getElementById("news-refresh"),
+      promoForm: document.getElementById("promo-form"),
+      promoEditing: document.getElementById("promo-editing"),
+      promoCode: document.getElementById("promo-code"),
+      promoReward: document.getElementById("promo-reward"),
+      promoMaxTotal: document.getElementById("promo-max-total"),
+      promoMaxPerson: document.getElementById("promo-max-person"),
+      promoActive: document.getElementById("promo-active"),
+      promoStatus: document.getElementById("promo-status"),
+      promoList: document.getElementById("promo-list"),
+      promoReset: document.getElementById("promo-reset"),
+      promoRefresh: document.getElementById("promo-refresh"),
+      tabs: Array.from(document.querySelectorAll(".tab")),
+      tabNews: document.getElementById("tab-news"),
+      tabMail: document.getElementById("tab-mail"),
+    };
+
+    function todayISO() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function loadSettings() {
+      try {
+        return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function saveSettings( partial) {
+      const next = { ...loadSettings(), ...partial };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    }
+
+    function clearSettings() {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+
+    function setStatus(el, message, kind) {
+      el.textContent = message || "";
+      el.classList.remove("ok", "err");
+      if (kind) el.classList.add(kind);
+    }
+
+    function normalizeBase(url) {
+      let base = (url || "").trim().replace(/\/+$/, "");
+      if (!base) {
+        // Same origin when served from the backend.
+        base = window.location.origin;
+      }
+      return base;
+    }
+
+    function apiRoot() {
+      return `${normalizeBase(els.apiBase.value)}/api`;
+    }
+
+    async function api(path, options = {}) {
+      const settings = loadSettings();
+      const headers = {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      };
+      const key = (els.adminKey.value || settings.adminKey || "").trim();
+      if (key) headers["X-Admin-Key"] = key;
+
+      const res = await fetch(`${apiRoot()}${path}`, {
+        ...options,
+        headers,
+      });
+
+      let data = null;
+      const text = await res.text();
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { detail: text };
+        }
+      }
+
+      if (!res.ok) {
+        const detail = data && (data.detail || data.message);
+        const msg = typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+            : `Request failed (${res.status})`;
+        const err = new Error(msg);
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    function setUnlocked(unlocked) {
+      els.app.classList.toggle("hidden", !unlocked);
+      els.lockBtn.classList.toggle("hidden", !unlocked);
+      els.unlockBtn.classList.toggle("hidden", unlocked);
+      els.adminKey.readOnly = unlocked;
+      els.apiBase.readOnly = unlocked;
+    }
+
+    async function unlock() {
+      setStatus(els.authStatus, "Checking admin key…");
+      try {
+        const base = normalizeBase(els.apiBase.value);
+        els.apiBase.value = base;
+        saveSettings({ apiBase: base, adminKey: els.adminKey.value.trim() });
+        await api("/admin/health");
+        setStatus(els.authStatus, "Unlocked. You can edit news and promo codes.", "ok");
+        setUnlocked(true);
+        await Promise.all([loadNews(), loadPromos()]);
+      } catch (err) {
+        setUnlocked(false);
+        setStatus(els.authStatus, err.message || String(err), "err");
+      }
+    }
+
+    function lock() {
+      clearSettings();
+      els.adminKey.value = "";
+      setUnlocked(false);
+      setStatus(els.authStatus, "Locked.");
+      els.newsList.innerHTML = "";
+      els.promoList.innerHTML = "";
+    }
+
+    function switchTab(name) {
+      els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
+      els.tabNews.classList.toggle("hidden", name !== "news");
+      els.tabMail.classList.toggle("hidden", name !== "mail");
+    }
+
+    function resetNewsForm() {
+      els.newsId.value = "";
+      els.newsDate.value = todayISO();
+      els.newsTitle.value = "";
+      els.newsBody.value = "";
+      els.newsSave = els.newsForm.querySelector("button[type=submit]");
+      if (els.newsSave) els.newsSave.textContent = "Save news";
+      setStatus(els.newsStatus, "");
+    }
+
+    function fillNewsForm(item) {
+      els.newsId.value = item.id || "";
+      els.newsDate.value = item.date || todayISO();
+      els.newsTitle.value = item.title || "";
+      els.newsBody.value = item.body || "";
+      const saveBtn = els.newsForm.querySelector("button[type=submit]");
+      if (saveBtn) saveBtn.textContent = item.id ? "Update news" : "Save news";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function loadNews() {
+      setStatus(els.newsStatus, "Loading news…");
+      try {
+        const items = await api("/admin/news");
+        renderNews(items || []);
+        setStatus(els.newsStatus, `${(items || []).length} news item(s).`, "ok");
+      } catch (err) {
+        setStatus(els.newsStatus, err.message || String(err), "err");
+      }
+    }
+
+    function renderNews(items) {
+      if (!items.length) {
+        els.newsList.innerHTML = `<div class="meta">No news yet. Add one above.</div>`;
+        return;
+      }
+      els.newsList.innerHTML = items.map((item) => {
+        const editable = Boolean(item.id);
+        const badge = editable
+          ? `<span class="badge db">saved</span>`
+          : `<span class="badge ro">default / env</span>`;
+        const body = escapeHtml(item.body || "").replace(/\n/g, "<br>");
+        return `
+          <article class="item" data-id="${escapeAttr(item.id || "")}">
+            <div class="item-head">
+              <div>
+                <div class="item-title">${escapeHtml(item.title || "")}</div>
+                <div class="meta">${escapeHtml(item.date || "")}</div>
+              </div>
+              ${badge}
+            </div>
+            <div>${body}</div>
+            <div class="actions">
+              ${editable ? `
+                <button type="button" class="secondary" data-action="edit-news">Edit</button>
+                <button type="button" class="danger" data-action="delete-news">Delete</button>
+              ` : `
+                <span class="meta">Create a new item to replace defaults (defaults are not stored until you save your own news).</span>
+              `}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      els.newsList.querySelectorAll("[data-action=edit-news]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const article = btn.closest(".item");
+          const id = article?.dataset.id;
+          const item = items.find((n) => n.id === id);
+          if (item) fillNewsForm(item);
+        });
+      });
+
+      els.newsList.querySelectorAll("[data-action=delete-news]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.closest(".item")?.dataset.id;
+          if (!id) return;
+          if (!confirm("Delete this news item?")) return;
+          try {
+            await api(`/admin/news/${encodeURIComponent(id)}`, { method: "DELETE" });
+            setStatus(els.newsStatus, "Deleted.", "ok");
+            resetNewsForm();
+            await loadNews();
+          } catch (err) {
+            setStatus(els.newsStatus, err.message || String(err), "err");
+          }
+        });
+      });
+    }
+
+    async function saveNews(event) {
+      event.preventDefault();
+      const payload = {
+        title: els.newsTitle.value.trim(),
+        date: els.newsDate.value.trim(),
+        body: els.newsBody.value.trim(),
+      };
+      if (!payload.title || !payload.body) {
+        setStatus(els.newsStatus, "Title and body are required.", "err");
+        return;
+      }
+      const id = els.newsId.value.trim();
+      setStatus(els.newsStatus, id ? "Updating…" : "Saving…");
+      try {
+        if (id) {
+          await api(`/admin/news/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          });
+          setStatus(els.newsStatus, "News updated.", "ok");
+        } else {
+          await api("/admin/news", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          setStatus(els.newsStatus, "News created.", "ok");
+        }
+        resetNewsForm();
+        await loadNews();
+      } catch (err) {
+        setStatus(els.newsStatus, err.message || String(err), "err");
+      }
+    }
+
+    function resetPromoForm() {
+      els.promoEditing.value = "0";
+      els.promoCode.value = "";
+      els.promoCode.readOnly = false;
+      els.promoReward.value = "";
+      els.promoMaxTotal.value = "";
+      els.promoMaxPerson.value = "1";
+      els.promoActive.value = "true";
+      const saveBtn = els.promoForm.querySelector("button[type=submit]");
+      if (saveBtn) saveBtn.textContent = "Save promo";
+      setStatus(els.promoStatus, "");
+    }
+
+    function fillPromoForm(item) {
+      els.promoEditing.value = "1";
+      els.promoCode.value = item.code || "";
+      els.promoCode.readOnly = true;
+      els.promoReward.value = item.reward ?? "";
+      els.promoMaxTotal.value = item.max_uses_total ?? "";
+      els.promoMaxPerson.value = item.max_uses_per_person ?? 1;
+      els.promoActive.value = item.active === false ? "false" : "true";
+      const saveBtn = els.promoForm.querySelector("button[type=submit]");
+      if (saveBtn) saveBtn.textContent = "Update promo";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function loadPromos() {
+      setStatus(els.promoStatus, "Loading promo codes…");
+      try {
+        const items = await api("/admin/promos");
+        renderPromos(items || []);
+        setStatus(els.promoStatus, `${(items || []).length} promo code(s).`, "ok");
+      } catch (err) {
+        setStatus(els.promoStatus, err.message || String(err), "err");
+      }
+    }
+
+    function renderPromos(items) {
+      if (!items.length) {
+        els.promoList.innerHTML = `<div class="meta">No promo codes yet.</div>`;
+        return;
+      }
+      els.promoList.innerHTML = items.map((item) => {
+        const sourceBadge = item.source === "database"
+          ? `<span class="badge db">database</span>`
+          : `<span class="badge ro">${escapeHtml(item.source || "built_in")}</span>`;
+        const activeBadge = item.active === false
+          ? `<span class="badge off">inactive</span>`
+          : "";
+        const total = item.max_uses_total == null ? "unlimited" : String(item.max_uses_total);
+        return `
+          <article class="item" data-code="${escapeAttr(item.code)}">
+            <div class="item-head">
+              <div>
+                <div class="item-title">${escapeHtml(item.code)}</div>
+                <div class="meta">
+                  Reward: ${escapeHtml(String(item.reward || 0))} coins ·
+                  Uses total: ${escapeHtml(total)} ·
+                  Per person: ${escapeHtml(String(item.max_uses_per_person || 1))} ·
+                  Redeemed: ${escapeHtml(String(item.redeemed_count || 0))}
+                </div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end">
+                ${sourceBadge}
+                ${activeBadge}
+              </div>
+            </div>
+            <div class="actions">
+              <button type="button" class="secondary" data-action="edit-promo">Edit</button>
+              ${item.editable ? `<button type="button" class="danger" data-action="delete-promo">Delete</button>` : `<span class="meta">Built-in/env code — edit to override in database, or deactivate.</span>`}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      els.promoList.querySelectorAll("[data-action=edit-promo]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const code = btn.closest(".item")?.dataset.code;
+          const item = items.find((p) => p.code === code);
+          if (item) fillPromoForm(item);
+        });
+      });
+
+      els.promoList.querySelectorAll("[data-action=delete-promo]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const code = btn.closest(".item")?.dataset.code;
+          if (!code) return;
+          if (!confirm(`Delete promo code ${code}?`)) return;
+          try {
+            await api(`/admin/promos/${encodeURIComponent(code)}`, { method: "DELETE" });
+            setStatus(els.promoStatus, "Deleted.", "ok");
+            resetPromoForm();
+            await loadPromos();
+          } catch (err) {
+            setStatus(els.promoStatus, err.message || String(err), "err");
+          }
+        });
+      });
+    }
+
+    async function savePromo(event) {
+      event.preventDefault();
+      const code = els.promoCode.value.trim().toUpperCase();
+      const reward = Number(els.promoReward.value);
+      const maxPerson = Number(els.promoMaxPerson.value || 1);
+      const maxTotalRaw = els.promoMaxTotal.value.trim();
+      const maxTotal = maxTotalRaw === "" ? null : Number(maxTotalRaw);
+      const active = els.promoActive.value === "true";
+      const editing = els.promoEditing.value === "1";
+
+      if (!code) {
+        setStatus(els.promoStatus, "Code is required.", "err");
+        return;
+      }
+      if (!Number.isFinite(reward) || reward <= 0) {
+        setStatus(els.promoStatus, "Reward must be a positive number of coins.", "err");
+        return;
+      }
+      if (!Number.isFinite(maxPerson) || maxPerson < 1) {
+        setStatus(els.promoStatus, "Uses per person must be at least 1.", "err");
+        return;
+      }
+      if (maxTotal != null && (!Number.isFinite(maxTotal) || maxTotal < 1)) {
+        setStatus(els.promoStatus, "Uses total must be blank or at least 1.", "err");
+        return;
+      }
+
+      setStatus(els.promoStatus, editing ? "Updating…" : "Saving…");
+      try {
+        if (editing) {
+          const payload = {
+            reward,
+            max_uses_per_person: maxPerson,
+            active,
+          };
+          if (maxTotal == null) {
+            payload.clear_max_uses_total = true;
+          } else {
+            payload.max_uses_total = maxTotal;
+          }
+          await api(`/admin/promos/${encodeURIComponent(code)}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          });
+          setStatus(els.promoStatus, "Promo updated.", "ok");
+        } else {
+          await api("/admin/promos", {
+            method: "POST",
+            body: JSON.stringify({
+              code,
+              reward,
+              max_uses_total: maxTotal,
+              max_uses_per_person: maxPerson,
+              active,
+            }),
+          });
+          setStatus(els.promoStatus, "Promo created.", "ok");
+        }
+        resetPromoForm();
+        await loadPromos();
+      } catch (err) {
+        setStatus(els.promoStatus, err.message || String(err), "err");
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, "&#96;");
+    }
+
+    // Wire up events
+    els.unlockBtn.addEventListener("click", unlock);
+    els.lockBtn.addEventListener("click", lock);
+    els.newsForm.addEventListener("submit", saveNews);
+    els.newsReset.addEventListener("click", resetNewsForm);
+    els.newsRefresh.addEventListener("click", loadNews);
+    els.promoForm.addEventListener("submit", savePromo);
+    els.promoReset.addEventListener("click", resetPromoForm);
+    els.promoRefresh.addEventListener("click", loadPromos);
+    els.tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
+
+    // Restore session
+    (function init() {
+      const settings = loadSettings();
+      const defaultBase = window.location.origin.includes("localhost") || window.location.pathname.startsWith("/companion") || window.location.pathname.startsWith("/admin")
+        ? window.location.origin
+        : "https://ghost-maze-backend.onrender.com";
+      els.apiBase.value = settings.apiBase || defaultBase;
+      els.adminKey.value = settings.adminKey || "";
+      els.newsDate.value = todayISO();
+      if (settings.adminKey) {
+        unlock();
+      }
+    })();
+  </script>
+</body>
+</html>

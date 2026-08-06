@@ -14,3 +14,5 @@ services:
         sync: false          # set to your Render service URL once deployed
       - key: CORS_ORIGINS
         value: "*"
+      - key: ADMIN_API_KEY
+        sync: false          # set in Render dashboard; unlocks /companion admin UI
