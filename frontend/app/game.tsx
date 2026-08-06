@@ -87,7 +87,6 @@ interface HiddenMedal {
 }
 
 type LeaderboardSubmissionState = "pending" | "submitted" | "offline" | "ineligible" | null;
-type PracticeStep = "arm" | "direction" | "catch" | "done";
 
 function escapeHtml(value: string) {
   return value
@@ -239,14 +238,9 @@ function FullGameScreen() {
     mode?: string;
     seed?: string;
     level?: string;
-    practice?: string;
-    ispracticemode?: string;
-    isPracticeMode?: string;
   }>();
   const mode = getGameMode(params.mode);
   const platformServicesEnabled = true;
-  const isPracticeMode =
-    params.practice === "1" || params.ispracticemode === "1" || params.isPracticeMode === "1";
   const seed = params.seed != null ? Number(params.seed) : undefined;
   const startLevel = params.level != null ? Number(params.level) : undefined;
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsData>(DEFAULT_SETTINGS);
@@ -274,8 +268,8 @@ function FullGameScreen() {
     mode,
     seed: Number.isFinite(seed) ? seed : undefined,
     startingLevel: Number.isFinite(startLevel) ? Math.max(1, Math.floor(startLevel!)) : 1,
-    practiceMode: isPracticeMode,
-    onCoinsEarned: isPracticeMode ? undefined : (n) => earnCoins(n),
+    practiceMode: false,
+    onCoinsEarned: (n) => earnCoins(n),
   });
   const { width, height } = useWindowDimensions();
   const [mazeAreaSize, setMazeAreaSize] = useState({ width: 0, height: 0 });
@@ -330,7 +324,6 @@ function FullGameScreen() {
   const [hardcoreDeltaMs, setHardcoreDeltaMs] = useState<number | null>(null);
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [submissionState, setSubmissionState] = useState<LeaderboardSubmissionState>(null);
-  const [practiceStep, setPracticeStep] = useState<PracticeStep>(isPracticeMode ? "arm" : "done");
   const [endlessContinueCount, setEndlessContinueCount] = useState(0);
   const [bonusTutorialText, setBonusTutorialText] = useState<string | null>(null);
   const [endlessBlessingChoices, setEndlessBlessingChoices] = useState<EndlessBlessingChoice[]>([]);
@@ -346,7 +339,6 @@ function FullGameScreen() {
   const runSessionStartedRef = useRef(false);
   const runSessionStartAtRef = useRef<number | null>(null);
   const runSessionRecordedRef = useRef(false);
-  const practiceInitRef = useRef(false);
 
   useEffect(() => {
     loadSpeedrunData().then((d) => setBestRunMs(d.bestRunMs));
@@ -386,14 +378,6 @@ function FullGameScreen() {
   useEffect(() => {
     setControlledGhosts(armedGhosts);
   }, [armedGhosts, setControlledGhosts]);
-
-  useEffect(() => {
-    if (!isPracticeMode || practiceInitRef.current) return;
-    if (state.status !== "ready" || state.level !== 1 || state.score !== 0) return;
-    practiceInitRef.current = true;
-    setArmedGhosts([]);
-    setStatusToast("PRACTICE 1/3: ARM ONE GHOST");
-  }, [isPracticeMode, state.level, state.score, state.status]);
 
   useEffect(() => {
     if (state.status === "paused") {
@@ -511,8 +495,6 @@ function FullGameScreen() {
       setEndlessBlessingSummary("");
       criticalPelletPingedLevelRef.current = 0;
       setSubmissionState(null);
-      setPracticeStep(isPracticeMode ? "arm" : "done");
-      practiceInitRef.current = false;
       setRunStats({
         catches: 0,
         longestCombo: 0,
@@ -789,13 +771,9 @@ function FullGameScreen() {
     if (state.catches > previousCatches) {
       void recordDailyMissionProgress({ catches: state.catches - previousCatches });
       setRunStats((stats) => ({ ...stats, catches: stats.catches + (state.catches - previousCatches) }));
-      if (isPracticeMode && practiceStep === "catch") {
-        setPracticeStep("done");
-        setStatusToast("PRACTICE COMPLETE ✓");
-      }
     }
     previousCatchesRef.current = state.catches;
-  }, [isPracticeMode, practiceStep, state.catches]);
+  }, [state.catches]);
 
   useEffect(() => {
     if (state.comboCount > previousComboRef.current) {
@@ -940,24 +918,16 @@ function FullGameScreen() {
       } else {
         next = [...prev, ghostId].sort((a, b) => a - b) as GhostId[];
       }
-      if (isPracticeMode && practiceStep === "arm" && next.length > 0) {
-        setPracticeStep("direction");
-        setStatusToast("PRACTICE 2/3: SWIPE OR PRESS A DIRECTION");
-      }
       return next;
     });
-  }, [isPracticeMode, practiceStep, selectGhost]);
+  }, [selectGhost]);
 
   const applyDirectionToArmed = useCallback((dir: Direction) => {
-    if (isPracticeMode && practiceStep === "direction" && stateRef.current.status === "playing") {
-      setPracticeStep("catch");
-      setStatusToast("PRACTICE 3/3: CATCH PELLET GUY ONCE");
-    }
     const targets = armedGhosts.length > 0 ? armedGhosts : [stateRef.current.selectedGhostId];
     const selectedGhostId = stateRef.current.selectedGhostId;
     targets.forEach((id) => setGhostDirection(id, dir));
     if (targets.length > 1) selectGhost(selectedGhostId);
-  }, [armedGhosts, isPracticeMode, practiceStep, selectGhost, setGhostDirection]);
+  }, [armedGhosts, selectGhost, setGhostDirection]);
 
   const moveArmedGhostsTowardCell = useCallback((targetX: number, targetY: number) => {
     const current = stateRef.current;

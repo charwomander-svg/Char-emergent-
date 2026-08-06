@@ -210,7 +210,7 @@ DEFAULT_NEWS_ITEMS: list[dict[str, str]] = [
     {
         "title": "Production polish update",
         "date": "2026-07-26",
-        "body": "Added an interactive tutorial practice flow, leaderboard submission status messaging, and promo redemption history in Settings.",
+        "body": "Added leaderboard submission status messaging and promo redemption history in Settings.",
     },
     {
         "title": "QA fixes deployed",
