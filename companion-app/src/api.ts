@@ -110,6 +110,7 @@ export function createPromo(
     max_uses_total: number | null;
     max_uses_per_person: number;
     active: boolean;
+    daily: boolean;
   },
 ) {
   return adminRequest<PromoItem>(apiBase, adminKey, "/admin/promos", {
@@ -129,6 +130,7 @@ export function updatePromo(
     clear_max_uses_total?: boolean;
     max_uses_per_person: number;
     active: boolean;
+    daily: boolean;
   },
 ) {
   return adminRequest<PromoItem>(

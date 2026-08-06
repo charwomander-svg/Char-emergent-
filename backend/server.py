@@ -324,6 +324,7 @@ class PromoAdminCreate(BaseModel):
     max_uses_total: Optional[int] = Field(default=None, ge=1, description="Total redemptions allowed across all players")
     max_uses_per_person: int = Field(default=1, ge=1, description="Redemptions allowed per player")
     active: bool = True
+    daily: bool = False
 
     @field_validator("code", mode="before")
     @classmethod
@@ -347,6 +348,7 @@ class PromoAdminUpdate(BaseModel):
     max_uses_per_person: Optional[int] = Field(default=None, ge=1)
     active: Optional[bool] = None
     clear_max_uses_total: bool = False
+    daily: Optional[bool] = None
 
     @field_validator("power_ups", mode="before")
     @classmethod
@@ -363,6 +365,7 @@ class PromoAdminItem(BaseModel):
     max_uses_total: Optional[int] = None
     max_uses_per_person: int = 1
     active: bool = True
+    daily: bool = False
     redeemed_count: int = 0
     source: Literal["database", "built_in", "env"] = "database"
     editable: bool = True
@@ -515,6 +518,7 @@ def _serialize_promo_admin(code: str, promo: dict[str, Any], *, source: str, edi
         max_uses_total=_promo_max_total(promo),
         max_uses_per_person=_promo_max_per_player(promo),
         active=bool(promo.get("active", True)),
+        daily=promo.get("redemption_period") == "daily",
         redeemed_count=redeemed_count,
         source=source,  # type: ignore[arg-type]
         editable=editable,
@@ -1034,6 +1038,7 @@ async def admin_create_promo(body: PromoAdminCreate, _: None = Depends(require_a
         "max_redemptions": body.max_uses_total,
         "max_per_player": body.max_uses_per_person,
         "rewards": {"coins": body.reward, "powerUps": power_ups},
+        "redemption_period": "daily" if body.daily else None,
         "redeemed_count": 0,
         "created_at": now,
         "updated_at": now,
@@ -1090,6 +1095,12 @@ async def admin_update_promo(code: str, body: PromoAdminUpdate, _: None = Depend
         unset_fields["max_redemptions"] = ""
     elif body.max_uses_total is not None:
         updates["max_redemptions"] = body.max_uses_total
+
+    if body.daily is not None:
+        if body.daily:
+            updates["redemption_period"] = "daily"
+        else:
+            unset_fields["redemption_period"] = ""
 
     # Guard against wiping both coins and power-ups on update.
     if body.reward is not None or body.power_ups is not None:

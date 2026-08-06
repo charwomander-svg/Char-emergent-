@@ -42,6 +42,7 @@ export function PromosScreen({ settings }: Props) {
   const [maxTotal, setMaxTotal] = useState("");
   const [maxPerson, setMaxPerson] = useState("1");
   const [active, setActive] = useState(true);
+  const [daily, setDaily] = useState(false);
   const [powerQty, setPowerQty] = useState<Record<string, string>>(emptyPowerQty);
 
   const resetForm = () => {
@@ -51,6 +52,7 @@ export function PromosScreen({ settings }: Props) {
     setMaxTotal("");
     setMaxPerson("1");
     setActive(true);
+    setDaily(false);
     setPowerQty(emptyPowerQty());
   };
 
@@ -89,6 +91,7 @@ export function PromosScreen({ settings }: Props) {
     setMaxTotal(item.max_uses_total == null ? "" : String(item.max_uses_total));
     setMaxPerson(String(item.max_uses_per_person ?? 1));
     setActive(item.active !== false);
+    setDaily(item.daily === true);
     const next = emptyPowerQty();
     for (const [id, qty] of Object.entries(item.power_ups || {})) {
       if (id in next && Number(qty) > 0) next[id] = String(qty);
@@ -137,6 +140,7 @@ export function PromosScreen({ settings }: Props) {
           power_ups: powerUpsPayload,
           max_uses_per_person: perPerson,
           active,
+          daily,
         };
         if (total == null) payload.clear_max_uses_total = true;
         else payload.max_uses_total = total;
@@ -150,6 +154,7 @@ export function PromosScreen({ settings }: Props) {
           max_uses_total: total,
           max_uses_per_person: perPerson,
           active,
+          daily,
         });
         setStatus("Promo created.");
       }
@@ -229,6 +234,22 @@ export function PromosScreen({ settings }: Props) {
           </Pressable>
         </View>
 
+        <FieldLabel>Daily (uses-per-person resets at midnight)</FieldLabel>
+        <View style={styles.toggleRow}>
+          <Pressable
+            onPress={() => setDaily(true)}
+            style={[styles.toggle, daily && styles.toggleOn]}
+          >
+            <Text style={styles.toggleText}>Yes</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setDaily(false)}
+            style={[styles.toggle, !daily && styles.toggleOn]}
+          >
+            <Text style={styles.toggleText}>No</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.section}>Power-up rewards</Text>
         <Text style={styles.hint}>Leave 0 for none.</Text>
         <View style={styles.powerGrid}>
@@ -271,7 +292,8 @@ export function PromosScreen({ settings }: Props) {
               <Text style={styles.meta}>
                 Coins: {item.reward || 0} · Power-ups: {formatPowerUps(item.power_ups)} · Uses total:{" "}
                 {item.max_uses_total == null ? "unlimited" : item.max_uses_total} · Per person:{" "}
-                {item.max_uses_per_person || 1} · Redeemed: {item.redeemed_count || 0}
+                {item.max_uses_per_person || 1} · Redeemed: {item.redeemed_count || 0} · Daily:{" "}
+                {item.daily ? "yes" : "no"}
               </Text>
             </View>
             <View style={styles.badges}>
@@ -280,6 +302,7 @@ export function PromosScreen({ settings }: Props) {
                 tone={item.source === "database" ? "ok" : "warn"}
               />
               {item.active === false ? <Badge text="inactive" tone="danger" /> : null}
+              {item.daily ? <Badge text="daily" tone="ok" /> : null}
             </View>
           </View>
           <View style={styles.row}>

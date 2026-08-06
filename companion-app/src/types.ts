@@ -12,6 +12,7 @@ export type PromoItem = {
   max_uses_total: number | null;
   max_uses_per_person: number;
   active: boolean;
+  daily: boolean;
   redeemed_count: number;
   source: "database" | "built_in" | "env";
   editable: boolean;
