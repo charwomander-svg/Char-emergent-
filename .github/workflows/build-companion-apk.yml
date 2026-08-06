@@ -1,0 +1,70 @@
+name: Build Companion APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "companion-app/**"
+      - ".github/workflows/build-companion-apk.yml"
+  pull_request:
+    paths:
+      - "companion-app/**"
+      - ".github/workflows/build-companion-apk.yml"
+
+concurrency:
+  group: companion-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion-app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --platform android
+        env:
+          CI: "1"
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Build release APK
+        working-directory: companion-app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Stage APK artifact
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk \
+            dist/ghost-maze-companion.apk
+          ls -lah dist/
+
+      - name: Upload companion APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghost-maze-companion-apk
+          path: companion-app/dist/ghost-maze-companion.apk
+          retention-days: 30
