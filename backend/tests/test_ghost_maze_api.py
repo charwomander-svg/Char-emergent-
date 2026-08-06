@@ -184,3 +184,128 @@ class TestSpeedrunScores:
         idx = {row["player_name"]: i for i, row in enumerate(rows) if row["player_name"] in (slow, fast)}
         assert fast in idx and slow in idx
         assert idx[fast] < idx[slow], "Faster speedrun time should rank first"
+
+
+# -------- Companion admin (news + promo mail) --------
+class TestCompanionAdmin:
+    def _admin_headers(self):
+        key = os.environ.get("ADMIN_API_KEY", "").strip()
+        if not key:
+            pytest.skip("ADMIN_API_KEY not set")
+        return {"X-Admin-Key": key, "Content-Type": "application/json"}
+
+    def test_admin_requires_key(self, session):
+        r = session.get(f"{API}/admin/health")
+        # 401 if configured, 503 if admin key missing on server
+        assert r.status_code in (401, 503), r.text
+
+    def test_news_crud_plain_fields(self, session):
+        headers = self._admin_headers()
+        title = f"Companion News {uuid.uuid4().hex[:6]}"
+        create = session.post(
+            f"{API}/admin/news",
+            headers=headers,
+            json={
+                "title": title,
+                "date": "2026-08-06",
+                "body": "Hello from companion plain text form.",
+            },
+        )
+        assert create.status_code == 200, create.text
+        item = create.json()
+        assert item["title"] == title
+        assert item["date"] == "2026-08-06"
+        assert "id" in item and item["id"]
+
+        listed = session.get(f"{API}/admin/news", headers=headers)
+        assert listed.status_code == 200, listed.text
+        assert any(row.get("id") == item["id"] for row in listed.json())
+
+        public = session.get(f"{API}/news")
+        assert public.status_code == 200, public.text
+        assert any(row.get("title") == title for row in public.json())
+
+        updated_body = "Updated body without JSON editing."
+        upd = session.put(
+            f"{API}/admin/news/{item['id']}",
+            headers=headers,
+            json={"body": updated_body},
+        )
+        assert upd.status_code == 200, upd.text
+        assert upd.json()["body"] == updated_body
+
+        deleted = session.delete(f"{API}/admin/news/{item['id']}", headers=headers)
+        assert deleted.status_code == 200, deleted.text
+
+    def test_promo_mail_crud_plain_fields(self, session):
+        headers = self._admin_headers()
+        code = f"MAIL{uuid.uuid4().hex[:6].upper()}"
+        create = session.post(
+            f"{API}/admin/promos",
+            headers=headers,
+            json={
+                "code": code,
+                "reward": 250,
+                "power_ups": {"speedBoost": 2, "key": 1, "notARealPower": 9},
+                "max_uses_total": 10,
+                "max_uses_per_person": 2,
+                "active": True,
+            },
+        )
+        assert create.status_code == 200, create.text
+        item = create.json()
+        assert item["code"] == code
+        assert item["reward"] == 250
+        assert item["power_ups"] == {"speedBoost": 2, "key": 1}
+        assert item["max_uses_total"] == 10
+        assert item["max_uses_per_person"] == 2
+        assert item["editable"] is True
+
+        listed = session.get(f"{API}/admin/promos", headers=headers)
+        assert listed.status_code == 200, listed.text
+        assert any(row.get("code") == code for row in listed.json())
+
+        player = f"player_{uuid.uuid4().hex[:8]}"
+        r1 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
+        assert r1.status_code == 200, r1.text
+        body1 = r1.json()
+        assert body1["rewards"]["coins"] == 250
+        assert body1["rewards"]["powerUps"] == {"speedBoost": 2, "key": 1}
+        r2 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
+        assert r2.status_code == 200, r2.text
+        r3 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
+        assert r3.status_code == 409, r3.text
+
+        upd = session.put(
+            f"{API}/admin/promos/{code}",
+            headers=headers,
+            json={
+                "reward": 300,
+                "power_ups": {"freeze": 3, "shield": 1},
+                "max_uses_per_person": 2,
+                "active": True,
+            },
+        )
+        assert upd.status_code == 200, upd.text
+        assert upd.json()["reward"] == 300
+        assert upd.json()["power_ups"] == {"freeze": 3, "shield": 1}
+
+        # Power-ups-only reward is valid.
+        code2 = f"PU{uuid.uuid4().hex[:6].upper()}"
+        pu_only = session.post(
+            f"{API}/admin/promos",
+            headers=headers,
+            json={"code": code2, "reward": 0, "power_ups": {"teleport": 1}},
+        )
+        assert pu_only.status_code == 200, pu_only.text
+        redeem_pu = session.post(
+            f"{API}/promo/redeem",
+            json={"player_id": f"player_{uuid.uuid4().hex[:8]}", "code": code2},
+        )
+        assert redeem_pu.status_code == 200, redeem_pu.text
+        assert redeem_pu.json()["rewards"]["coins"] == 0
+        assert redeem_pu.json()["rewards"]["powerUps"] == {"teleport": 1}
+
+        deleted = session.delete(f"{API}/admin/promos/{code}", headers=headers)
+        assert deleted.status_code == 200, deleted.text
+        session.delete(f"{API}/admin/promos/{code2}", headers=headers)

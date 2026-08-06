@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Ghost Maze Companion",
+    "slug": "ghost-maze-companion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "ghostmazecompanion",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f1220"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.charware.ghostmaze.companion"
+    },
+    "android": {
+      "package": "dev.charware.ghostmaze.companion",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1220",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

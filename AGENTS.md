@@ -23,12 +23,20 @@ The environment already has MongoDB 8, Node 22, Python 3.12, and a Python venv a
    `cd backend && source .venv/bin/activate && uvicorn server:app --host 0.0.0.0 --port 8000`
 3. Frontend Android:
    `cd frontend && EXPO_PUBLIC_BACKEND_URL=http://localhost:8000 npm run android`
+4. Companion admin UI (plain-text news + promo/mail editor, not a store app):
+   open `http://localhost:8000/companion/` after setting `ADMIN_API_KEY` in `backend/.env`
+5. Companion Android app (same admin features as the web UI):
+   `cd companion-app && npm install && npm run android`
+   Unlock with backend URL + `ADMIN_API_KEY`. Emulator local API: `http://10.0.2.2:8000`.
 
 ### Non-obvious gotchas
 
 - The backend **refuses to start without `MONGO_URL`** (raises `RuntimeError` on startup).
   It reads `backend/.env` (gitignored). This file is created during setup with
   `MONGO_URL=mongodb://127.0.0.1:27017` and `DB_NAME=ghost_maze`; recreate it if missing.
+- Companion admin routes (`/api/admin/*` and `/companion/`) require `ADMIN_API_KEY`.
+  Send it as the `X-Admin-Key` header. News/promo edits are stored in MongoDB
+  (`news_items`, `promo_codes`) so you do not need to hand-edit JSON env vars.
 - The frontend defaults `EXPO_PUBLIC_BACKEND_URL` to the hosted Render backend
   (`https://ghost-maze-backend.onrender.com`). Always export it to `http://localhost:8000`
   when you want the Android client to talk to the local backend.
