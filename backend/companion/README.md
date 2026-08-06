@@ -13,6 +13,6 @@ Example local URL: `http://localhost:8000/companion/`
 ## What you can edit
 
 - **News**: date, title, body
-- **Promo / mail codes**: code, coin reward, uses total, uses per person
+- **Promo / mail codes**: code, coin reward, power-up amounts, uses total, uses per person
 
 No JSON editing is required. The page talks to `/api/admin/*` using your admin key.

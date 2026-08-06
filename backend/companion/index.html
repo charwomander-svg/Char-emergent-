@@ -235,6 +235,26 @@
       margin: 0 0 12px;
     }
 
+    .power-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .power-grid label {
+      min-width: 0;
+      flex: unset;
+    }
+
+    .section-label {
+      margin: 14px 0 0;
+      color: var(--text);
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
     .lock-row {
       display: flex;
       flex-wrap: wrap;
@@ -333,8 +353,8 @@
       <section id="tab-mail" class="hidden">
         <div class="card">
           <p class="hint">
-            Promo / mail codes: enter the code, coin reward, total uses, and uses per person.
-            Leave total uses blank for unlimited.
+            Promo / mail codes: enter the code, coin reward, power-up amounts, total uses, and uses per person.
+            Leave total uses blank for unlimited. Coins and/or power-ups can be rewards.
           </p>
           <form id="promo-form">
             <input type="hidden" id="promo-editing" value="0" />
@@ -345,7 +365,7 @@
               </label>
               <label>
                 Reward (coins)
-                <input id="promo-reward" type="number" min="1" step="1" placeholder="100" required />
+                <input id="promo-reward" type="number" min="0" step="1" placeholder="100" value="0" />
               </label>
               <label>
                 Uses total
@@ -363,6 +383,9 @@
                 </select>
               </label>
             </div>
+            <p class="section-label">Power-up rewards</p>
+            <p class="hint" style="margin-top:6px">Leave blank or 0 for none. Amounts are how many of each power-up the player gets.</p>
+            <div class="power-grid" id="promo-power-grid"></div>
             <div class="actions">
               <button type="submit" id="promo-save">Save promo</button>
               <button type="button" class="secondary" id="promo-reset">Clear form</button>
@@ -412,6 +435,7 @@
       promoMaxTotal: document.getElementById("promo-max-total"),
       promoMaxPerson: document.getElementById("promo-max-person"),
       promoActive: document.getElementById("promo-active"),
+      promoPowerGrid: document.getElementById("promo-power-grid"),
       promoStatus: document.getElementById("promo-status"),
       promoList: document.getElementById("promo-list"),
       promoReset: document.getElementById("promo-reset"),
@@ -420,6 +444,59 @@
       tabNews: document.getElementById("tab-news"),
       tabMail: document.getElementById("tab-mail"),
     };
+
+    // Labels match frontend/src/game/powerups.ts
+    const POWER_UPS = [
+      { id: "speedBoost", label: "Speed Boost" },
+      { id: "freeze", label: "Freeze" },
+      { id: "teleport", label: "Teleport" },
+      { id: "shield", label: "Shield" },
+      { id: "key", label: "Key" },
+      { id: "magnet", label: "Magnet" },
+      { id: "rewind", label: "Rewind" },
+      { id: "pelletScatter", label: "Pellet Scatter" },
+      { id: "hardcoreRevive", label: "Revive Token" },
+      { id: "fastRespawn", label: "Quick Revive" },
+      { id: "reveal", label: "Reveal" },
+      { id: "decoy", label: "Decoy" },
+    ];
+
+    function buildPowerUpInputs() {
+      els.promoPowerGrid.innerHTML = POWER_UPS.map((pu) => `
+        <label>
+          ${escapeHtml(pu.label)}
+          <input type="number" min="0" step="1" value="0" data-power-id="${escapeAttr(pu.id)}" class="power-qty" placeholder="0" />
+        </label>
+      `).join("");
+    }
+
+    function readPowerUpsFromForm() {
+      const out = {};
+      els.promoPowerGrid.querySelectorAll(".power-qty").forEach((input) => {
+        const id = input.dataset.powerId;
+        const qty = Number(input.value || 0);
+        if (id && Number.isFinite(qty) && qty > 0) out[id] = Math.floor(qty);
+      });
+      return out;
+    }
+
+    function writePowerUpsToForm(powerUps) {
+      const map = powerUps || {};
+      els.promoPowerGrid.querySelectorAll(".power-qty").forEach((input) => {
+        const id = input.dataset.powerId;
+        const qty = map[id];
+        input.value = qty && Number(qty) > 0 ? String(qty) : "0";
+      });
+    }
+
+    function formatPowerUps(powerUps) {
+      const entries = Object.entries(powerUps || {}).filter(([, qty]) => Number(qty) > 0);
+      if (!entries.length) return "none";
+      const labels = Object.fromEntries(POWER_UPS.map((p) => [p.id, p.label]));
+      return entries
+        .map(([id, qty]) => `${labels[id] || id} x${qty}`)
+        .join(", ");
+    }
 
     function todayISO() {
       return new Date().toISOString().slice(0, 10);
@@ -667,10 +744,11 @@
       els.promoEditing.value = "0";
       els.promoCode.value = "";
       els.promoCode.readOnly = false;
-      els.promoReward.value = "";
+      els.promoReward.value = "0";
       els.promoMaxTotal.value = "";
       els.promoMaxPerson.value = "1";
       els.promoActive.value = "true";
+      writePowerUpsToForm({});
       const saveBtn = els.promoForm.querySelector("button[type=submit]");
       if (saveBtn) saveBtn.textContent = "Save promo";
       setStatus(els.promoStatus, "");
@@ -680,10 +758,11 @@
       els.promoEditing.value = "1";
       els.promoCode.value = item.code || "";
       els.promoCode.readOnly = true;
-      els.promoReward.value = item.reward ?? "";
+      els.promoReward.value = item.reward ?? 0;
       els.promoMaxTotal.value = item.max_uses_total ?? "";
       els.promoMaxPerson.value = item.max_uses_per_person ?? 1;
       els.promoActive.value = item.active === false ? "false" : "true";
+      writePowerUpsToForm(item.power_ups || {});
       const saveBtn = els.promoForm.querySelector("button[type=submit]");
       if (saveBtn) saveBtn.textContent = "Update promo";
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -713,13 +792,15 @@
           ? `<span class="badge off">inactive</span>`
           : "";
         const total = item.max_uses_total == null ? "unlimited" : String(item.max_uses_total);
+        const powerText = formatPowerUps(item.power_ups || {});
         return `
           <article class="item" data-code="${escapeAttr(item.code)}">
             <div class="item-head">
               <div>
                 <div class="item-title">${escapeHtml(item.code)}</div>
                 <div class="meta">
-                  Reward: ${escapeHtml(String(item.reward || 0))} coins ·
+                  Coins: ${escapeHtml(String(item.reward || 0))} ·
+                  Power-ups: ${escapeHtml(powerText)} ·
                   Uses total: ${escapeHtml(total)} ·
                   Per person: ${escapeHtml(String(item.max_uses_per_person || 1))} ·
                   Redeemed: ${escapeHtml(String(item.redeemed_count || 0))}
@@ -766,7 +847,8 @@
     async function savePromo(event) {
       event.preventDefault();
       const code = els.promoCode.value.trim().toUpperCase();
-      const reward = Number(els.promoReward.value);
+      const reward = Number(els.promoReward.value || 0);
+      const powerUps = readPowerUpsFromForm();
       const maxPerson = Number(els.promoMaxPerson.value || 1);
       const maxTotalRaw = els.promoMaxTotal.value.trim();
       const maxTotal = maxTotalRaw === "" ? null : Number(maxTotalRaw);
@@ -777,8 +859,12 @@
         setStatus(els.promoStatus, "Code is required.", "err");
         return;
       }
-      if (!Number.isFinite(reward) || reward <= 0) {
-        setStatus(els.promoStatus, "Reward must be a positive number of coins.", "err");
+      if (!Number.isFinite(reward) || reward < 0) {
+        setStatus(els.promoStatus, "Coins must be 0 or more.", "err");
+        return;
+      }
+      if (reward <= 0 && Object.keys(powerUps).length === 0) {
+        setStatus(els.promoStatus, "Add coin reward and/or at least one power-up.", "err");
         return;
       }
       if (!Number.isFinite(maxPerson) || maxPerson < 1) {
@@ -795,6 +881,7 @@
         if (editing) {
           const payload = {
             reward,
+            power_ups: powerUps,
             max_uses_per_person: maxPerson,
             active,
           };
@@ -814,6 +901,7 @@
             body: JSON.stringify({
               code,
               reward,
+              power_ups: powerUps,
               max_uses_total: maxTotal,
               max_uses_per_person: maxPerson,
               active,
@@ -854,6 +942,7 @@
 
     // Restore session
     (function init() {
+      buildPowerUpInputs();
       const settings = loadSettings();
       const defaultBase = window.location.origin.includes("localhost") || window.location.pathname.startsWith("/companion") || window.location.pathname.startsWith("/admin")
         ? window.location.origin

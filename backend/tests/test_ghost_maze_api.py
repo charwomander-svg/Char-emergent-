@@ -246,6 +246,7 @@ class TestCompanionAdmin:
             json={
                 "code": code,
                 "reward": 250,
+                "power_ups": {"speedBoost": 2, "key": 1, "notARealPower": 9},
                 "max_uses_total": 10,
                 "max_uses_per_person": 2,
                 "active": True,
@@ -255,6 +256,7 @@ class TestCompanionAdmin:
         item = create.json()
         assert item["code"] == code
         assert item["reward"] == 250
+        assert item["power_ups"] == {"speedBoost": 2, "key": 1}
         assert item["max_uses_total"] == 10
         assert item["max_uses_per_person"] == 2
         assert item["editable"] is True
@@ -266,7 +268,9 @@ class TestCompanionAdmin:
         player = f"player_{uuid.uuid4().hex[:8]}"
         r1 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
         assert r1.status_code == 200, r1.text
-        assert r1.json()["rewards"]["coins"] == 250
+        body1 = r1.json()
+        assert body1["rewards"]["coins"] == 250
+        assert body1["rewards"]["powerUps"] == {"speedBoost": 2, "key": 1}
         r2 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
         assert r2.status_code == 200, r2.text
         r3 = session.post(f"{API}/promo/redeem", json={"player_id": player, "code": code})
@@ -275,10 +279,33 @@ class TestCompanionAdmin:
         upd = session.put(
             f"{API}/admin/promos/{code}",
             headers=headers,
-            json={"reward": 300, "max_uses_per_person": 2, "active": True},
+            json={
+                "reward": 300,
+                "power_ups": {"freeze": 3, "shield": 1},
+                "max_uses_per_person": 2,
+                "active": True,
+            },
         )
         assert upd.status_code == 200, upd.text
         assert upd.json()["reward"] == 300
+        assert upd.json()["power_ups"] == {"freeze": 3, "shield": 1}
+
+        # Power-ups-only reward is valid.
+        code2 = f"PU{uuid.uuid4().hex[:6].upper()}"
+        pu_only = session.post(
+            f"{API}/admin/promos",
+            headers=headers,
+            json={"code": code2, "reward": 0, "power_ups": {"teleport": 1}},
+        )
+        assert pu_only.status_code == 200, pu_only.text
+        redeem_pu = session.post(
+            f"{API}/promo/redeem",
+            json={"player_id": f"player_{uuid.uuid4().hex[:8]}", "code": code2},
+        )
+        assert redeem_pu.status_code == 200, redeem_pu.text
+        assert redeem_pu.json()["rewards"]["coins"] == 0
+        assert redeem_pu.json()["rewards"]["powerUps"] == {"teleport": 1}
 
         deleted = session.delete(f"{API}/admin/promos/{code}", headers=headers)
         assert deleted.status_code == 200, deleted.text
+        session.delete(f"{API}/admin/promos/{code2}", headers=headers)

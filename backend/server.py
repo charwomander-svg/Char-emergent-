@@ -281,9 +281,46 @@ class NewsItemUpdate(BaseModel):
         return str(value).strip()
 
 
+# Keep in sync with frontend/src/game/powerups.ts PowerUpId values.
+KNOWN_POWER_UP_IDS: tuple[str, ...] = (
+    "speedBoost",
+    "teleport",
+    "freeze",
+    "shield",
+    "fastRespawn",
+    "pelletScatter",
+    "key",
+    "magnet",
+    "reveal",
+    "decoy",
+    "rewind",
+    "hardcoreRevive",
+)
+KNOWN_POWER_UP_ID_SET = set(KNOWN_POWER_UP_IDS)
+
+
+def _normalize_power_ups(raw: Any) -> dict[str, int]:
+    """Accept plain {powerUpId: qty} maps; drop unknowns and non-positive qty."""
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, int] = {}
+    for key, value in raw.items():
+        power_id = str(key or "").strip()
+        if power_id not in KNOWN_POWER_UP_ID_SET:
+            continue
+        try:
+            qty = int(value)
+        except (TypeError, ValueError):
+            continue
+        if qty > 0:
+            cleaned[power_id] = min(qty, 999)
+    return cleaned
+
+
 class PromoAdminCreate(BaseModel):
     code: str = Field(min_length=1, max_length=64)
-    reward: int = Field(ge=0, description="Coin reward granted on redeem")
+    reward: int = Field(default=0, ge=0, description="Coin reward granted on redeem")
+    power_ups: dict[str, int] = Field(default_factory=dict, description="Power-up id -> quantity")
     max_uses_total: Optional[int] = Field(default=None, ge=1, description="Total redemptions allowed across all players")
     max_uses_per_person: int = Field(default=1, ge=1, description="Redemptions allowed per player")
     active: bool = True
@@ -297,18 +334,32 @@ class PromoAdminCreate(BaseModel):
             raise ValueError("code cannot be blank")
         return cleaned[:64]
 
+    @field_validator("power_ups", mode="before")
+    @classmethod
+    def sanitize_power_ups(cls, value: Any) -> dict[str, int]:
+        return _normalize_power_ups(value)
+
 
 class PromoAdminUpdate(BaseModel):
     reward: Optional[int] = Field(default=None, ge=0)
+    power_ups: Optional[dict[str, int]] = None
     max_uses_total: Optional[int] = Field(default=None, ge=1)
     max_uses_per_person: Optional[int] = Field(default=None, ge=1)
     active: Optional[bool] = None
     clear_max_uses_total: bool = False
 
+    @field_validator("power_ups", mode="before")
+    @classmethod
+    def sanitize_power_ups(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        return _normalize_power_ups(value)
+
 
 class PromoAdminItem(BaseModel):
     code: str
     reward: int = 0
+    power_ups: dict[str, int] = Field(default_factory=dict)
     max_uses_total: Optional[int] = None
     max_uses_per_person: int = 1
     active: bool = True
@@ -419,6 +470,18 @@ def _promo_reward_coins(promo: dict[str, Any]) -> int:
     return 0
 
 
+def _promo_reward_power_ups(promo: dict[str, Any]) -> dict[str, int]:
+    if not isinstance(promo, dict):
+        return {}
+    rewards_raw = promo.get("rewards", {})
+    if isinstance(rewards_raw, dict):
+        nested = _normalize_power_ups(rewards_raw.get("powerUps"))
+        if nested:
+            return nested
+    # Companion may also store a flat power_ups map.
+    return _normalize_power_ups(promo.get("power_ups") or promo.get("powerUps"))
+
+
 def _promo_max_per_player(promo: dict[str, Any]) -> int:
     raw = promo.get("max_per_player", promo.get("max_uses_per_person", 1))
     try:
@@ -448,6 +511,7 @@ def _serialize_promo_admin(code: str, promo: dict[str, Any], *, source: str, edi
     return PromoAdminItem(
         code=code,
         reward=_promo_reward_coins(promo),
+        power_ups=_promo_reward_power_ups(promo),
         max_uses_total=_promo_max_total(promo),
         max_uses_per_person=_promo_max_per_player(promo),
         active=bool(promo.get("active", True)),
@@ -958,8 +1022,9 @@ async def admin_create_promo(body: PromoAdminCreate, _: None = Depends(require_a
     existing = await db.promo_codes.find_one({"_id": code}, {"_id": 1})
     if existing is not None:
         raise HTTPException(status_code=409, detail="Promo code already exists")
-    if body.reward <= 0:
-        raise HTTPException(status_code=400, detail="reward must be greater than 0")
+    power_ups = _normalize_power_ups(body.power_ups)
+    if body.reward <= 0 and not power_ups:
+        raise HTTPException(status_code=400, detail="Add coin reward and/or at least one power-up")
 
     now = datetime.now(timezone.utc)
     doc = {
@@ -968,7 +1033,7 @@ async def admin_create_promo(body: PromoAdminCreate, _: None = Depends(require_a
         "active": body.active,
         "max_redemptions": body.max_uses_total,
         "max_per_player": body.max_uses_per_person,
-        "rewards": {"coins": body.reward},
+        "rewards": {"coins": body.reward, "powerUps": power_ups},
         "redeemed_count": 0,
         "created_at": now,
         "updated_at": now,
@@ -998,7 +1063,10 @@ async def admin_update_promo(code: str, body: PromoAdminUpdate, _: None = Depend
             "active": base.get("active", True),
             "max_redemptions": _promo_max_total(base),
             "max_per_player": _promo_max_per_player(base),
-            "rewards": {"coins": _promo_reward_coins(base), "powerUps": (base.get("rewards") or {}).get("powerUps", {})},
+            "rewards": {
+                "coins": _promo_reward_coins(base),
+                "powerUps": _promo_reward_power_ups(base),
+            },
             "redemption_period": base.get("redemption_period"),
             "redeemed_count": 0,
             "created_at": now,
@@ -1011,6 +1079,9 @@ async def admin_update_promo(code: str, body: PromoAdminUpdate, _: None = Depend
 
     if body.reward is not None:
         updates["rewards.coins"] = body.reward
+    if body.power_ups is not None:
+        # Replace the whole map so cleared plain-text fields remove old grants.
+        updates["rewards.powerUps"] = _normalize_power_ups(body.power_ups)
     if body.max_uses_per_person is not None:
         updates["max_per_player"] = body.max_uses_per_person
     if body.active is not None:
@@ -1019,6 +1090,17 @@ async def admin_update_promo(code: str, body: PromoAdminUpdate, _: None = Depend
         unset_fields["max_redemptions"] = ""
     elif body.max_uses_total is not None:
         updates["max_redemptions"] = body.max_uses_total
+
+    # Guard against wiping both coins and power-ups on update.
+    if body.reward is not None or body.power_ups is not None:
+        next_coins = body.reward if body.reward is not None else _promo_reward_coins(existing)
+        next_power = (
+            _normalize_power_ups(body.power_ups)
+            if body.power_ups is not None
+            else _promo_reward_power_ups(existing)
+        )
+        if next_coins <= 0 and not next_power:
+            raise HTTPException(status_code=400, detail="Promo must keep coins and/or at least one power-up")
 
     update_doc: dict[str, Any] = {"$set": updates}
     if unset_fields:

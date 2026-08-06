@@ -15,6 +15,6 @@ After setting `ADMIN_API_KEY` on the backend, open:
 Use plain form fields (no JSON) to manage:
 
 - News: date, title, body
-- Promo/mail codes: code, reward, uses total, uses per person
+- Promo/mail codes: code, coin reward, power-ups, uses total, uses per person
 
 See `AGENTS.md` for local run instructions.
