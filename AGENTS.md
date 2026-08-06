@@ -25,6 +25,9 @@ The environment already has MongoDB 8, Node 22, Python 3.12, and a Python venv a
    `cd frontend && EXPO_PUBLIC_BACKEND_URL=http://localhost:8000 npm run android`
 4. Companion admin UI (plain-text news + promo/mail editor, not a store app):
    open `http://localhost:8000/companion/` after setting `ADMIN_API_KEY` in `backend/.env`
+5. Companion Android app (same admin features as the web UI):
+   `cd companion-app && npm install && npm run android`
+   Unlock with backend URL + `ADMIN_API_KEY`. Emulator local API: `http://10.0.2.2:8000`.
 
 ### Non-obvious gotchas
 

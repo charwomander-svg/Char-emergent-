@@ -2,15 +2,24 @@
 
 Reverse Pac-Man game monorepo:
 
-- `frontend/` — Expo / React Native Android client
+- `frontend/` — Expo / React Native Android game client
 - `backend/` — FastAPI + MongoDB API
-- `backend/companion/` — lightweight plain-text admin UI for news and promo/mail codes
+- `backend/companion/` — lightweight browser admin UI for news and promo/mail codes
+- `companion-app/` — Android Expo admin app (sideload; not for Play Store)
 
 ## Companion admin
 
-After setting `ADMIN_API_KEY` on the backend, open:
+After setting `ADMIN_API_KEY` on the backend:
 
-`https://<your-backend-host>/companion/`
+**Browser UI:** `https://<your-backend-host>/companion/`
+
+**Android app:**
+
+```bash
+cd companion-app
+npm install
+npm run android
+```
 
 Use plain form fields (no JSON) to manage:
 
