@@ -13,4 +13,7 @@ Commands:
 npm start
 npm run android
 npm run typecheck
+npm run apk   # release APK -> dist/ghost-maze-companion.apk
 ```
+
+CI: `.github/workflows/build-companion-apk.yml` uploads the APK as a workflow artifact.

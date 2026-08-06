@@ -26,6 +26,23 @@ Or start Metro and open on a device/emulator:
 npm start
 ```
 
+## Build a sideloadable APK
+
+Requires Android SDK (`ANDROID_HOME`) and JDK 17.
+
+```bash
+cd companion-app
+npm install
+npm run apk
+```
+
+The APK is written to `companion-app/dist/ghost-maze-companion.apk`
+(signed with the debug keystore — fine for personal/admin sideload, not Play Store).
+
+### GitHub Actions
+
+Run the **Build Companion APK** workflow (`workflow_dispatch`, or on companion-app changes).
+Download the `ghost-maze-companion-apk` artifact from the workflow run.
 ## Backend requirements
 
 The companion talks to the Ghost Maze API admin routes:
