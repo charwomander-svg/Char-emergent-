@@ -22,10 +22,78 @@ function carveLine(grid, x1, y1, x2, y2) {
   }
 }
 
+function makeExpandedBase(grid, layout) {
+  const family = layout % 8;
+  const shift = Math.floor(layout / 8);
+  switch (family) {
+    case 0:
+      for (let y = 2 + (shift % 3); y <= 16; y += 3 + (layout % 2)) carveLine(grid, 2, y, 12, y);
+      for (let x = 3 + (layout % 4); x <= 11; x += 4) carveLine(grid, x, 2 + (shift % 2), x, 16 - (shift % 2));
+      if (layout % 2 === 0) carveLine(grid, 5, 8, 9, 8);
+      break;
+    case 1:
+      for (let x = 2 + (shift % 2); x <= 12; x += 3) carveLine(grid, x, 2, x, 16);
+      for (let y = 4 + (layout % 3); y <= 14; y += 4) carveLine(grid, 2, y, 12, y);
+      break;
+    case 2: {
+      const inset = 2 + (shift % 2);
+      carveLine(grid, inset, inset, 12 - inset + 2, inset);
+      carveLine(grid, inset, 16 - inset, 12 - inset + 2, 16 - inset);
+      carveLine(grid, inset, inset, inset, 16 - inset);
+      carveLine(grid, 12 - inset + 2, inset, 12 - inset + 2, 16 - inset);
+      carveLine(grid, 5 + (layout % 2), 6, 9 - (layout % 2), 6);
+      carveLine(grid, 5 + (layout % 2), 12, 9 - (layout % 2), 12);
+      break;
+    }
+    case 3:
+      for (let i = 0; i < 5; i++) {
+        const y = 2 + i * 3;
+        carveLine(grid, 2 + ((i + shift) % 4), y, 5 + ((i + layout) % 5), y + 1);
+        carveLine(grid, 7 + ((i + shift) % 3), y + 1, 12 - ((i + layout) % 4), y + 2);
+      }
+      break;
+    case 4:
+      carveLine(grid, 2, 3 + (shift % 3), 5 + (layout % 2), 3 + (shift % 3));
+      carveLine(grid, 2, 14 - (shift % 3), 5 + (layout % 2), 14 - (shift % 3));
+      carveLine(grid, 9 - (layout % 2), 3 + (shift % 3), 12, 3 + (shift % 3));
+      carveLine(grid, 9 - (layout % 2), 14 - (shift % 3), 12, 14 - (shift % 3));
+      carveLine(grid, 4 + (shift % 2), 6, 4 + (shift % 2), 12);
+      carveLine(grid, 10 - (shift % 2), 6, 10 - (shift % 2), 12);
+      break;
+    case 5:
+      carveLine(grid, 3, 3, 11, 3);
+      carveLine(grid, 3, 15, 11, 15);
+      carveLine(grid, 3, 3, 3, 15);
+      carveLine(grid, 11, 3, 11, 15);
+      carveLine(grid, 7, 3, 7, 15);
+      carveLine(grid, 5, 8, 9, 8);
+      carveLine(grid, 5 + (layout % 2), 10, 9 - (layout % 2), 10);
+      break;
+    case 6:
+      for (let y = 2 + (shift % 2); y <= 16; y += 2) {
+        for (let x = 2 + ((y + layout) % 2); x <= 12; x += 3) {
+          carveLine(grid, x, y, x + 1, y);
+        }
+      }
+      carveLine(grid, 2, 9, 12, 9);
+      break;
+    case 7:
+      for (let i = 0; i < 4; i++) {
+        const size = 2 + ((layout + i) % 3);
+        const x = 2 + i * 3 - (i === 3 ? 1 : 0);
+        const y = 2 + ((shift + i) % 4) * 3;
+        carveLine(grid, x, y, x + size, y);
+        carveLine(grid, x + size, y, x + size, y + 2);
+      }
+      break;
+  }
+  return grid;
+}
+
 function makeStaticBase(level) {
   const grid = createWalledGrid();
-  const template = (level - 1) % 35;
-  if (template >= 15) {
+  const template = (level - 1) % 100;
+  if (template >= 15 && template < 35) {
     const variant = template - 15;
     const offset = variant % 4;
     const spread = 2 + (variant % 3);
@@ -63,6 +131,9 @@ function makeStaticBase(level) {
       carveLine(grid, 7, 2, 7, 16);
     }
     return grid;
+  }
+  if (template >= 35) {
+    return makeExpandedBase(grid, template - 35);
   }
   switch (template) {
     case 0:
@@ -211,7 +282,7 @@ function quality(maze) {
 }
 
 let failed = false;
-for (let level = 1; level <= 35; level++) {
+for (let level = 1; level <= 100; level++) {
   const maze = decorate(makeStaticBase(level));
   const start = [Math.floor(MAZE_COLS / 2), MAZE_ROWS - 2];
   const seen = bfs(maze, start);
