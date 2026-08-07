@@ -113,8 +113,8 @@ function makeExpandedBase(grid: CellType[][], layout: number): CellType[][] {
 
 function makeStaticBase(level: number, rand: () => number): CellType[][] {
   const grid = createWalledGrid();
-  const templateJitter = Math.floor(rand() * 75);
-  const template = (level - 1 + templateJitter) % 75;
+  const templateJitter = Math.floor(rand() * 100);
+  const template = (level - 1 + templateJitter) % 100;
 
   if (template >= 15 && template < 35) {
     const variant = template - 15;

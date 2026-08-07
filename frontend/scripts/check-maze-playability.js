@@ -92,7 +92,7 @@ function makeExpandedBase(grid, layout) {
 
 function makeStaticBase(level) {
   const grid = createWalledGrid();
-  const template = (level - 1) % 75;
+  const template = (level - 1) % 100;
   if (template >= 15 && template < 35) {
     const variant = template - 15;
     const offset = variant % 4;
@@ -282,7 +282,7 @@ function quality(maze) {
 }
 
 let failed = false;
-for (let level = 1; level <= 75; level++) {
+for (let level = 1; level <= 100; level++) {
   const maze = decorate(makeStaticBase(level));
   const start = [Math.floor(MAZE_COLS / 2), MAZE_ROWS - 2];
   const seen = bfs(maze, start);
