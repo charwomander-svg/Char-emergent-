@@ -47,7 +47,7 @@ export const ACHIEVEMENT_IDS = {
 // - Shhh. It's a secret: trigger the level-select cheat code
 // - Close Call: clear a level while on your last life
 
-type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
+export type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
 
 interface PlayGamesModuleShape {
   isConfigured?: () => Promise<boolean>;
@@ -95,6 +95,11 @@ async function loadPlayGamesData(): Promise<PlayGamesData> {
   } catch {
     return { ...DEFAULT_DATA };
   }
+}
+
+export async function loadUnlockedAchievementKeys(): Promise<AchievementKey[]> {
+  const data = await loadPlayGamesData();
+  return data.unlockedAchievements;
 }
 
 async function savePlayGamesData(data: PlayGamesData): Promise<void> {
