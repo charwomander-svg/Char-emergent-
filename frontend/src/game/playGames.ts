@@ -49,6 +49,112 @@ export const ACHIEVEMENT_IDS = {
 
 type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
 
+export interface AchievementDefinition {
+  key: AchievementKey;
+  name: string;
+  description: string;
+  hint: string;
+}
+
+export const ACHIEVEMENTS: AchievementDefinition[] = [
+  {
+    key: "flippingTheScript",
+    name: "Flipping the Script",
+    description: "Catch your first ghost.",
+    hint: "Keep playing a run until you land your first catch.",
+  },
+  {
+    key: "oneAndDone",
+    name: "One and Done!",
+    description: "Clear level 1.",
+    hint: "Finish the opening level once.",
+  },
+  {
+    key: "bonus",
+    name: "BONUS!",
+    description: "Fully clear a bonus stage before time expires.",
+    hint: "Clear every pellet in a bonus stage.",
+  },
+  {
+    key: "gottaGoFast",
+    name: "Gotta Go Fast!",
+    description: "Finish a speedrun run.",
+    hint: "Complete any speedrun attempt.",
+  },
+  {
+    key: "topTen",
+    name: "Top Ten",
+    description: "Reach level 10.",
+    hint: "Push a run to level 10 or higher.",
+  },
+  {
+    key: "friends",
+    name: "Friends!",
+    description: "Arm all four ghosts at once.",
+    hint: "Use a setup that keeps the full team active.",
+  },
+  {
+    key: "freeHugs",
+    name: "Free Hugs",
+    description: "Reach 50 total catches.",
+    hint: "Keep adding to your lifetime catch total.",
+  },
+  {
+    key: "twentyFiveToLife",
+    name: "25 to Life",
+    description: "Reach 25 total catches.",
+    hint: "Build up your total catch count.",
+  },
+  {
+    key: "halfwayThere",
+    name: "Halfway There",
+    description: "Reach level 25.",
+    hint: "Keep a run alive until level 25.",
+  },
+  {
+    key: "rememberMeForCenturies",
+    name: "Remember Me for Centuries",
+    description: "Reach 100 total catches.",
+    hint: "Keep chasing ghosts until your catch total hits 100.",
+  },
+  {
+    key: "classicConcentration",
+    name: "Classic Concentration",
+    description: "Fill all 50 aggregate classic bests and submit.",
+    hint: "Record a best on every classic level.",
+  },
+  {
+    key: "kingOfSpeed",
+    name: "King of Speed",
+    description: "Fill all 50 aggregate speedrun bests and submit.",
+    hint: "Record a speedrun best on every level.",
+  },
+  {
+    key: "pelletSchmellet",
+    name: "Pellet, Schmelle",
+    description: "Clear a level with very few pellets left.",
+    hint: "Finish a level with a tiny margin.",
+  },
+  {
+    key: "chardcore",
+    name: "Chardcore",
+    description: "View the credits.",
+    hint: "Open the credits screen once.",
+  },
+  {
+    key: "shhhItsASecret",
+    name: "Shhh. It's a Secret",
+    description: "Trigger the level-select cheat code.",
+    hint: "Find the hidden tap sequence in credits.",
+  },
+  {
+    key: "closeCall",
+    name: "Close Call",
+    description: "Clear a level while on your last life.",
+    hint: "Survive a level with no safety margin left.",
+  },
+];
+
 interface PlayGamesModuleShape {
   isConfigured?: () => Promise<boolean>;
   isSignedIn?: () => Promise<boolean>;
@@ -262,6 +368,15 @@ export async function queueAchievementUnlock(key: AchievementKey): Promise<void>
 export async function syncPlayGames(): Promise<void> {
   const data = await loadPlayGamesData();
   await syncUnlockedAchievements(data, true);
+}
+
+export async function loadAchievementProgress(): Promise<(AchievementDefinition & { unlocked: boolean })[]> {
+  const data = await loadPlayGamesData();
+  const unlocked = new Set(data.unlockedAchievements);
+  return ACHIEVEMENTS.map((achievement) => ({
+    ...achievement,
+    unlocked: unlocked.has(achievement.key),
+  }));
 }
 
 export async function recordClassicLevelBest(level: number, score: number): Promise<void> {
