@@ -240,12 +240,13 @@ export default function MainMenu() {
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/shop")} testID="shop-btn"><Text style={styles.actionBtnText}>🛒 SHOP</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/characters")} testID="characters-btn"><Text style={styles.actionBtnText}>👻 CHARACTERS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/leaderboard")} testID="leaderboard-btn"><Text style={styles.actionBtnText}>🏆 LEADERBOARD</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/statistics")} testID="statistics-btn"><Text style={styles.actionBtnText}>📊 STATISTICS</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]}@ onPress={() => go("/statistics")} testID="statistics-btn"><Text style={styles.actionBtnText}>📊 STATISTICS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/tutorial")} testID="tutorial-btn"><Text style={styles.actionBtnText}>📘 TUTORIAL</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/news")} testID="news-btn"><Text style={styles.actionBtnText}>📰 NEWS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
-        </View>
+          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/achievements")} testID="achievements-btn"><Text style={styles.actionBtnText}>🏆 ACHIEVEMENTS</Text></TouchableOpacity>
+      </View>
 
         <View style={styles.unlockCard} testID="next-unlock-card">
           <Text style={styles.unlockTitle}>NEXT UNLOCK</Text>
