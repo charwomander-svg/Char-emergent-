@@ -8,7 +8,7 @@ import { ACHIEVEMENT_IDS } from "@/src/game/playGames";
 import { storage } from "@/src/utils/storage";
 
 interface PlayGamesData {
-  unlockedAchievements: Array<keyof typeof ACHIEVEMENT_IDS>;
+  unlockedAchievements: (keyof typeof ACHIEVEMENT_IDS)[];
 }
 
 const ACHIEVEMENT_DESCRIPTIONS: Record<keyof typeof ACHIEVEMENT_IDS, { name: string; description: string }> = {
