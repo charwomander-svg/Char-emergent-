@@ -4,7 +4,6 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { useRouter } from "expo-router";
 
 import { COLORS } from "@/src/game/constants";
-import { ACHIEVEMENT_IDS } from "@/src/game/playGames";
 import { storage } from "@/src/utils/storage";
 
 interface PlayGamesData {
