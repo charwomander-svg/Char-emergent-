@@ -158,10 +158,6 @@ function makeStaticBase(level: number, rand: () => number): CellType[][] {
     return grid;
   }
 
-  if (template >= 35) {
-    return makeExpandedBase(grid, template - 35);
-  }
-
   switch (template) {
     case 0:
       for (let y = 3; y <= 15; y += 4) carveLine(grid, 2, y, 12, y);
