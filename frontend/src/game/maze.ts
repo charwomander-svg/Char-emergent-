@@ -41,75 +41,6 @@ function carveLine(grid: CellType[][], x1: number, y1: number, x2: number, y2: n
   }
 }
 
-function makeExpandedBase(grid: CellType[][], layout: number): CellType[][] {
-  const family = layout % 8;
-  const shift = Math.floor(layout / 8);
-
-  switch (family) {
-    case 0:
-      for (let y = 2 + (shift % 3); y <= 16; y += 3 + (layout % 2)) carveLine(grid, 2, y, 12, y);
-      for (let x = 3 + (layout % 4); x <= 11; x += 4) carveLine(grid, x, 2 + (shift % 2), x, 16 - (shift % 2));
-      if (layout % 2 === 0) carveLine(grid, 5, 8, 9, 8);
-      break;
-    case 1:
-      for (let x = 2 + (shift % 2); x <= 12; x += 3) carveLine(grid, x, 2, x, 16);
-      for (let y = 4 + (layout % 3); y <= 14; y += 4) carveLine(grid, 2, y, 12, y);
-      break;
-    case 2: {
-      const inset = 2 + (shift % 2);
-      carveLine(grid, inset, inset, 12 - inset + 2, inset);
-      carveLine(grid, inset, 16 - inset, 12 - inset + 2, 16 - inset);
-      carveLine(grid, inset, inset, inset, 16 - inset);
-      carveLine(grid, 12 - inset + 2, inset, 12 - inset + 2, 16 - inset);
-      carveLine(grid, 5 + (layout % 2), 6, 9 - (layout % 2), 6);
-      carveLine(grid, 5 + (layout % 2), 12, 9 - (layout % 2), 12);
-      break;
-    }
-    case 3:
-      for (let i = 0; i < 5; i++) {
-        const y = 2 + i * 3;
-        carveLine(grid, 2 + ((i + shift) % 4), y, 5 + ((i + layout) % 5), y + 1);
-        carveLine(grid, 7 + ((i + shift) % 3), y + 1, 12 - ((i + layout) % 4), y + 2);
-      }
-      break;
-    case 4:
-      carveLine(grid, 2, 3 + (shift % 3), 5 + (layout % 2), 3 + (shift % 3));
-      carveLine(grid, 2, 14 - (shift % 3), 5 + (layout % 2), 14 - (shift % 3));
-      carveLine(grid, 9 - (layout % 2), 3 + (shift % 3), 12, 3 + (shift % 3));
-      carveLine(grid, 9 - (layout % 2), 14 - (shift % 3), 12, 14 - (shift % 3));
-      carveLine(grid, 4 + (shift % 2), 6, 4 + (shift % 2), 12);
-      carveLine(grid, 10 - (shift % 2), 6, 10 - (shift % 2), 12);
-      break;
-    case 5:
-      carveLine(grid, 3, 3, 11, 3);
-      carveLine(grid, 3, 15, 11, 15);
-      carveLine(grid, 3, 3, 3, 15);
-      carveLine(grid, 11, 3, 11, 15);
-      carveLine(grid, 7, 3, 7, 15);
-      carveLine(grid, 5, 8, 9, 8);
-      carveLine(grid, 5 + (layout % 2), 10, 9 - (layout % 2), 10);
-      break;
-    case 6:
-      for (let y = 2 + (shift % 2); y <= 16; y += 2) {
-        for (let x = 2 + ((y + layout) % 2); x <= 12; x += 3) {
-          carveLine(grid, x, y, x + 1, y);
-        }
-      }
-      carveLine(grid, 2, 9, 12, 9);
-      break;
-    case 7:
-      for (let i = 0; i < 4; i++) {
-        const size = 2 + ((layout + i) % 3);
-        const x = 2 + i * 3 - (i === 3 ? 1 : 0);
-        const y = 2 + ((shift + i) % 4) * 3;
-        carveLine(grid, x, y, x + size, y);
-        carveLine(grid, x + size, y, x + size, y + 2);
-      }
-      break;
-  }
-
-  return grid;
-}
 
 function makeStaticBase(level: number, rand: () => number): CellType[][] {
   const grid = createWalledGrid();
@@ -271,6 +202,566 @@ function makeStaticBase(level: number, rand: () => number): CellType[][] {
       carveLine(grid, 4, 6, 8, 6);
       carveLine(grid, 6, 8, 6, 12);
       break;
+    case 14:
+      // Grid pattern
+      for (let y = 3; y <= 15; y += 4) carveLine(grid, 2, y, 12, y);
+      for (let x = 4; x <= 10; x += 6) carveLine(grid, x, 2, x, 16);
+      break;
+    case 35:
+      // Unique maze pattern 35
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 12, 15, 2, 15);
+      carveLine(grid, 2, 15, 2, 6);
+      carveLine(grid, 2, 6, 10, 6);
+      carveLine(grid, 10, 6, 10, 13);
+      break;
+    case 36:
+      // Unique maze pattern 36
+      carveLine(grid, 2, 2, 2, 16);
+      carveLine(grid, 6, 2, 6, 16);
+      carveLine(grid, 10, 2, 10, 16);
+      carveLine(grid, 2, 9, 12, 9);
+      break;
+    case 37:
+      // Unique maze pattern 37
+      carveLine(grid, 2, 4, 12, 4);
+      carveLine(grid, 2, 8, 12, 8);
+      carveLine(grid, 2, 12, 12, 12);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 7, 2, 7, 16);
+      break;
+    case 38:
+      // Unique maze pattern 38
+      carveLine(grid, 7, 2, 7, 16);
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 3, 5, 11, 5);
+      carveLine(grid, 3, 13, 11, 13);
+      break;
+    case 39:
+      // Unique maze pattern 39
+      carveLine(grid, 2, 3, 10, 3);
+      carveLine(grid, 10, 3, 10, 7);
+      carveLine(grid, 10, 7, 4, 7);
+      carveLine(grid, 4, 7, 4, 11);
+      carveLine(grid, 4, 11, 12, 11);
+      carveLine(grid, 12, 11, 12, 15);
+      break;
+    case 40:
+      // Unique maze pattern 40
+      carveLine(grid, 7, 3, 3, 9);
+      carveLine(grid, 7, 3, 11, 9);
+      carveLine(grid, 3, 9, 7, 15);
+      carveLine(grid, 11, 9, 7, 15);
+      break;
+    case 41:
+      // Unique maze pattern 41
+      carveLine(grid, 3, 3, 6, 3);
+      carveLine(grid, 3, 3, 3, 7);
+      carveLine(grid, 6, 3, 6, 7);
+      carveLine(grid, 8, 11, 11, 11);
+      carveLine(grid, 8, 11, 8, 15);
+      carveLine(grid, 11, 11, 11, 15);
+      carveLine(grid, 7, 7, 9, 11);
+      break;
+    case 42:
+      // Unique maze pattern 42
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 5, 5, 5, 13);
+      carveLine(grid, 9, 5, 9, 13);
+      break;
+    case 43:
+      // Unique maze pattern 43
+      carveLine(grid, 4, 2, 4, 16);
+      carveLine(grid, 10, 2, 10, 16);
+      carveLine(grid, 3, 9, 11, 9);
+      break;
+    case 44:
+      // Unique maze pattern 44
+      carveLine(grid, 2, 5, 12, 5);
+      carveLine(grid, 2, 10, 12, 10);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 5, 2, 5, 16);
+      carveLine(grid, 9, 2, 9, 16);
+      break;
+    case 45:
+      // Unique maze pattern 45
+      carveLine(grid, 7, 7, 7, 11);
+      carveLine(grid, 7, 11, 10, 11);
+      carveLine(grid, 10, 11, 10, 6);
+      carveLine(grid, 10, 6, 4, 6);
+      carveLine(grid, 4, 6, 4, 13);
+      carveLine(grid, 4, 13, 12, 13);
+      break;
+    case 46:
+      // Unique maze pattern 46
+      carveLine(grid, 3, 3, 3, 8);
+      carveLine(grid, 3, 8, 6, 8);
+      carveLine(grid, 6, 8, 6, 3);
+      carveLine(grid, 8, 10, 8, 15);
+      carveLine(grid, 8, 15, 11, 15);
+      carveLine(grid, 11, 15, 11, 10);
+      break;
+    case 47:
+      // Unique maze pattern 47
+      carveLine(grid, 3, 3, 7, 9);
+      carveLine(grid, 7, 9, 11, 15);
+      carveLine(grid, 11, 3, 7, 9);
+      carveLine(grid, 7, 9, 3, 15);
+      break;
+    case 48:
+      // Unique maze pattern 48
+      carveLine(grid, 5, 7, 9, 7);
+      carveLine(grid, 5, 11, 9, 11);
+      carveLine(grid, 5, 7, 5, 11);
+      carveLine(grid, 9, 7, 9, 11);
+      carveLine(grid, 2, 5, 5, 5);
+      carveLine(grid, 9, 12, 12, 12);
+      break;
+    case 49:
+      // Unique maze pattern 49
+      carveLine(grid, 4, 5, 6, 5);
+      carveLine(grid, 5, 4, 5, 6);
+      carveLine(grid, 8, 9, 10, 9);
+      carveLine(grid, 9, 8, 9, 10);
+      carveLine(grid, 4, 13, 6, 13);
+      carveLine(grid, 5, 12, 5, 14);
+      break;
+    case 50:
+      // Unique maze pattern 50
+      carveLine(grid, 2, 3, 8, 3);
+      carveLine(grid, 8, 3, 8, 6);
+      carveLine(grid, 8, 6, 6, 6);
+      carveLine(grid, 6, 6, 6, 9);
+      carveLine(grid, 6, 9, 10, 9);
+      carveLine(grid, 10, 9, 10, 12);
+      carveLine(grid, 10, 12, 4, 12);
+      carveLine(grid, 4, 12, 4, 15);
+      break;
+    case 51:
+      // Unique maze pattern 51
+      carveLine(grid, 2, 4, 5, 4);
+      carveLine(grid, 5, 4, 5, 7);
+      carveLine(grid, 5, 7, 8, 7);
+      carveLine(grid, 8, 7, 8, 10);
+      carveLine(grid, 8, 10, 11, 10);
+      carveLine(grid, 11, 10, 11, 13);
+      break;
+    case 52:
+      // Unique maze pattern 52
+      carveLine(grid, 3, 3, 6, 3);
+      carveLine(grid, 3, 7, 6, 7);
+      carveLine(grid, 8, 11, 11, 11);
+      carveLine(grid, 8, 15, 11, 15);
+      carveLine(grid, 3, 3, 3, 7);
+      carveLine(grid, 8, 11, 8, 15);
+      carveLine(grid, 6, 5, 8, 13);
+      break;
+    case 53:
+      // Unique maze pattern 53
+      carveLine(grid, 7, 5, 7, 13);
+      carveLine(grid, 4, 9, 10, 9);
+      carveLine(grid, 5, 6, 9, 12);
+      carveLine(grid, 9, 6, 5, 12);
+      break;
+    case 54:
+      // Unique maze pattern 54
+      carveLine(grid, 2, 2, 5, 2);
+      carveLine(grid, 2, 2, 2, 5);
+      carveLine(grid, 9, 2, 12, 2);
+      carveLine(grid, 12, 2, 12, 5);
+      carveLine(grid, 2, 13, 5, 13);
+      carveLine(grid, 2, 13, 2, 16);
+      carveLine(grid, 9, 13, 12, 13);
+      carveLine(grid, 12, 13, 12, 16);
+      break;
+    case 55:
+      // Unique maze pattern 55
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 6, 4, 12);
+      carveLine(grid, 10, 6, 10, 12);
+      break;
+    case 56:
+      // Unique maze pattern 56
+      carveLine(grid, 2, 3, 6, 3);
+      carveLine(grid, 6, 3, 6, 6);
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 10, 6, 10, 12);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 12, 4, 15);
+      carveLine(grid, 4, 15, 12, 15);
+      break;
+    case 57:
+      // Unique maze pattern 57
+      carveLine(grid, 7, 2, 7, 9);
+      carveLine(grid, 3, 5, 11, 5);
+      carveLine(grid, 7, 9, 7, 16);
+      carveLine(grid, 3, 13, 11, 13);
+      break;
+    case 58:
+      // Unique maze pattern 58
+      carveLine(grid, 7, 9, 3, 5);
+      carveLine(grid, 7, 9, 11, 5);
+      carveLine(grid, 7, 9, 3, 13);
+      carveLine(grid, 7, 9, 11, 13);
+      carveLine(grid, 7, 9, 7, 3);
+      break;
+    case 59:
+      // Unique maze pattern 59
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 6, 4, 12);
+      carveLine(grid, 10, 6, 10, 12);
+      carveLine(grid, 2, 5, 4, 5);
+      carveLine(grid, 10, 15, 12, 15);
+      break;
+    case 60:
+      // Unique maze pattern 60
+      carveLine(grid, 2, 4, 12, 4);
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 2, 14, 12, 14);
+      carveLine(grid, 5, 4, 5, 14);
+      break;
+    case 61:
+      // Unique maze pattern 61
+      carveLine(grid, 2, 3, 8, 3);
+      carveLine(grid, 8, 3, 8, 10);
+      carveLine(grid, 5, 7, 11, 7);
+      carveLine(grid, 11, 7, 11, 15);
+      carveLine(grid, 3, 12, 8, 12);
+      break;
+    case 62:
+      // Unique maze pattern 62
+      carveLine(grid, 3, 2, 3, 9);
+      carveLine(grid, 3, 9, 9, 9);
+      carveLine(grid, 9, 5, 9, 16);
+      carveLine(grid, 6, 12, 12, 12);
+      break;
+    case 63:
+      // Unique maze pattern 63
+      carveLine(grid, 2, 3, 5, 3);
+      carveLine(grid, 7, 3, 10, 3);
+      carveLine(grid, 3, 6, 6, 6);
+      carveLine(grid, 8, 6, 11, 6);
+      carveLine(grid, 4, 9, 7, 9);
+      carveLine(grid, 9, 9, 12, 9);
+      carveLine(grid, 2, 12, 5, 12);
+      carveLine(grid, 7, 12, 10, 12);
+      carveLine(grid, 5, 3, 5, 12);
+      carveLine(grid, 9, 3, 9, 12);
+      break;
+    case 64:
+      // Unique maze pattern 64
+      carveLine(grid, 2, 5, 12, 5);
+      carveLine(grid, 2, 13, 12, 13);
+      carveLine(grid, 7, 2, 7, 16);
+      break;
+    case 65:
+      // Unique maze pattern 65
+      carveLine(grid, 3, 4, 11, 4);
+      carveLine(grid, 3, 14, 11, 14);
+      carveLine(grid, 3, 4, 3, 14);
+      carveLine(grid, 11, 4, 11, 14);
+      carveLine(grid, 7, 4, 7, 9);
+      break;
+    case 66:
+      // Unique maze pattern 66
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 12, 15, 2, 15);
+      carveLine(grid, 2, 15, 2, 6);
+      carveLine(grid, 2, 6, 10, 6);
+      carveLine(grid, 10, 6, 10, 13);
+      break;
+    case 67:
+      // Unique maze pattern 67
+      carveLine(grid, 3, 2, 3, 16);
+      carveLine(grid, 7, 2, 7, 16);
+      carveLine(grid, 11, 2, 11, 16);
+      carveLine(grid, 2, 9, 12, 9);
+      break;
+    case 68:
+      // Unique maze pattern 68
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 2, 11, 12, 11);
+      carveLine(grid, 2, 14, 12, 14);
+      carveLine(grid, 7, 2, 7, 16);
+      break;
+    case 69:
+      // Unique maze pattern 69
+      carveLine(grid, 7, 2, 7, 16);
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 4, 5, 10, 5);
+      carveLine(grid, 4, 13, 10, 13);
+      break;
+    case 70:
+      // Unique maze pattern 70
+      carveLine(grid, 2, 3, 10, 3);
+      carveLine(grid, 10, 3, 10, 7);
+      carveLine(grid, 10, 7, 4, 7);
+      carveLine(grid, 4, 7, 4, 11);
+      carveLine(grid, 4, 11, 12, 11);
+      carveLine(grid, 12, 11, 12, 15);
+      break;
+    case 71:
+      // Unique maze pattern 71
+      carveLine(grid, 7, 3, 3, 9);
+      carveLine(grid, 7, 3, 11, 9);
+      carveLine(grid, 3, 9, 7, 15);
+      carveLine(grid, 11, 9, 7, 15);
+      break;
+    case 72:
+      // Unique maze pattern 72
+      carveLine(grid, 3, 3, 6, 3);
+      carveLine(grid, 3, 3, 3, 7);
+      carveLine(grid, 6, 3, 6, 7);
+      carveLine(grid, 8, 11, 11, 11);
+      carveLine(grid, 8, 11, 8, 15);
+      carveLine(grid, 11, 11, 11, 15);
+      carveLine(grid, 6, 7, 8, 11);
+      break;
+    case 73:
+      // Unique maze pattern 73
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 6, 5, 6, 13);
+      carveLine(grid, 8, 5, 8, 13);
+      break;
+    case 74:
+      // Unique maze pattern 74
+      carveLine(grid, 3, 2, 3, 16);
+      carveLine(grid, 11, 2, 11, 16);
+      carveLine(grid, 3, 9, 11, 9);
+      break;
+    case 75:
+      // Unique maze pattern 75
+      carveLine(grid, 2, 5, 12, 5);
+      carveLine(grid, 2, 10, 12, 10);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 5, 2, 5, 16);
+      carveLine(grid, 9, 2, 9, 16);
+      break;
+    case 76:
+      // Unique maze pattern 76
+      carveLine(grid, 7, 7, 7, 11);
+      carveLine(grid, 7, 11, 10, 11);
+      carveLine(grid, 10, 11, 10, 6);
+      carveLine(grid, 10, 6, 4, 6);
+      carveLine(grid, 4, 6, 4, 13);
+      carveLine(grid, 4, 13, 12, 13);
+      break;
+    case 77:
+      // Unique maze pattern 77
+      carveLine(grid, 3, 3, 3, 8);
+      carveLine(grid, 3, 8, 6, 8);
+      carveLine(grid, 6, 8, 6, 3);
+      carveLine(grid, 8, 10, 8, 15);
+      carveLine(grid, 8, 15, 11, 15);
+      carveLine(grid, 11, 15, 11, 10);
+      break;
+    case 78:
+      // Unique maze pattern 78
+      carveLine(grid, 3, 3, 7, 9);
+      carveLine(grid, 7, 9, 11, 15);
+      carveLine(grid, 11, 3, 7, 9);
+      carveLine(grid, 7, 9, 3, 15);
+      break;
+    case 79:
+      // Unique maze pattern 79
+      carveLine(grid, 5, 7, 9, 7);
+      carveLine(grid, 5, 11, 9, 11);
+      carveLine(grid, 5, 7, 5, 11);
+      carveLine(grid, 9, 7, 9, 11);
+      carveLine(grid, 2, 8, 5, 8);
+      carveLine(grid, 9, 13, 12, 13);
+      break;
+    case 80:
+      // Unique maze pattern 80
+      carveLine(grid, 4, 5, 6, 5);
+      carveLine(grid, 5, 4, 5, 6);
+      carveLine(grid, 8, 9, 10, 9);
+      carveLine(grid, 9, 8, 9, 10);
+      carveLine(grid, 4, 13, 6, 13);
+      carveLine(grid, 5, 12, 5, 14);
+      break;
+    case 81:
+      // Unique maze pattern 81
+      carveLine(grid, 2, 3, 8, 3);
+      carveLine(grid, 8, 3, 8, 6);
+      carveLine(grid, 8, 6, 6, 6);
+      carveLine(grid, 6, 6, 6, 9);
+      carveLine(grid, 6, 9, 10, 9);
+      carveLine(grid, 10, 9, 10, 12);
+      carveLine(grid, 10, 12, 4, 12);
+      carveLine(grid, 4, 12, 4, 15);
+      break;
+    case 82:
+      // Unique maze pattern 82
+      carveLine(grid, 2, 4, 5, 4);
+      carveLine(grid, 5, 4, 5, 7);
+      carveLine(grid, 5, 7, 8, 7);
+      carveLine(grid, 8, 7, 8, 10);
+      carveLine(grid, 8, 10, 11, 10);
+      carveLine(grid, 11, 10, 11, 13);
+      break;
+    case 83:
+      // Unique maze pattern 83
+      carveLine(grid, 3, 3, 6, 3);
+      carveLine(grid, 3, 7, 6, 7);
+      carveLine(grid, 8, 11, 11, 11);
+      carveLine(grid, 8, 15, 11, 15);
+      carveLine(grid, 3, 3, 3, 7);
+      carveLine(grid, 8, 11, 8, 15);
+      carveLine(grid, 6, 5, 8, 13);
+      break;
+    case 84:
+      // Unique maze pattern 84
+      carveLine(grid, 7, 5, 7, 13);
+      carveLine(grid, 4, 9, 10, 9);
+      carveLine(grid, 5, 6, 9, 12);
+      carveLine(grid, 9, 6, 5, 12);
+      break;
+    case 85:
+      // Unique maze pattern 85
+      carveLine(grid, 2, 2, 5, 2);
+      carveLine(grid, 2, 2, 2, 5);
+      carveLine(grid, 9, 2, 12, 2);
+      carveLine(grid, 12, 2, 12, 5);
+      carveLine(grid, 2, 13, 5, 13);
+      carveLine(grid, 2, 13, 2, 16);
+      carveLine(grid, 9, 13, 12, 13);
+      carveLine(grid, 12, 13, 12, 16);
+      break;
+    case 86:
+      // Unique maze pattern 86
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 2, 3, 2, 15);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 6, 4, 12);
+      carveLine(grid, 10, 6, 10, 12);
+      break;
+    case 87:
+      // Unique maze pattern 87
+      carveLine(grid, 2, 3, 6, 3);
+      carveLine(grid, 6, 3, 6, 6);
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 10, 6, 10, 12);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 12, 4, 15);
+      carveLine(grid, 4, 15, 12, 15);
+      break;
+    case 88:
+      // Unique maze pattern 88
+      carveLine(grid, 7, 2, 7, 9);
+      carveLine(grid, 3, 5, 11, 5);
+      carveLine(grid, 7, 9, 7, 16);
+      carveLine(grid, 3, 13, 11, 13);
+      break;
+    case 89:
+      // Unique maze pattern 89
+      carveLine(grid, 7, 9, 3, 5);
+      carveLine(grid, 7, 9, 11, 5);
+      carveLine(grid, 7, 9, 3, 13);
+      carveLine(grid, 7, 9, 11, 13);
+      carveLine(grid, 7, 9, 7, 3);
+      break;
+    case 90:
+      // Unique maze pattern 90
+      carveLine(grid, 4, 6, 10, 6);
+      carveLine(grid, 4, 12, 10, 12);
+      carveLine(grid, 4, 6, 4, 12);
+      carveLine(grid, 10, 6, 10, 12);
+      carveLine(grid, 2, 3, 4, 3);
+      carveLine(grid, 10, 13, 12, 13);
+      break;
+    case 91:
+      // Unique maze pattern 91
+      carveLine(grid, 2, 4, 12, 4);
+      carveLine(grid, 2, 9, 12, 9);
+      carveLine(grid, 2, 14, 12, 14);
+      carveLine(grid, 6, 4, 6, 14);
+      break;
+    case 92:
+      // Unique maze pattern 92
+      carveLine(grid, 2, 3, 8, 3);
+      carveLine(grid, 8, 3, 8, 10);
+      carveLine(grid, 5, 7, 11, 7);
+      carveLine(grid, 11, 7, 11, 15);
+      carveLine(grid, 3, 12, 8, 12);
+      break;
+    case 93:
+      // Unique maze pattern 93
+      carveLine(grid, 3, 2, 3, 9);
+      carveLine(grid, 3, 9, 9, 9);
+      carveLine(grid, 9, 5, 9, 16);
+      carveLine(grid, 6, 12, 12, 12);
+      break;
+    case 94:
+      // Unique maze pattern 94
+      carveLine(grid, 2, 3, 5, 3);
+      carveLine(grid, 7, 3, 10, 3);
+      carveLine(grid, 3, 6, 6, 6);
+      carveLine(grid, 8, 6, 11, 6);
+      carveLine(grid, 4, 9, 7, 9);
+      carveLine(grid, 9, 9, 12, 9);
+      carveLine(grid, 2, 12, 5, 12);
+      carveLine(grid, 7, 12, 10, 12);
+      carveLine(grid, 5, 3, 5, 12);
+      carveLine(grid, 9, 3, 9, 12);
+      break;
+    case 95:
+      // Unique maze pattern 95
+      carveLine(grid, 2, 5, 12, 5);
+      carveLine(grid, 2, 13, 12, 13);
+      carveLine(grid, 7, 2, 7, 16);
+      break;
+    case 96:
+      // Unique maze pattern 96
+      carveLine(grid, 3, 4, 11, 4);
+      carveLine(grid, 3, 14, 11, 14);
+      carveLine(grid, 3, 4, 3, 14);
+      carveLine(grid, 11, 4, 11, 14);
+      carveLine(grid, 7, 4, 7, 8);
+      break;
+    case 97:
+      // Unique maze pattern 97
+      carveLine(grid, 2, 3, 12, 3);
+      carveLine(grid, 12, 3, 12, 15);
+      carveLine(grid, 12, 15, 2, 15);
+      carveLine(grid, 2, 15, 2, 6);
+      carveLine(grid, 2, 6, 10, 6);
+      carveLine(grid, 10, 6, 10, 13);
+      break;
+    case 98:
+      // Unique maze pattern 98
+      carveLine(grid, 4, 2, 4, 16);
+      carveLine(grid, 6, 2, 6, 16);
+      carveLine(grid, 12, 2, 12, 16);
+      carveLine(grid, 2, 9, 12, 9);
+      break;
+    case 99:
+      // Unique maze pattern 99
+      carveLine(grid, 2, 4, 12, 4);
+      carveLine(grid, 2, 7, 12, 7);
+      carveLine(grid, 2, 12, 12, 12);
+      carveLine(grid, 2, 15, 12, 15);
+      carveLine(grid, 7, 2, 7, 16);
+      break;
+
     default:
       carveLine(grid, 2, 3, 12, 3);
       carveLine(grid, 2, 15, 12, 15);
