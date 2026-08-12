@@ -55,6 +55,7 @@ interface PlayGamesModuleShape {
   signIn?: () => Promise<boolean>;
   unlockAchievement?: (achievementId: string) => Promise<boolean>;
   submitLeaderboardScore?: (leaderboardId: string, score: number) => Promise<boolean>;
+  showAchievements?: () => Promise<boolean>;
 }
 
 interface PlayGamesData {
@@ -351,3 +352,16 @@ export async function syncProgressAchievements(progress: ProgressData): Promise<
   if (progress.totalCatches >= 50) await queueAchievementUnlock("freeHugs");
   if (progress.totalCatches >= 100) await queueAchievementUnlock("rememberMeForCenturies");
 }
+
+export async function showPlayGamesAchievements(): Promise<boolean> {
+  const native = getNativeModule();
+  if (!native?.showAchievements) return false;
+  if (!(await isConfigured())) return false;
+  if (!(await ensureSignedIn())) return false;
+  try {
+    return !!(await native.showAchievements());
+  } catch {
+    return false;
+  }
+}
+

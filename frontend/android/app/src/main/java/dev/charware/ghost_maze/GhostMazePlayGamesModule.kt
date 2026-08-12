@@ -105,6 +105,36 @@ class GhostMazePlayGamesModule(
       .addOnFailureListener { promise.resolve(false) }
   }
 
+  @ReactMethod
+  fun showAchievements(promise: Promise) {
+    val activity = getActivityOrNull()
+    if (activity == null || !hasProjectId()) {
+      promise.resolve(false)
+      return
+    }
+
+    PlayGames.getGamesSignInClient(activity)
+      .isAuthenticated()
+      .addOnSuccessListener { auth ->
+        if (!auth.isAuthenticated) {
+          promise.resolve(false)
+          return@addOnSuccessListener
+        }
+        PlayGames.getAchievementsClient(activity)
+          .achievementsIntent
+          .addOnSuccessListener { intent ->
+            try {
+              activity.startActivityForResult(intent, 9001)
+              promise.resolve(true)
+            } catch (e: Exception) {
+              promise.resolve(false)
+            }
+          }
+          .addOnFailureListener { promise.resolve(false) }
+      }
+      .addOnFailureListener { promise.resolve(false) }
+  }
+
   private fun hasProjectId(): Boolean {
     val id = reactApplicationContext.getString(R.string.game_services_project_id).trim()
     return id.isNotEmpty() && id != "0"
