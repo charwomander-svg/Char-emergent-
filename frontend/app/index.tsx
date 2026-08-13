@@ -245,8 +245,11 @@ export default function MainMenu() {
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/news")} testID="news-btn"><Text style={styles.actionBtnText}>📰 NEWS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/achievements")} testID="achievements-btn"><Text style={styles.actionBtnText}>🏆 ACHIEVEMENTS</Text></TouchableOpacity>
-      </View>
+          <TouchableOpacity
+    onPress={() => GhostMazePlayGames.showAchievements()}
+>
+    <Text>Achievements</Text>
+</TouchableOpacity></View>
 
         <View style={styles.unlockCard} testID="next-unlock-card">
           <Text style={styles.unlockTitle}>NEXT UNLOCK</Text>
