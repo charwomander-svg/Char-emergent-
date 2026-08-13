@@ -249,9 +249,9 @@ export default function MainMenu() {
   style={styles.menuButton}
   onPress={() => GhostMazePlayGames.showAchievements()}
 >
-  <Text style={styles.menuButtonText}>Achievements</Text>
+  <Text style={styles.menuButtonText}>Achievements</Text></view>
 </TouchableOpacity>
-
+        </View>
         <View style={styles.unlockCard} testID="next-unlock-card">
           <Text style={styles.unlockTitle}>NEXT UNLOCK</Text>
           <Text style={styles.unlockText}>{nextUnlockText}</Text>
@@ -325,7 +325,7 @@ export default function MainMenu() {
           <View style={styles.releaseNotesCard} testID="release-notes-card">
             <Text style={styles.releaseNotesTitle}>WHAT&apos;S NEW</Text>
             <Text style={styles.releaseNotesText}>
-              • Interactive tutorial practice{"\n"}
+              • Interactive tutorial *coming soon* {"\n"}
               • Leaderboard submission states + retry guidance{"\n"}
               • Promo redemption confirmation and history{"\n"}
               • Stability fixes from QA round
@@ -336,7 +336,7 @@ export default function MainMenu() {
           </View>
         )}
 
-        <Text style={styles.footer}>v1.0 - HUDFD - SPRITEFIX2</Text>
+        <Text style={styles.footer}>Production 8/12</Text>
       </ScrollView>
     </SafeAreaView>
   );
