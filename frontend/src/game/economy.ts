@@ -85,7 +85,7 @@ export function consumeInventory(
 
 // Coin reward formulas used by the engine
 export const COIN_REWARD = {
-  levelClear: 20,
-  perPercentRemaining: 0.2, // 1 coin per 5% of pellets remaining
-  bonusGame: 35,
+  levelClear: 10,
+  perPercentRemaining: 0.1, // 1 coin per 10% of pellets remaining
+  bonusGame: 17,
 } as const;
