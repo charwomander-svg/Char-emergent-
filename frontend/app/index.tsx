@@ -6,7 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/src/game/constants";
 import { useDailyMissions } from "@/src/game/dailyMissions";
-import { syncPlayGames } from "@/src/game/playGames";
+import { showAchievements, syncPlayGames } from "@/src/game/playGames";
 import { getMusicTrackForLevel, getSoundEngine } from "@/src/game/sounds";
 import { useEconomy } from "@/src/game/useEconomy";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SettingsData } from "@/src/game/settings";
@@ -112,6 +112,7 @@ export default function MainMenu() {
     setShowReleaseNotes(false);
     void storage.setItem(RELEASE_NOTES_SEEN_KEY, RELEASE_NOTES_VERSION);
   };
+
   const redeemSecretCode = async () => {
     const cleaned = promoCode.trim();
     if (!cleaned || redeemingPromo) return;
@@ -245,13 +246,18 @@ export default function MainMenu() {
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/news")} testID="news-btn"><Text style={styles.actionBtnText}>📰 NEWS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/settings")} testID="settings-btn"><Text style={styles.actionBtnText}>⚙️ SETTINGS</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]} onPress={() => go("/credits")} testID="credits-btn"><Text style={styles.actionBtnText}>🎬 CREDITS</Text></TouchableOpacity>
-         <TouchableOpacity
-  style={styles.menuButton}
-  onPress={() => GhostMazePlayGames.showAchievements()}
->
-  <Text style={styles.menuButtonText}>Achievements</Text>
-</TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, isCompactMenu && styles.actionBtnCompact]}
+            onPress={() => {
+              getSoundEngine().uiClick();
+              void showAchievements();
+            }}
+            testID="achievements-btn"
+          >
+            <Text style={styles.actionBtnText}>🏆 ACHIEVEMENTS</Text>
+          </TouchableOpacity>
         </View>
+
         <View style={styles.unlockCard} testID="next-unlock-card">
           <Text style={styles.unlockTitle}>NEXT UNLOCK</Text>
           <Text style={styles.unlockText}>{nextUnlockText}</Text>
@@ -277,6 +283,7 @@ export default function MainMenu() {
           ))}
           <Text style={styles.dailyMissionFooter}>{completedCount}/3 complete</Text>
         </View>
+
         <View style={styles.promoCard} testID="promo-code-card">
           <Text style={styles.promoTitle}>PROMO / SECRET CODE</Text>
           <Text style={styles.promoSub}>Redeem rewards directly from the main menu.</Text>
