@@ -32,21 +32,6 @@ export const ACHIEVEMENT_IDS = {
   closeCall: "CgkI9JL9xpkeEAIQEg",
 } as const;
 
-// Current gameplay-to-achievement mapping:
-// - Flipping the script: first successful catch
-// - One and Done!: clear level 1
-// - BONUS!: fully clear a bonus stage before time expires
-// - Gotta Go Fast!: finish a speedrun run
-// - Top ten / We're halfway there: reach levels 10 / 25
-// - Friends!: arm all four ghosts at once
-// - Free hugs: reach 50 total catches
-// - 25 to Life / Remember me for centuries: reach 25 / 100 total catches
-// - Classic Concentration / The King of Speed: fill all 50 aggregate bests and submit
-// - Pellet, Schmelle: clear a level with very few pellets left
-// - Chardcore: view the credits
-// - Shhh. It's a secret: trigger the level-select cheat code
-// - Close Call: clear a level while on your last life
-
 type AchievementKey = keyof typeof ACHIEVEMENT_IDS;
 
 interface PlayGamesModuleShape {
@@ -55,6 +40,7 @@ interface PlayGamesModuleShape {
   signIn?: () => Promise<boolean>;
   unlockAchievement?: (achievementId: string) => Promise<boolean>;
   submitLeaderboardScore?: (leaderboardId: string, score: number) => Promise<boolean>;
+  showAchievements?: () => Promise<boolean>;
 }
 
 interface PlayGamesData {
@@ -262,6 +248,20 @@ export async function queueAchievementUnlock(key: AchievementKey): Promise<void>
 export async function syncPlayGames(): Promise<void> {
   const data = await loadPlayGamesData();
   await syncUnlockedAchievements(data, true);
+}
+
+export async function showAchievements(): Promise<boolean> {
+  const native = getNativeModule();
+  if (!native?.showAchievements) return false;
+
+  try {
+    if (!(await isConfigured())) return false;
+    if (!(await ensureSignedIn())) return false;
+
+    return !!(await native.showAchievements());
+  } catch {
+    return false;
+  }
 }
 
 export async function recordClassicLevelBest(level: number, score: number): Promise<void> {
