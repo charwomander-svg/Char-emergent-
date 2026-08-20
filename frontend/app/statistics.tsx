@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { COLORS } from "@/src/game/constants";
 import {
@@ -35,11 +36,17 @@ export default function StatisticsScreen() {
   const [stats, setStats] = useState<StatisticsData>(DEFAULT_STATISTICS);
   const [economy, setEconomy] = useState<EconomyData | null>(null);
 
-  useEffect(() => {
+  const refreshStatistics = useCallback(() => {
     loadProgress().then(setProgress);
     loadStatistics().then(setStats);
     loadEconomy().then(setEconomy);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshStatistics();
+    }, [refreshStatistics]),
+  );
 
   const unlockedTeams = progress ? computeUnlockedThemeIds(progress).length : 0;
   const totalStars = progress ? getTotalStars(progress) : 0;
