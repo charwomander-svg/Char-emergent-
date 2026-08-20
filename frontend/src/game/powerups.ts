@@ -6,12 +6,9 @@ export type PowerUpId =
   | "teleport"
   | "freeze"
   | "shield"
-  | "fastRespawn"
   | "pelletScatter"
   | "key"
   | "magnet"
-  | "reveal"
-  | "decoy"
   | "rewind"
   | "hardcoreRevive";
 
@@ -42,7 +39,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Speed",
     icon: "⚡",
     description: "All ghosts move 60% faster for 6 seconds.",
-    cost: 45,
+    cost: 60,
     durationMs: 6000,
     kind: "buff",
     color: "#FFD23F",
@@ -53,7 +50,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Tele",
     icon: "🌀",
     description: "Warp the selected ghost next to Pellet Guy.",
-    cost: 85,
+    cost: 150,
     kind: "targeted",
     color: "#A06DFF",
   },
@@ -63,7 +60,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Freeze",
     icon: "❄️",
     description: "Pellet Guy is frozen in place for 4 seconds.",
-    cost: 60,
+    cost: 200,
     durationMs: 4000,
     kind: "buff",
     color: "#5BC0EB",
@@ -74,19 +71,9 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Shield",
     icon: "🛡️",
     description: "Selected ghost absorbs the next spike trap.",
-    cost: 40,
+    cost: 10,
     kind: "targeted",
     color: "#9BC53D",
-  },
-  fastRespawn: {
-    id: "fastRespawn",
-    name: "Quick Revive",
-    short: "Revive",
-    icon: "⏱",
-    description: "Halve ghost respawn delays for this level.",
-    cost: 50,
-    kind: "passive",
-    color: "#FF9F1C",
   },
   pelletScatter: {
     id: "pelletScatter",
@@ -94,7 +81,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Scatter",
     icon: "✨",
     description: "Drop 8 fresh pellets across the maze to lure Pellet Guy.",
-    cost: 35,
+    cost: 25,
     kind: "instant",
     color: "#FFB897",
   },
@@ -104,7 +91,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Key",
     icon: "🗝️",
     description: "Instantly open one barricade.",
-    cost: 25,
+    cost: 10,
     kind: "instant",
     color: "#FFEA00",
   },
@@ -114,32 +101,10 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Magnet",
     icon: "🧲",
     description: "Pellet Guy is pulled toward the nearest ghost for 5s.",
-    cost: 70,
+    cost: 125,
     durationMs: 5000,
     kind: "buff",
     color: "#FF477E",
-  },
-  reveal: {
-    id: "reveal",
-    name: "Reveal",
-    short: "Reveal",
-    icon: "👁️",
-    description: "See Pellet Guy's intended path for 8 seconds.",
-    cost: 30,
-    durationMs: 8000,
-    kind: "buff",
-    color: "#00FFFF",
-  },
-  decoy: {
-    id: "decoy",
-    name: "Decoy",
-    short: "Decoy",
-    icon: "👻",
-    description: "Place a fake ghost. Pellet Guy avoids it for 6 seconds.",
-    cost: 40,
-    durationMs: 6000,
-    kind: "targeted",
-    color: "#C77DFF",
   },
   rewind: {
     id: "rewind",
@@ -147,7 +112,7 @@ export const POWER_UPS: Record<PowerUpId, PowerUpDef> = {
     short: "Rewind",
     icon: "⏪",
     description: "Reset Pellet Guy to spawn and clear all traps.",
-    cost: 100,
+    cost: 200,
     kind: "instant",
     color: "#FF6B6B",
   },
@@ -176,8 +141,4 @@ export const POWER_UP_ORDER: PowerUpId[] = [
   "rewind",
   "pelletScatter",
   "hardcoreRevive",
-  // Not sold in the store:
-  "fastRespawn",
-  "reveal",
-  "decoy",
 ];
