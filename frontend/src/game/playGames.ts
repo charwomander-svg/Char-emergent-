@@ -256,8 +256,6 @@ export async function showAchievements(): Promise<boolean> {
 
   try {
     if (!(await isConfigured())) return false;
-    if (!(await ensureSignedIn())) return false;
-
     return !!(await native.showAchievements());
   } catch {
     return false;
