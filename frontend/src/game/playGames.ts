@@ -109,8 +109,9 @@ async function ensureSignedIn(): Promise<boolean> {
   if (!native?.signIn) return false;
   const signIn = native.signIn;
   if (!(await isConfigured())) return false;
-  if (signInAttemptedThisSession) return false;
 
+  // Do not permanently suppress retries. If sign-in was dismissed or failed during
+  // startup, the Achievements button must be able to initiate it again.
   signInAttemptedThisSession = true;
   signInPromise = (async () => {
     try {
@@ -256,6 +257,14 @@ export async function showAchievements(): Promise<boolean> {
 
   try {
     if (!(await isConfigured())) return false;
+
+    // The previous implementation only opened the achievements UI when the user
+    // was already authenticated. That made the button appear completely dead when
+    // startup sign-in had not completed or had been dismissed.
+    if (!(await isSignedInSilently())) {
+      if (!(await ensureSignedIn())) return false;
+    }
+
     return !!(await native.showAchievements());
   } catch {
     return false;
